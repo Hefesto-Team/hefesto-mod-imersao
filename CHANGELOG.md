@@ -1,5 +1,18 @@
 # Mudanças
 
+## 0.3.0 (01/11/2026)
+
+- O motor lê o caminho do controle do jogo ao vivo (`motor/caminho.py`): por controle e por canal
+  (motor, háptica, gatilho e luz), o que o jogo escreveu nos últimos 3 s. No canal ocupado, a
+  receita só sai mais forte que o jogo; no livre, sai inteira. Vale de P1 a P4, no cabo e no rádio.
+- A luz do jogo, que não tem tópico, se aprende pela recusa `-32011` da porta (com `data.vence` em
+  `jogo`, ou sem `data`); a recusa que outra extensão vence não conta, e a escrita recusada não se
+  repete enquanto o mesmo valor continuar pedido.
+- A máscara Xbox ou Nintendo de `jogo.identidade` deixa a luz e o gatilho da receita inteiros
+  desde o começo; o tópico entra na assinatura quando a porta o entregar.
+- O rumble do jogo sem a batida de 250 ms por 600 ms vale zero, e o `jogo.fechou` solta tudo.
+- Sem `haptica.tocar` na porta, o padrão que cai no motor disputa com o motor do jogo.
+
 ## 0.2.0 (01/11/2026)
 
 - O universal vale em todo jogo (`receitas/universal.json`): sem receita, ou com ela recusada, é

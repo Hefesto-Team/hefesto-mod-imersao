@@ -7,7 +7,7 @@ a porta os tiver, pela háptica e pelo alto-falante. Licença GPL-3.0-or-later (
 > **Aviso.** Extensão independente: não é afiliada à Sony nem endossada por ela. Nada sai deste
 > computador: o manifesto declara `rede:nenhuma`.
 
-**Estado (0.2.0, 01/11/2026):** o formato da receita, o validador, o motor e o universal que vale
+**Estado (0.3.0, 01/11/2026):** o formato da receita, o validador, o motor e o universal que vale
 em todo jogo, com a porta de mentira das provas. A extensão ainda não toca o controle de verdade: o Hefesto de hoje recusa o campo
 `modos_de_aba` do manifesto, e o install espera o Hefesto que o conhece.
 
@@ -21,8 +21,9 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
 - O processo (`servidor.py`) roda com `python3 -I` e só a biblioteca padrão. Lê a receita em
   `$HEFESTO_MOD_DADOS/receita.json`; sem ela, ou com ela recusada, vale o **universal**
   (`receitas/universal.json`), e o diário diz a linha do erro.
-- Assina só os tópicos que a receita lê, mais `conexao`; o tópico que a porta ainda não entrega
-  vai ao diário, e o sentido dele fica parado.
+- Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
+  (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`) e a `conexao`; o tópico que a receita lê e a
+  porta ainda não entrega vai ao diário, e o sentido dele fica parado.
 - Os sentidos universais (`sentidos/`) leem a porta e o tempo e publicam no próprio tópico, que a
   receita lê como lê a porta: `sentido.som` (o estalo do jogo, com o lado), `sentido.rumble`
   (pulso, rajada e batimento; os níveis `tensao` e `dano_recente`), `sentido.microfone` (o
@@ -33,6 +34,11 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   mínimo. A regra dispara na subida da condição, com `espera_ms`, e o `senao` vale na descida.
 - Duas regras no mesmo canal do mesmo controle não somam: vence a mais forte, a `prioridade`
   desempata, e depois a mais recente.
+- O caminho do controle do jogo se mede ao vivo (`motor/caminho.py`): o canal em que o jogo
+  escreveu nos últimos 3 s está ocupado, e nele a receita só sai quando é mais forte que o jogo; no
+  canal livre, ela sai inteira. A luz do jogo se aprende pela recusa `-32011` da porta, e a máscara
+  Xbox ou Nintendo (`jogo.identidade`, quando a porta o entregar) deixa a luz e o gatilho livres.
+  A receita nunca declara o caminho.
 - A saída escreve só o que mudou, sob o teto do tato vivo (12 escritas por segundo por controle,
   40 no total); o zero que solta passa sempre.
 
