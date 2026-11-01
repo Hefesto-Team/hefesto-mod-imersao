@@ -37,7 +37,7 @@ gramática recusam, sempre com a linha.
 | campo | o que é |
 | --- | --- |
 | `formato`, `motor` | `1` e a faixa do motor (`">=1,<2"`); obrigatórios |
-| `jogo` | `chave`, `janela`, `builds{steam_buildid}`, `leitura_de_memoria` (`nao` ou `pede`) |
+| `jogo` | `chave`, `janela`, `builds{steam_buildid}`, `leitura_de_memoria` (`nao`, `nunca` ou `pede`) |
 | `permissoes` | o que a receita lê (`ler:<tópico>`); o sentido que lê sem declarar recusa |
 | `entradas` | deslizantes da pessoa (`$nome` nas expressões) |
 | `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo`, `igual`, `escala`, `limiar` |
