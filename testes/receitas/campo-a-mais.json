@@ -1,0 +1,9 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "permissoes": ["ler:jogo.vibracao"],
+  "sentidos": {
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte",
+               "taxa_hz": 20}
+  }
+}

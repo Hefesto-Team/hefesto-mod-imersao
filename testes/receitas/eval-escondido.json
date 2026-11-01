@@ -1,0 +1,12 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "permissoes": ["ler:jogo.vibracao"],
+  "sentidos": {
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte"}
+  },
+  "estados": {
+    "forte": {"quando": "rumble > 0.5"},
+    "escondido": {"quando": "eval(rumble) > 0"}
+  }
+}

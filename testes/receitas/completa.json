@@ -1,0 +1,61 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "jogo": {
+    "chave": "steam_app_1234567",
+    "janela": ["Jogo-Win64-Shipping.exe"],
+    "builds": {"steam_buildid": ["1000", "2000"]},
+    "leitura_de_memoria": "pede"
+  },
+  "permissoes": ["ler:jogo.vibracao", "ler:botoes", "ler:jogo.memoria", "ler:jogo.som"],
+  "entradas": {
+    "limite_vida": {"rotulo": "Vida baixa abaixo de", "tipo": "deslizante",
+                    "minimo": 0.1, "maximo": 0.6, "padrao": 0.3},
+    "com_luz": {"rotulo": "Luz no susto", "tipo": "ligado", "padrao": true}
+  },
+  "sentidos": {
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte", "escala": [0, 255]},
+    "golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte", "escala": [0, 255],
+              "limiar": 0.6},
+    "cruz": {"de": "botoes", "especie": "evento", "nome": "button.down", "campo": "botao",
+             "igual": "cross"},
+    "porta": {"de": "jogo.som", "especie": "evento", "nome": "estalo"},
+    "vida": {"de": "jogo.memoria", "especie": "nivel", "escala": [0, 100],
+             "leitura": {"tipo": "f32", "modulo": "Jogo-Win64-Shipping.exe",
+                         "base": "0x04A1C2D0", "saltos": ["0x30", "0x2A8"]}}
+  },
+  "derivados": {
+    "tensao": {"acumula": {"sobe_com": ["golpe", "porta"], "passo": 0.25, "meia_vida_ms": 4000}},
+    "perigo_total": {"expr": "max(tensao, 1 - vida)"}
+  },
+  "estados": {
+    "vida_baixa": {"quando": "vida < $limite_vida", "histerese": 0.05, "minimo_ms": 400},
+    "perigo": {"quando": "perigo_total > 0.7 e nao vida_baixa", "minimo_ms": 1500}
+  },
+  "efeitos": {
+    "coracao": {"canal": "haptica", "padrao": "coracao", "forca": 0.8,
+                "bpm": "mapeia(vida, 0, $limite_vida, 140, 70)", "lado": "ambos"},
+    "susto": {"canal": "haptica", "padrao": "susto", "forca": 1.0, "dura_ms": 300},
+    "tranco": {"canal": "motor", "forca": "golpe.forca", "lado": "esquerdo", "dura_ms": 200},
+    "arma": {"canal": "gatilho", "modo": "arma", "lado": "r2", "inicio": 2, "fim": 6, "forca": 7},
+    "freio": {"canal": "gatilho", "modo": "rampa", "lado": "l2", "inicio": 1, "fim": 8,
+              "forca_inicio": 2, "forca_fim": 8},
+    "zonas": {"canal": "gatilho", "modo": "vibracao_por_zona", "lado": "ambos", "frequencia": 30,
+              "amplitudes": [0, 0, 2, 4, 6, 8, 8, 6, 4, 2]},
+    "vermelho": {"canal": "luz", "cor": "#ff2000", "brilho": 0.9, "dura_ms": 900},
+    "volta": {"canal": "luz", "cor": "#20ff40", "brilho": 0.5, "dura_ms": 600},
+    "grito": {"canal": "som", "som": "susto", "volume": 0.7}
+  },
+  "regras": [
+    {"quando": "vida_baixa", "entao": "coracao", "senao": "volta", "prioridade": 2},
+    {"quando": "porta e $com_luz", "entao": ["susto", "vermelho"], "para": "todos",
+     "espera_ms": 1500},
+    {"quando": "golpe", "entao": "tranco", "para": "quem_levou", "espera_ms": 250},
+    {"quando": "perigo", "entao": ["arma", "freio"], "para": ["p1", "p2"]},
+    {"quando": "cruz e perigo", "entao": ["zonas", "grito"], "prioridade": 1}
+  ],
+  "confere": [
+    {"sentido": "vida", "faixa": [0, 1]},
+    {"sentido": "rumble", "concorda_com": "golpe", "tolerancia": 0.2}
+  ]
+}

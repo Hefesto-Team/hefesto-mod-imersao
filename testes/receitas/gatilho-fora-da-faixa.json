@@ -1,0 +1,14 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "efeitos": {
+    "arma_cedo": {"canal": "gatilho", "modo": "arma", "lado": "r2",
+                  "inicio": 1, "fim": 6, "forca": 7},
+    "arma_ao_contrario": {"canal": "gatilho", "modo": "arma", "lado": "r2",
+                          "inicio": 6, "fim": 4, "forca": 7},
+    "vibra_sem_frequencia": {"canal": "gatilho", "modo": "vibracao", "lado": "l2",
+                             "posicao": 3, "amplitude": 4, "frequencia": 0},
+    "resiste_sem_forca": {"canal": "gatilho", "modo": "resistencia", "lado": "l2",
+                          "posicao": 3, "forca": 0}
+  }
+}

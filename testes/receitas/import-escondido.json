@@ -1,0 +1,8 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "efeitos": {"tranco": {"canal": "motor", "forca": 0.5}},
+  "regras": [
+    {"quando": "__import__('os').system('true')", "entao": "tranco"}
+  ]
+}

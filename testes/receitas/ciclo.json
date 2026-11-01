@@ -1,0 +1,15 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "permissoes": ["ler:jogo.vibracao"],
+  "sentidos": {
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte"}
+  },
+  "derivados": {
+    "medo": {"expr": "rumble + calma"},
+    "calma": {"expr": "1 - susto"}
+  },
+  "estados": {
+    "susto": {"quando": "medo > 0.5"}
+  }
+}
