@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from apoio import RAIZ, RECEITAS, UM, PortaDeMentira, ate
+from apoio import RAIZ, RECEITAS, UM, PortaDeMentira, ate, vibracao_do_jogo
 
 import servidor
 
@@ -95,7 +95,7 @@ async def _rodar(pasta: Path, porta: PortaDeMentira, corpo: Any) -> int:
 
 _RECEITA = {
     "formato": 1, "motor": ">=1,<2", "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
-    "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte",
+    "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "pedido.1",
                            "escala": [0, 255], "limiar": 0.5}},
     "efeitos": {"tranco": {"canal": "motor", "forca": 1.0, "lado": "esquerdo", "dura_ms": 300}},
     "regras": [{"quando": "golpe", "entao": "tranco", "para": "quem_levou"}],
@@ -109,7 +109,7 @@ def test_o_processo_le_a_receita_assina_o_que_ela_usa_e_escreve_pela_porta(
 
     async def corpo(extensao: servidor.Extensao) -> None:
         assert not extensao.receita.universal
-        await porta.publicar("jogo.vibracao", "rumble", {"forte": 250, "fraco": 0}, UM)
+        await porta.publicar("jogo.vibracao", "jogo.vibracao", vibracao_do_jogo(UM, 250), UM)
         await ate(lambda: bool(porta.de("vibracao.set")))
         await ate(lambda: len(porta.de("vibracao.set")) >= 2)
 
@@ -140,6 +140,23 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
         assert "linha 7: sentidos.rumble.taxa_hz: campo desconhecido" in diario
     else:
         assert diario == ""
+
+
+def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diario(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str]) -> None:
+    porta = PortaDeMentira()
+    receita = {"formato": 1, "motor": ">=1,<2", "permissoes": ["ler:bateria", "ler:botoes"],  # (noqa-acento)
+               "sentidos": {"carga": {"de": "bateria", "especie": "nivel", "campo": "nivel"},
+                            "cruz": {"de": "botoes", "especie": "evento"}}}
+    _subir(pasta_curta, porta, monkeypatch, json.dumps(receita).encode())
+
+    async def corpo(extensao: servidor.Extensao) -> None:
+        assert not extensao.receita.universal
+
+    assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
+    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "botoes"]}]  # (noqa-acento)
+    assert "a porta não entrega bateria" in capsys.readouterr().err
 
 
 def test_sem_a_porta_no_ambiente_o_processo_recusa(monkeypatch: pytest.MonkeyPatch) -> None:

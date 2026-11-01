@@ -21,7 +21,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
 - O processo (`servidor.py`) roda com `python3 -I` e só a biblioteca padrão. Lê a receita em
   `$HEFESTO_MOD_DADOS/receita.json`; sem ela, ou com ela recusada, vale o **universal** (a receita
   vazia), e o diário diz a linha do erro.
-- Assina só os tópicos que a receita lê, mais `conexao`.
+- Assina só os tópicos que a receita lê, mais `conexao`; o tópico que a porta ainda não entrega
+  vai ao diário, e o sentido dele fica parado.
 - O laço roda a 60 Hz. Um estado sobe pela condição, desce com histerese e fica de pé um tempo
   mínimo. A regra dispara na subida da condição, com `espera_ms`, e o `senao` vale na descida.
 - Duas regras no mesmo canal do mesmo controle não somam: vence a mais forte, a `prioridade`
@@ -40,7 +41,7 @@ gramática recusam, sempre com a linha.
 | `jogo` | `chave`, `janela`, `builds{steam_buildid}`, `leitura_de_memoria` (`nao`, `nunca` ou `pede`) |
 | `permissoes` | o que a receita lê (`ler:<tópico>`); o sentido que lê sem declarar recusa |
 | `entradas` | deslizantes da pessoa (`$nome` nas expressões) |
-| `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo`, `igual`, `escala`, `limiar` |
+| `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar` |
 | `derivados` | uma expressão, ou um acumulador (`sobe_com`, `passo`, `meia_vida_ms`) |
 | `estados` | `quando`, `histerese`, `minimo_ms` |
 | `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`), `som` |
@@ -49,11 +50,12 @@ gramática recusam, sempre com a linha.
 
 As expressões têm números, nomes, `$entrada`, `+ - * /`, comparações, `e`, `ou`, `nao` e as
 funções `min`, `max`, `abs`, `limita` e `mapeia`. Não há `eval`: a gramática é fechada, com teto de
-512 caracteres e 64 nós, e dependência circular recusa com o caminho do ciclo.
+512 caracteres, 64 nós e 32 níveis um dentro do outro, e dependência circular recusa com o caminho
+do ciclo.
 
 O gatilho fala os sete modos de um jogo de PS5, nas faixas que o console aceita (a arma começa de 2
-a 7 e termina de 3 a 8, a força vai de 1 a 8, a frequência de 1 a 255; `desliga` é o modo sem
-força). O coração, o susto e o estalo são padrões PCM a 48 kHz (`motor/efeitos.py`); sem a háptica
+a 7 e termina de 3 a 8, a força vai de 1 a 8, a frequência de 1 a 255; a frequência 0 desliga, e
+o gatilho sem força é o modo `desliga`). O coração, o susto e o estalo são padrões PCM a 48 kHz (`motor/efeitos.py`); sem a háptica
 na porta, o envelope do padrão sai pelo motor.
 
 Exemplos em `testes/receitas/`.

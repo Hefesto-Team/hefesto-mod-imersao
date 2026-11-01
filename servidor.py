@@ -130,6 +130,11 @@ def topicos_da_receita(receita: Receita) -> list[str]:
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
+def topicos_fora_da_porta(receita: Receita) -> list[str]:
+    """Os tópicos que a receita lê e que a porta de hoje não entrega: esses sentidos ficam parados."""  # (noqa-acento)
+    return sorted({s["de"] for s in receita.secao("sentidos").values()} - set(TOPICOS_DA_PORTA))
+
+
 class Extensao:
     """A porta, o motor da receita e a saída, juntos."""
 
@@ -173,6 +178,8 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     porta = await Porta.abrir(caminho)
     await porta.pedir("mod.ola", {"ficha": ficha})
     extensao = Extensao(porta, carregar_a_receita(dados))
+    if fora := topicos_fora_da_porta(extensao.receita):
+        diario(f"a porta não entrega {', '.join(fora)}: os sentidos desses tópicos ficam parados")
     await porta.pedir("eventos.assinar", {"topicos": topicos_da_receita(extensao.receita)})
     with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
         await extensao.atualizar_os_controles()
