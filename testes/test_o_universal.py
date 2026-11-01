@@ -202,6 +202,30 @@ def test_o_controle_largado_na_mesa_com_silencio_nao_liga_o_coracao() -> None:
     assert coracoes["na_mao"] and not coracoes["na_mesa"]
 
 
+def test_o_microfone_mudo_nao_e_silencio() -> None:
+    coracoes = {}
+    for mudo in (True, False):
+        linha = [(t, microfone(UM, 0.0, mudo)) for t in range(0, 40_000, 500)]
+        motor, porta = _universal(), EscritasDeMentira(com_haptica=True)
+        _correr(motor, porta, 40_000, linha + na_mao(UM, 40_000))
+        coracoes[mudo] = [t for t, p in porta.de("haptica.tocar") if p["forca"] > 0]  # (noqa-acento)
+    assert coracoes[False] and not coracoes[True]
+
+
+def tela(dano: float, t_s: float) -> Evento:
+    return ("jogo.tela", "jogo.tela", None, {"t": t_s, "dano": dano, "flash": 0.0, "escuro": 0.0,
+                                             "tremor": 0.0, "saturacao": 0.5})
+
+
+def test_o_dano_na_tela_pinta_de_vermelho_todos_os_controles_e_o_fraco_nao() -> None:
+    motor, porta = _universal(QUATRO_CONTROLES), EscritasDeMentira()
+    _correr(motor, porta, 3000, [(500, tela(0.3, 0.5)), (1000, tela(0.8, 1.0)),
+                                 (1100, tela(0.9, 1.1)), (2000, tela(0.1, 2.0))])
+    vermelhos = [(round(t), p["uniq"]) for t, p in porta.de("luz.set") if p["rgb"] == [255, 0, 0]]
+    assert {u for _, u in vermelhos} == {UM, DOIS, TRES, QUATRO}
+    assert {t for t, _ in vermelhos} == {1000}
+
+
 def test_a_rajada_de_rumble_pinta_de_vermelho_so_o_controle_que_levou_de_p1_a_p4() -> None:
     motor, porta = _universal(QUATRO_CONTROLES), EscritasDeMentira()
     linha = [(t, rumble(TRES, 230)) for t in (1000, 1100, 1200, 1300, 1400)]
