@@ -278,6 +278,7 @@ def test_a_haptica_do_jogo_mais_forte_cala_o_coracao_e_a_mais_fraca_deixa_ele_na
     assert not resultados["forte"]
     assert resultados["fraca"] and {p["lado"] for p in resultados["fraca"]} == {
         "esquerdo", "direito"}
+    assert all(0.35 <= p["forca"] <= 0.8 for p in resultados["fraca"])  # (noqa-acento)
 
 
 def test_o_impacto_do_golpe_so_troca_o_gatilho_quando_passa_do_gatilho_do_jogo() -> None:
@@ -330,7 +331,16 @@ def test_o_coracao_que_a_extensao_toca_nao_cega_o_giro_entre_os_golpes(com_hapti
     else:
         coracao = [t for t, p in porta.de("vibracao.set") if p["forte"] or p["fraco"]]
     assert coracao and coracao[0] < 4000
-    assert coracao[-1] < 16_000
+    assert coracao[-1] < 13_000
+
+
+def test_o_padrao_que_a_extensao_toca_so_conta_como_vibrando_nos_golpes_dele() -> None:
+    linha = [(t, rumble(UM, v)) for b in (1000, 1800, 2600, 3400) for t, v in ((b, 120), (b + 80, 0))]
+    motor = _universal()
+    _correr(motor, EscritasDeMentira(com_haptica=True), 4000, linha)
+    assert any(p.canal == "haptica" and p.forca > 0 for p in motor.vencedores.values())  # (noqa-acento)
+    instantes = {motor.vibrando(t) for t in range(4000, 6000, 10)}
+    assert instantes == {frozenset(), frozenset({UM})}
 
 
 def test_o_susto_toca_o_recorte_do_proprio_jogo_pelo_t_do_estalo_e_cala_sem_o_som() -> None:
