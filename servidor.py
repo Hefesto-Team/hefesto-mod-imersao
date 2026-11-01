@@ -2,8 +2,9 @@
 
 Fala com o Hefesto pela porta das modificações (``mod.ola``, ``controles.lista``,
 ``eventos.assinar`` e as escritas da :class:`~motor.saida.Saida`). A receita de quem joga mora em
-``$HEFESTO_MOD_DADOS/receita.json``; sem ela, ou com ela recusada, vale o universal, e a recusa
-vai ao diário com a linha de cada erro. Nada aqui fala com a rede.
+``$HEFESTO_MOD_DADOS/receita.json``; sem ela, ou com ela recusada, vale o universal
+(``receitas/universal.json``), e a recusa vai ao diário com a linha de cada erro. Nada aqui fala
+com a rede.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import os
 import signal
 import sys
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +23,14 @@ AQUI = Path(__file__).resolve().parent
 if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
+import sentidos as universais  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
 from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia  # noqa: E402
 
 ARQUIVO_DA_RECEITA = "receita.json"
+ARQUIVO_DO_UNIVERSAL = AQUI / "receitas" / "universal.json"
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento",
@@ -108,31 +112,45 @@ class Porta:
         self._escritor.close()
 
 
+def carregar_o_universal(arquivo: Path = ARQUIVO_DO_UNIVERSAL) -> Receita:
+    """A receita que vale em todo jogo; sem ela legível, a vazia, e o diário diz por quê."""
+    try:
+        return replace(ler_receita(arquivo.read_bytes()), universal=True)
+    except (OSError, ReceitaRecusada) as exc:
+        diario(f"o universal {arquivo} não se leu; nada toca:\n{exc}")
+        return receita_vazia()
+
+
 def carregar_a_receita(dados: Path | None) -> Receita:
     """A receita de quem joga, ou o universal quando ela falta ou é recusada."""
     if dados is None:
-        return receita_vazia()
+        return carregar_o_universal()
     arquivo = dados / ARQUIVO_DA_RECEITA
     try:
         bruto = arquivo.read_bytes()
     except OSError:
-        return receita_vazia()
+        return carregar_o_universal()
     try:
         return ler_receita(bruto)
     except ReceitaRecusada as exc:
         diario(f"a receita {arquivo} foi recusada; vale o universal:\n{exc}")
-        return receita_vazia()
+        return carregar_o_universal()
+
+
+def _lidos(receita: Receita) -> set[str]:
+    return universais.origens(s["de"] for s in receita.secao("sentidos").values())
 
 
 def topicos_da_receita(receita: Receita) -> list[str]:
-    """Os tópicos que a receita lê e que a porta de hoje entrega, e sempre a ``conexao``."""  # (noqa-acento)
-    pedidos = {s["de"] for s in receita.secao("sentidos").values()} | {"conexao"}  # (noqa-acento)
+    """Os tópicos da porta que a receita lê (o sentido universal pelas origens dele) e que a
+    porta de hoje entrega, e sempre a ``conexao``."""  # (noqa-acento)
+    pedidos = _lidos(receita) | {"conexao"}  # (noqa-acento)
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
 def topicos_fora_da_porta(receita: Receita) -> list[str]:
     """Os tópicos que a receita lê e que a porta de hoje não entrega: esses sentidos ficam parados."""  # (noqa-acento)
-    return sorted({s["de"] for s in receita.secao("sentidos").values()} - set(TOPICOS_DA_PORTA))
+    return sorted(_lidos(receita) - set(TOPICOS_DA_PORTA))
 
 
 class Extensao:

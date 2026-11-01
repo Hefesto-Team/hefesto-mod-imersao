@@ -1,0 +1,77 @@
+{
+  "formato": 1,
+  "motor": ">=1,<2",
+  "permissoes": [
+    "ler:jogo.som",
+    "ler:jogo.vibracao",
+    "ler:jogo.haptica",
+    "ler:microfone.nivel",
+    "ler:jogo.tela",
+    "ler:botoes",
+    "ler:entradas",
+    "ler:movimento"
+  ],
+  "entradas": {
+    "lado_na_luz": {"rotulo": "Lado na luz", "tipo": "ligado", "padrao": false}
+  },
+  "sentidos": {
+    "estalo_forte": {"de": "sentido.som", "especie": "evento", "nome": "estalo_forte"},
+    "estalo_esquerdo": {"de": "sentido.som", "especie": "evento", "nome": "estalo_forte",
+                        "campo": "lado", "igual": "esquerdo"},
+    "estalo_direito": {"de": "sentido.som", "especie": "evento", "nome": "estalo_forte",
+                       "campo": "lado", "igual": "direito"},
+    "batimento": {"de": "sentido.rumble", "especie": "nivel", "nome": "nivel", "campo": "tensao"},
+    "dano_do_rumble": {"de": "sentido.rumble", "especie": "nivel", "nome": "nivel",
+                       "campo": "dano_recente"},
+    "rajada": {"de": "sentido.rumble", "especie": "evento", "nome": "rajada"},
+    "silencio": {"de": "sentido.microfone", "especie": "nivel", "nome": "nivel",
+                 "campo": "silencio"},
+    "sobressalto": {"de": "sentido.microfone", "especie": "nivel", "nome": "nivel",
+                    "campo": "sobressalto"},
+    "quieto": {"de": "sentido.quietude", "especie": "nivel", "nome": "nivel", "campo": "quieto"},
+    "dano_da_tela": {"de": "sentido.tela", "especie": "nivel", "nome": "nivel",
+                     "campo": "dano_recente"},
+    "dano_visto": {"de": "sentido.tela", "especie": "evento", "nome": "dano"},
+    "golpe_no_r2": {"de": "sentido.golpe", "especie": "evento", "nome": "dado",
+                    "campo": "gatilho", "igual": "r2"},
+    "golpe_no_l2": {"de": "sentido.golpe", "especie": "evento", "nome": "dado",
+                    "campo": "gatilho", "igual": "l2"}
+  },
+  "derivados": {
+    "tensao": {"expr": "limita(max(batimento, dano_do_rumble * 0.5, dano_da_tela * 0.5) + (silencio + quieto) * 0.3 - sobressalto * 0.6, 0, 1)"}
+  },
+  "estados": {
+    "tenso": {"quando": "tensao > 0.35", "histerese": 0.1, "minimo_ms": 2000}
+  },
+  "efeitos": {
+    "coracao": {"canal": "haptica", "padrao": "coracao", "lado": "ambos",
+                "forca": "mapeia(tensao, 0.35, 1, 0.35, 0.8)",
+                "bpm": "mapeia(tensao, 0, 1, 60, 140)"},
+    "alivio": {"canal": "haptica", "padrao": "coracao", "lado": "ambos", "forca": 0.25,
+               "bpm": 60, "dura_ms": 3000},
+    "motor_esquerdo": {"canal": "motor", "lado": "esquerdo", "forca": 0.7, "dura_ms": 180},
+    "motor_direito": {"canal": "motor", "lado": "direito", "forca": 0.7, "dura_ms": 180},
+    "luzes_da_esquerda": {"canal": "leds", "lado": "esquerdo", "dura_ms": 600},
+    "luzes_da_direita": {"canal": "leds", "lado": "direito", "dura_ms": 600},
+    "vermelho": {"canal": "luz", "cor": "#ff0000", "brilho": 1.0, "dura_ms": 400},
+    "susto_no_alto_falante": {"canal": "som", "som": "recorte", "volume": 1.0},
+    "susto_no_tato": {"canal": "haptica", "padrao": "susto", "lado": "ambos", "forca": 1.0},
+    "impacto_no_r2": {"canal": "gatilho", "modo": "vibracao", "lado": "r2", "posicao": 2,
+                      "amplitude": 8, "frequencia": 40, "dura_ms": 150},
+    "impacto_no_l2": {"canal": "gatilho", "modo": "vibracao", "lado": "l2", "posicao": 2,
+                      "amplitude": 8, "frequencia": 40, "dura_ms": 150}
+  },
+  "regras": [
+    {"quando": "tenso", "entao": "coracao", "senao": "alivio", "para": "todos"},
+    {"quando": "estalo_esquerdo", "entao": "motor_esquerdo", "para": "todos"},
+    {"quando": "estalo_direito", "entao": "motor_direito", "para": "todos"},
+    {"quando": "estalo_esquerdo e $lado_na_luz", "entao": "luzes_da_esquerda", "para": "todos"},
+    {"quando": "estalo_direito e $lado_na_luz", "entao": "luzes_da_direita", "para": "todos"},
+    {"quando": "rajada", "entao": "vermelho", "para": "quem_levou"},
+    {"quando": "dano_visto", "entao": "vermelho", "para": "todos"},
+    {"quando": "estalo_forte e tenso", "entao": ["susto_no_alto_falante", "susto_no_tato"],
+     "prioridade": 10, "espera_ms": 5000, "para": "todos"},
+    {"quando": "golpe_no_r2", "entao": "impacto_no_r2", "para": "quem_levou"},
+    {"quando": "golpe_no_l2", "entao": "impacto_no_l2", "para": "quem_levou"}
+  ]
+}
