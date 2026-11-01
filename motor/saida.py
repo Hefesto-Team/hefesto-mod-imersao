@@ -9,6 +9,7 @@ espera o tique seguinte, e o valor mais novo é o que sai. Quando a porta não c
 """
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -54,7 +55,7 @@ class Saida:
         self.escrito[chave] = (t_ms, params)
         try:
             await self._pedir(metodo, params)
-        except Exception as exc:
+        except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)
             if codigo == METODO_DESCONHECIDO and metodo == "haptica.tocar":
                 self.sem_haptica = True

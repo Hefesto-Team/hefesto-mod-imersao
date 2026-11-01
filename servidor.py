@@ -21,7 +21,8 @@ AQUI = Path(__file__).resolve().parent
 if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
-from motor.laco import Motor, rodar as rodar_o_laco  # noqa: E402
+from motor.laco import Motor  # noqa: E402
+from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
 from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia  # noqa: E402
 

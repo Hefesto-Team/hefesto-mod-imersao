@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import bisect
 import re
-from json.decoder import scanstring
+from json.decoder import scanstring  # type: ignore[attr-defined]
 from typing import Any
 
 Caminho = tuple[str | int, ...]

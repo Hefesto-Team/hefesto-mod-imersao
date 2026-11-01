@@ -6,7 +6,9 @@ que chega ao instante dele. As escritas ficam com o instante em que saíram.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -31,7 +33,7 @@ def _motor(receita: dict[str, Any], controles: list[dict[str, Any]] | None = Non
 
 
 def _correr(motor: Motor, saida: Saida, escritas: EscritasDeMentira, ate_ms: float,
-            eventos: list[tuple[float, Evento]] | None = None, de_ms: float = 0.0) -> None:
+            eventos: Sequence[tuple[float, Evento]] | None = None, de_ms: float = 0.0) -> None:
     fila = sorted(eventos or [], key=lambda e: e[0])
 
     async def correr() -> None:
@@ -183,7 +185,7 @@ def test_o_motor_que_segura_se_renova_antes_dos_tres_segundos_da_porta() -> None
     vezes = [t for t, p in escritas.de("vibracao.set")]
     assert [p for _, p in escritas.de("vibracao.set")] == [{"uniq": UM, "fraco": 128,
                                                             "forte": 128}] * 3
-    assert all(0 < b - a < 3000 for a, b in zip(vezes, vezes[1:]))
+    assert all(0 < b - a < 3000 for a, b in itertools.pairwise(vezes))
 
 
 def test_quem_levou_e_a_lista_de_jogadores_escolhem_o_controle() -> None:
@@ -212,7 +214,7 @@ def test_o_limiar_dispara_na_subida_e_a_espera_segura_o_repique() -> None:
 
 
 def test_o_acumulador_sobe_por_evento_e_cai_pela_meia_vida() -> None:
-    motor, saida, escritas = _motor({
+    motor, _saida, _escritas = _motor({
         **_CRUZ,
         "derivados": {"tensao": {"acumula": {"sobe_com": ["cruz"], "passo": 0.5,
                                              "meia_vida_ms": 1000}}},
@@ -253,7 +255,9 @@ def test_o_coracao_e_o_susto_sao_padroes_pcm() -> None:
     taxa = 48_000
     coracao = efeitos.pcm("coracao", 1000, bpm=60)
     assert len(coracao) == taxa
-    amostra = lambda a, b, onda: onda[int(a * taxa / 1000):int(b * taxa / 1000)]  # noqa: E731
+    def amostra(a: int, b: int, onda: Any) -> Any:
+        return onda[int(a * taxa / 1000):int(b * taxa / 1000)]
+
     assert max(map(abs, amostra(0, 90, coracao))) > 10_000
     assert max(map(abs, amostra(180, 290, coracao))) > 5_000
     assert not any(amostra(90, 180, coracao)) and not any(amostra(300, 1000, coracao))

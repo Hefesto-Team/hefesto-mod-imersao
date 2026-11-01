@@ -358,8 +358,8 @@ class EfeitoDeGatilho(Esquema):
             return
         modo = valor["modo"]
         if modo in ("arma", "rampa") and valor["fim"] <= valor["inicio"]:
-            erros.append(((*caminho, "fim"), f"o fim ({valor['fim']}) tem de passar do início "
-                                             f"({valor['inicio']}), como no console"))
+            erros.append(((*caminho, "fim"), (f"o fim ({valor['fim']}) tem de passar do início "
+                                             f"({valor['inicio']}), como no console")))
         zonas = {"resistencia_por_zona": "forcas", "vibracao_por_zona": "amplitudes"}.get(modo)
         if zonas and not any(valor[zonas]):
             erros.append(((*caminho, zonas), "todas as zonas sem força: use o modo «desliga»"))
@@ -548,12 +548,12 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
     for ident, sentido in sentidos.items():
         caminho = ("sentidos", ident)
         if f"ler:{sentido['de']}" not in permissoes:
-            erros.append(((*caminho, "de"), f"lê «{sentido['de']}» sem declarar "
-                                            f"«ler:{sentido['de']}» nas permissoes"))
+            erros.append(((*caminho, "de"), (f"lê «{sentido['de']}» sem declarar "
+                                            f"«ler:{sentido['de']}» nas permissoes")))
         if sentido["de"] == "jogo.memoria":
             if memoria != "pede":
-                erros.append(((*caminho, "de"), f"lê a memória com a leitura_de_memoria "
-                                                f"«{memoria}»: só «pede» lê"))
+                erros.append(((*caminho, "de"), (f"lê a memória com a leitura_de_memoria "
+                                                f"«{memoria}»: só «pede» lê")))
             if "leitura" not in sentido:
                 erros.append((caminho, "o sentido da memória pede a «leitura»"))
         elif "leitura" in sentido:
@@ -569,8 +569,8 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
     def conferir_nomes(no: expressao.No, caminho: Caminho) -> None:
         for nome in sorted(expressao.nomes(no)):
             if nome not in donos:
-                erros.append((caminho, f"a expressão lê «{nome}», que não é sentido, derivado "
-                                       "nem estado"))
+                erros.append((caminho, (f"a expressão lê «{nome}», que não é sentido, derivado "
+                                       "nem estado")))
         for nome in sorted(expressao.entradas(no)):
             if nome not in entradas:
                 erros.append((caminho, f"a expressão lê a entrada «${nome}», que não existe"))
@@ -633,8 +633,8 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
                 sentidos.get(n, {}).get("especie") == "evento"
                 and sentidos[n]["de"] in TOPICOS_POR_CONTROLE for n in expressao.nomes(no))
             if regra["para"] == "quem_levou" and no is not None and not de_controle:
-                erros.append(((*caminho, "para"), "«quem_levou» pede um sentido de evento que "
-                                                  "diga o controle (um tópico por controle)"))
+                erros.append(((*caminho, "para"), ("«quem_levou» pede um sentido de evento que "
+                                                  "diga o controle (um tópico por controle)")))
 
     for i, confere in enumerate(dados.get("confere", [])):
         caminho = ("confere", i)
@@ -659,8 +659,8 @@ def ler_receita(bruto: bytes | str) -> Receita:
     dados_em_bytes = bruto.encode("utf-8") if isinstance(bruto, str) else bruto
     if len(dados_em_bytes) > TAMANHO_MAXIMO:
         linha = dados_em_bytes[:TAMANHO_MAXIMO].count(b"\n") + 1
-        raise ReceitaRecusada([(linha, f"a receita passa de {TAMANHO_MAXIMO // 1024} KB "
-                                       f"({len(dados_em_bytes)} bytes)")])
+        raise ReceitaRecusada([(linha, (f"a receita passa de {TAMANHO_MAXIMO // 1024} KB "
+                                       f"({len(dados_em_bytes)} bytes)"))])
     try:
         texto = dados_em_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
