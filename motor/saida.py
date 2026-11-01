@@ -202,5 +202,9 @@ class Saida:
         return not self.sem_haptica
 
     async def soltar_tudo(self, t_ms: float) -> None:
-        """O zero em tudo que ficou escrito: a extensão que sai não deixa o controle vibrando."""
+        """O zero em tudo que ficou escrito: a extensão que sai não deixa o controle vibrando.
+
+        O zero que a porta recusou antes se tenta uma vez mais: é a última escrita da extensão.
+        """
+        self.recusados.clear()
         await self.aplicar(t_ms, {})

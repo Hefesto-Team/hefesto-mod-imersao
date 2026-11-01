@@ -4,7 +4,8 @@
 
 - A escrita que a porta recusa com `-32011` devolve a conta da saída ao que a porta aceitou antes,
   que segue no controle: quando a receita solta o canal, ou a extensão sai, o zero do motor, do
-  gatilho e da háptica escritos antes sai. Vale de P1 a P4, no cabo e no rádio.
+  gatilho e da háptica escritos antes sai. O zero que a porta recusa não se repete com o canal
+  solto, e a extensão que sai o tenta uma vez mais. Vale de P1 a P4, no cabo e no rádio.
 
 ## 0.3.0 (01/11/2026)
 

@@ -1,7 +1,7 @@
 """A escrita recusada não apaga a que já está no controle.
 
-A porta recusa com ``-32011`` o pedido mais fraco que o vivo no canal, e o que a extensão escreveu
-antes continua no controle. A conta da saída devolve a chave ao valor de antes do pedido: quando a
+A porta recusa com ``-32011`` a escrita que o jogo vence no canal, e o que a extensão escreveu antes
+continua no controle. A conta da saída devolve a chave ao valor de antes do pedido: quando a
 receita solta o canal, ou a extensão sai, o zero do que ficou escrito sai. Vale para o motor, o
 gatilho e a háptica, de P1 a P4; o ``uniq`` é o mesmo no cabo e no rádio.
 """
@@ -154,3 +154,42 @@ def test_a_recusa_devolve_o_instante_da_escrita_aceita_e_a_renovacao_conta_dele(
     _correr(saida, porta, [(0.0, _motor(UM, 0.4)), (1000.0, _motor(UM, 0.8)),
                            (RENOVA_MS, _motor(UM, 0.4))])
     assert [t for t, _ in porta.de("vibracao.set")] == [0.0, RENOVA_MS]
+
+
+@pytest.mark.parametrize("uniq", [UM, DOIS, TRES, QUATRO])
+@pytest.mark.parametrize("canal", sorted(CANAIS))
+def test_o_zero_recusado_nao_se_repete_com_o_canal_solto_e_a_conta_segue_com_o_aceito(
+        canal: str, uniq: str) -> None:
+    metodo, aceito, _, _, zero = CANAIS[canal]
+    porta = PortaQueRecusa()
+    porta.recusar.append(zero(uniq))
+    saida = Saida(porta.pedir)
+    _correr(saida, porta, [(0.0, aceito(uniq)), (100.0, {}), (116.0, {}), (1000.0, {})])
+    assert [(t, m) for t, m, _ in porta.recusas] == [(100.0, metodo)]
+    assert [t for t, _ in porta.de(metodo)] == [0.0]
+    assert [t for t, _ in saida.escrito.values()] == [0.0]
+
+
+@pytest.mark.parametrize("uniq", [UM, DOIS, TRES, QUATRO])
+@pytest.mark.parametrize("canal", sorted(CANAIS))
+def test_a_extensao_que_sai_tenta_de_novo_o_zero_que_a_porta_recusou(
+        canal: str, uniq: str) -> None:
+    metodo, aceito, _, _, zero = CANAIS[canal]
+    porta = PortaQueRecusa()
+    porta.recusar.append(zero(uniq))
+    saida = Saida(porta.pedir)
+
+    async def correr() -> None:
+        porta.agora = 0.0
+        await saida.aplicar(0.0, aceito(uniq))
+        porta.agora = 100.0
+        await saida.aplicar(100.0, {})
+        porta.recusar.clear()
+        porta.agora = 300.0
+        await saida.soltar_tudo(300.0)
+
+    asyncio.run(correr())
+    assert [(t, m) for t, m, _ in porta.recusas] == [(100.0, metodo)]
+    escritas = porta.de(metodo)
+    assert [t for t, _ in escritas] == [0.0, 300.0]
+    assert escritas[-1][1] == zero(uniq)
