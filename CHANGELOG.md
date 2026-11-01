@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.3.1 (01/11/2026)
+
+- A escrita que a porta recusa com `-32011` devolve a conta da saída ao que a porta aceitou antes,
+  que segue no controle: quando a receita solta o canal, ou a extensão sai, o zero do motor, do
+  gatilho e da háptica escritos antes sai. Vale de P1 a P4, no cabo e no rádio.
+
 ## 0.3.0 (01/11/2026)
 
 - O motor lê o caminho do controle do jogo ao vivo (`motor/caminho.py`): por controle e por canal

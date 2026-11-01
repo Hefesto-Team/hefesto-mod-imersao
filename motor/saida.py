@@ -9,8 +9,9 @@ cada controle e 40 no total: o que passa espera o tique seguinte, e o valor mais
 Quando a porta não conhece ``haptica.tocar``, o padrão cai no motor, pelo envelope, e quem pediu
 o mede de novo contra o motor do jogo (``pelo_motor``); quando não
 conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala. A escrita que a porta recusa com
-``-32011`` (mais fraca que o pedido vivo no canal) não ficou escrita: ela vai a quem a pediu, e o
-mesmo valor não se repete enquanto continuar pedido.
+``-32011`` (mais fraca que o pedido vivo no canal) não ficou escrita: ela vai a quem a pediu, o
+mesmo valor não se repete enquanto continuar pedido, e a conta volta ao que a porta aceitou antes,
+que segue no controle e recebe o zero quando o canal se solta ou a extensão sai.
 """
 from __future__ import annotations
 
@@ -66,20 +67,21 @@ class Saida:
         if not zero and not self._cabe(t_ms, uniq):
             return False
         self.janela.append((t_ms, uniq))
+        antes = self.escrito.get(chave)
         self.escrito[chave] = (t_ms, params)
         try:
             await self._pedir(metodo, params)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
             if codigo == MAIS_FRACO:
-                del self.escrito[chave]
+                self._desfazer(chave, antes)
                 self.recusados[chave] = params
                 self._recusado(chave, params, getattr(exc, "dados", None))
                 return True
             if codigo == METODO_DESCONHECIDO and metodo == "haptica.tocar":
                 self.sem_haptica = True
                 self._diario("a porta não toca háptica: o padrão segue pelo motor")
-                del self.escrito[chave]
+                self._desfazer(chave, antes)
                 return False
             if codigo == METODO_DESCONHECIDO and metodo == "som.tocar":
                 self.sem_som = True
@@ -91,6 +93,12 @@ class Saida:
                 return False
             self._diario(f"{metodo} recusado: {exc}")
         return True
+
+    def _desfazer(self, chave: Chave, antes: tuple[float, dict[str, Any]] | None) -> None:
+        if antes is None:
+            self.escrito.pop(chave, None)
+        else:
+            self.escrito[chave] = antes
 
     def _desejado(self, t_ms: float, vencedores: dict[Vaga, Pedido]
                   ) -> dict[Chave, tuple[str, dict[str, Any], bool]]:
