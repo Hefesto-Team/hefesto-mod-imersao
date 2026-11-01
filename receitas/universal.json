@@ -29,6 +29,7 @@
     "sobressalto": {"de": "sentido.microfone", "especie": "nivel", "nome": "nivel",
                     "campo": "sobressalto"},
     "quieto": {"de": "sentido.quietude", "especie": "nivel", "nome": "nivel", "campo": "quieto"},
+    "largado": {"de": "sentido.quietude", "especie": "nivel", "nome": "nivel", "campo": "largado"},
     "dano_da_tela": {"de": "sentido.tela", "especie": "nivel", "nome": "nivel",
                      "campo": "dano_recente"},
     "dano_visto": {"de": "sentido.tela", "especie": "evento", "nome": "dano"},
@@ -38,7 +39,7 @@
                     "campo": "gatilho", "igual": "l2"}
   },
   "derivados": {
-    "tensao": {"expr": "limita(max(batimento, dano_do_rumble * 0.5, dano_da_tela * 0.5) + (silencio + quieto) * 0.3 - sobressalto * 0.6, 0, 1)"}
+    "tensao": {"expr": "limita(max(batimento, dano_do_rumble * 0.5, dano_da_tela * 0.5) + (silencio + quieto) * 0.3 * (1 - largado) - sobressalto * 0.6, 0, 1)"}
   },
   "estados": {
     "tenso": {"quando": "tensao > 0.35", "histerese": 0.1, "minimo_ms": 2000}

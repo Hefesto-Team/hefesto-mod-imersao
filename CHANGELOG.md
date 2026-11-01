@@ -15,6 +15,8 @@
 - Sem `haptica.tocar` na porta, o padrão que cai no motor disputa com o motor do jogo.
 - O coração que a extensão toca cala o giro só nos golpes do padrão, e quem se mexe entre eles
   desliga o «parado»: o coração não se sustenta sozinho.
+- O controle largado (sem leitura de movimento por 10 s) sai da conta do «parado», e com todos
+  largados o silêncio não sobe a tensão: o controle na mesa não liga o coração.
 
 ## 0.2.0 (01/11/2026)
 

@@ -54,6 +54,10 @@ def giro(uniq: str, z: float) -> Evento:
         "acel": {"x": 0.0, "y": 0.0, "z": 1.0}})
 
 
+def na_mao(uniq: str, ate_ms: int) -> list[tuple[float, Evento]]:
+    return [(t, giro(uniq, 3.0)) for t in range(0, ate_ms, 400)]
+
+
 def haptica_do_jogo(uniq: str, esq: float, dir_: float) -> Evento:
     return ("jogo.haptica", "jogo.haptica", uniq,
             {"uniq": uniq, "jogador": 1, "intensidade": [esq, dir_], "t": 0.0})
@@ -175,7 +179,7 @@ def test_o_lado_na_luz_ligado_acende_as_luzes_de_jogador_do_lado_por_ate_600_ms(
 
 def test_o_silencio_longo_acelera_o_coracao_e_o_barulho_subito_o_acalma() -> None:
     motor, porta = _universal(), EscritasDeMentira(com_haptica=True)
-    linha = [(t, microfone(UM, 0.01)) for t in range(0, 36_000, 500)]
+    linha = [(t, microfone(UM, 0.01)) for t in range(0, 36_000, 500)] + na_mao(UM, 42_000)
     linha += [(36_000, microfone(UM, 0.8)), (36_500, microfone(UM, 0.02))]
     _correr(motor, porta, 42_000, linha)
     coracao = [(t, p["bpm"], p["forca"]) for t, p in porta.de("haptica.tocar")
@@ -186,6 +190,16 @@ def test_o_silencio_longo_acelera_o_coracao_e_o_barulho_subito_o_acalma() -> Non
     assert max(cedo) < min(tarde) and 100 <= max(tarde) <= 140
     calmo = [(t, b, f) for t, b, f in coracao if t > 36_000]
     assert calmo and calmo[-1][1:] == (60, 0.25)
+
+
+def test_o_controle_largado_na_mesa_com_silencio_nao_liga_o_coracao() -> None:
+    silencio = [(t, microfone(UM, 0.01)) for t in range(0, 40_000, 500)]
+    coracoes = {}
+    for nome, mao in (("na_mesa", []), ("na_mao", na_mao(UM, 40_000))):
+        motor, porta = _universal(), EscritasDeMentira(com_haptica=True)
+        _correr(motor, porta, 40_000, silencio + mao)
+        coracoes[nome] = [t for t, p in porta.de("haptica.tocar") if p["forca"] > 0]  # (noqa-acento)
+    assert coracoes["na_mao"] and not coracoes["na_mesa"]
 
 
 def test_a_rajada_de_rumble_pinta_de_vermelho_so_o_controle_que_levou_de_p1_a_p4() -> None:
@@ -226,9 +240,11 @@ def test_o_golpe_dado_pede_o_impacto_no_gatilho_que_atacou_so_no_controle_que_at
 
 
 def test_a_haptica_do_jogo_mais_forte_cala_o_coracao_e_a_mais_fraca_deixa_ele_nas_brechas() -> None:
-    linha = [(t, microfone(UM, 0.01)) for t in range(0, 30_000, 500)]
-    forte = [(t, haptica_do_jogo(UM, 0.9, 0.9)) for t in range(20_000, 30_000, 250)]
-    fraca = [(t, haptica_do_jogo(UM, 0.1, 0.1)) for t in range(20_000, 30_000, 250)]
+    linha = [(t, microfone(UM, 0.01)) for t in range(0, 30_000, 500)] + na_mao(UM, 30_000)
+    forte: list[tuple[float, Evento]] = [
+        (t, haptica_do_jogo(UM, 0.9, 0.9)) for t in range(20_000, 30_000, 250)]
+    fraca: list[tuple[float, Evento]] = [
+        (t, haptica_do_jogo(UM, 0.1, 0.1)) for t in range(20_000, 30_000, 250)]
     resultados = {}
     for nome, jogo in (("forte", forte), ("fraca", fraca)):
         motor, porta = _universal(), TatoVivoDeMentira(com_haptica=True)
@@ -294,7 +310,7 @@ def test_o_coracao_que_a_extensao_toca_nao_cega_o_giro_entre_os_golpes(com_hapti
 
 
 def test_o_susto_toca_o_recorte_do_proprio_jogo_pelo_t_do_estalo_e_cala_sem_o_som() -> None:
-    linha = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)]
+    linha = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
     linha += [(18_000, som("direito", 0.45, 1234.5))]
     motor, porta = _universal(), EscritasDeMentira(com_haptica=True, com_som=True)
     _correr(motor, porta, 19_000, linha)

@@ -29,7 +29,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   (pulso, rajada e batimento; os níveis `tensao` e `dano_recente`), `sentido.microfone` (o
   `silencio` longo e o `sobressalto`), `sentido.tela` (o `dano_recente`), `sentido.golpe` (o ataque
   seguido do pulso do jogo em até 150 ms) e `sentido.quietude` (o controle parado, sem contar o
-  giro que o próprio motor causa). Ler um sentido pede a permissão de cada origem dele.
+  giro que o próprio motor causa, e o controle largado na mesa). Ler um sentido pede a permissão
+  de cada origem dele.
 - O laço roda a 60 Hz. Um estado sobe pela condição, desce com histerese e fica de pé um tempo
   mínimo. A regra dispara na subida da condição, com `espera_ms`, e o `senao` vale na descida.
 - Duas regras no mesmo canal do mesmo controle não somam: vence a mais forte, a `prioridade`
@@ -77,9 +78,9 @@ Exemplos em `testes/receitas/`.
 `receitas/universal.json` vale em todo jogo sem receita: o estalo forte de um lado vibra o motor
 daquele lado (e as luzes de jogador do lado, com «Lado na luz», que nasce desligado); a rajada de
 rumble pinta a barra de vermelho no controle que levou; o golpe dado pede o impacto no gatilho que
-atacou; a tensão (o batimento do rumble, o dano recente, o silêncio longo e o controle parado
-juntos) toca o coração de 60 a 140 bpm, e o barulho súbito no microfone o acalma; o estalo forte
-com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante.
+atacou; a tensão (o batimento do rumble, o dano recente, o silêncio longo e o controle parado na
+mão, juntos) toca o coração de 60 a 140 bpm, e o barulho súbito no microfone o acalma; o estalo
+forte com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante.
 
 ## Instalar
 
