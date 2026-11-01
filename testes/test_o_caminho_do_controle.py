@@ -227,6 +227,18 @@ def test_o_rumble_sem_batida_vale_zero_e_o_jogo_que_fecha_solta_tudo() -> None:
     assert [round(t) for t, p in porta.de("gatilho.set") if p["lado"] == "direito"] == [1500]
 
 
+def test_o_gatilho_do_jogo_segura_a_vaga_ate_mudar_mesmo_depois_da_janela() -> None:
+    motor = _motor(_receita("gatilho"))
+    porta = PortaComALuzDoJogo()
+    fim = 2 * JANELA_MS
+    troca = fim - 500
+    _correr(motor, porta, fim, [gatilho(UM, "direito", "resistencia", 0.9, 0),  # (noqa-acento)
+                                gatilho(UM, "direito", "desligado", 0.0, troca)])
+    direito = [round(t) for t, p in porta.de("gatilho.set") if p["lado"] == "direito"]
+    assert motor.caminho.ocupadas(UM, troca - TIQUE) == {"gatilho"}
+    assert direito and troca <= direito[0] <= troca + 2 * TIQUE
+
+
 def test_o_servidor_assina_o_que_o_jogo_escreve_nos_canais_da_receita() -> None:
     assert servidor.topicos_do_caminho(_receita("luz")) == {"jogo.identidade"}
     assert servidor.topicos_do_caminho(_receita("motor")) == {"jogo.vibracao", "jogo.identidade"}

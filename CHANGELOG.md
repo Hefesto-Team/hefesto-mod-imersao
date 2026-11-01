@@ -3,7 +3,8 @@
 ## 0.3.0 (01/11/2026)
 
 - O motor lê o caminho do controle do jogo ao vivo (`motor/caminho.py`): por controle e por canal
-  (motor, háptica, gatilho e luz), o que o jogo escreveu nos últimos 3 s. No canal ocupado, a
+  (motor, háptica, gatilho e luz), o que o jogo escreveu nos últimos 3 s; o efeito do jogo no
+  gatilho segura a vaga até o jogo trocá-lo. No canal ocupado, a
   receita só sai mais forte que o jogo; no livre, sai inteira. Vale de P1 a P4, no cabo e no rádio.
 - A luz do jogo, que não tem tópico, se aprende pela recusa `-32011` da porta (com `data.vence` em
   `jogo`, ou sem `data`); a recusa que outra extensão vence não conta, e a escrita recusada não se

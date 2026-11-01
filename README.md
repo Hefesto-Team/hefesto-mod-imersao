@@ -35,8 +35,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
 - Duas regras no mesmo canal do mesmo controle não somam: vence a mais forte, a `prioridade`
   desempata, e depois a mais recente.
 - O caminho do controle do jogo se mede ao vivo (`motor/caminho.py`): o canal em que o jogo
-  escreveu nos últimos 3 s está ocupado, e nele a receita só sai quando é mais forte que o jogo; no
-  canal livre, ela sai inteira. A luz do jogo se aprende pela recusa `-32011` da porta, e a máscara
+  escreveu nos últimos 3 s está ocupado (o gatilho, até o jogo trocar o efeito), e nele a receita
+  só sai quando é mais forte que o jogo; no canal livre, ela sai inteira. A luz do jogo se aprende pela recusa `-32011` da porta, e a máscara
   Xbox ou Nintendo (`jogo.identidade`, quando a porta o entregar) deixa a luz e o gatilho livres.
   A receita nunca declara o caminho.
 - A saída escreve só o que mudou, sob o teto do tato vivo (12 escritas por segundo por controle,

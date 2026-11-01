@@ -5,7 +5,9 @@ gatilho; com a saída de áudio do controle, ele ocupa a háptica. Nada disso ve
 :class:`Caminho` lê o que a porta já entrega (``jogo.vibracao``, ``jogo.haptica`` e
 ``jogo.gatilho``) e a recusa ``-32011`` que o jogo vence (a luz do jogo não tem tópico). O canal em
 que o jogo escreveu nos últimos :data:`JANELA_MS` está ocupado, e nele a receita só sai quando é
-mais forte que o nível do jogo; no canal livre, ela sai inteira.
+mais forte que o nível do jogo; no canal livre, ela sai inteira. O efeito que o jogo deixou no
+gatilho fica no gatilho até o jogo trocá-lo, e a porta só o manda na troca: ele ocupa a vaga até
+mudar, sem prazo.
 
 A máscara do lançamento (``jogo.identidade``) diz de saída se o jogo alcança a luz e o gatilho:
 pela máscara Xbox ou Nintendo, não, e a recusa nesses canais não é do jogo. O motor e a háptica
@@ -39,6 +41,10 @@ class _Uso:
     t_ms: float
     batida: bool
     por_recusa: bool = False
+
+    @property
+    def ate_mudar(self) -> bool:
+        return not self.batida and not self.por_recusa and self.nivel > 0
 
 
 def recusa_do_jogo(dados: Any) -> bool:
@@ -100,19 +106,24 @@ class Caminho:
         if canal not in CANAIS or not recusa_do_jogo(dados) or not self.alcanca(uniq, canal):
             return
         atual = self.nivel(vaga, t_ms)
+        anterior = self.usos.get(vaga)
+        if anterior is not None and anterior.ate_mudar and atual is not None and atual >= forca:
+            return
         self.usos[vaga] = _Uso(max(forca, atual or 0.0), t_ms, batida=False, por_recusa=True)
 
     def nivel(self, vaga: Vaga, t_ms: float) -> float | None:
         """O nível do jogo na vaga, ou ``None`` quando o jogo não a ocupa."""
         uso = self.usos.get(vaga)
-        if uso is None or t_ms - uso.t_ms > JANELA_MS or not self.alcanca(vaga[0], vaga[1]):
+        if uso is None or not self.alcanca(vaga[0], vaga[1]):
+            return None
+        if t_ms - uso.t_ms > JANELA_MS and not uso.ate_mudar:
             return None
         if uso.batida and t_ms - uso.t_ms > SEM_BATIDA_MS:
             return 0.0
         return uso.nivel
 
     def ocupadas(self, uniq: str, t_ms: float) -> set[str]:
-        """Os canais do controle em que o jogo escreveu na janela: o caminho medido."""
+        """Os canais do controle em que o jogo escreveu na janela, ou que ele segura: o caminho."""
         return {canal for (u, canal, lado) in self.usos
                 if u == uniq and self.nivel((u, canal, lado), t_ms) is not None}
 
