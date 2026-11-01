@@ -182,6 +182,17 @@ def test_sem_haptica_na_porta_o_coracao_cai_no_motor_pelo_envelope() -> None:
     assert saida.sem_haptica
 
 
+def test_o_coracao_que_cai_no_motor_disputa_o_motor_pelo_mais_forte_sem_somar() -> None:
+    motor, saida, escritas = _motor({**_CORACAO, "efeitos": {
+        "coracao": {"canal": "haptica", "padrao": "coracao", "forca": 0.5, "bpm": 60,  # (noqa-acento)
+                    "lado": "esquerdo"},
+        "fundo": {"canal": "motor", "forca": 0.4, "lado": "esquerdo"}},
+        "regras": [{"quando": "apertado", "entao": ["coracao", "fundo"]}]})  # (noqa-acento)
+    _correr(motor, saida, escritas, 1050, [(0, _l2(255))])
+    assert [p["forte"] for _, p in escritas.de("vibracao.set")] == [128, 102, 128], \
+        "a batida de 0,5 e o fundo de 0,4 dão 0,5; a segunda batida, de 0,35, perde para o fundo"
+
+
 def test_com_haptica_na_porta_o_coracao_sai_pelo_padrao_e_solta_com_o_zero() -> None:
     motor, saida, escritas = _motor(_CORACAO, com_haptica=True)
     _correr(motor, saida, escritas, 1000, [(0, _l2(255)), (500, _l2(0))])
