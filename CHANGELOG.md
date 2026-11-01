@@ -13,6 +13,8 @@
   desde o começo; o tópico entra na assinatura quando a porta o entregar.
 - O rumble do jogo sem a batida de 250 ms por 600 ms vale zero, e o `jogo.fechou` solta tudo.
 - Sem `haptica.tocar` na porta, o padrão que cai no motor disputa com o motor do jogo.
+- O coração que a extensão toca cala o giro só nos golpes do padrão, e quem se mexe entre eles
+  desliga o «parado»: o coração não se sustenta sozinho.
 
 ## 0.2.0 (01/11/2026)
 

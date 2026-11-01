@@ -279,6 +279,20 @@ def test_a_propria_saida_da_extensao_tambem_cala_o_giro() -> None:
                                         giro(UM, 40.0)[3], 250)] == ["mexeu"]
 
 
+@pytest.mark.parametrize("com_haptica", [True, False])
+def test_o_coracao_que_a_extensao_toca_nao_cega_o_giro_entre_os_golpes(com_haptica: bool) -> None:
+    linha = [(t, rumble(UM, v)) for b in (1000, 1800, 2600, 3400) for t, v in ((b, 120), (b + 80, 0))]
+    linha += [(t, giro(UM, 40.0)) for t in range(0, 30_000, 33) if not 500 <= t < 1200]
+    motor, porta = _universal(), EscritasDeMentira(com_haptica=com_haptica)
+    _correr(motor, porta, 30_000, linha)
+    if com_haptica:
+        coracao = [t for t, p in porta.de("haptica.tocar") if p["forca"] > 0]  # (noqa-acento)
+    else:
+        coracao = [t for t, p in porta.de("vibracao.set") if p["forte"] or p["fraco"]]
+    assert coracao and coracao[0] < 4000
+    assert coracao[-1] < 16_000
+
+
 def test_o_susto_toca_o_recorte_do_proprio_jogo_pelo_t_do_estalo_e_cala_sem_o_som() -> None:
     linha = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)]
     linha += [(18_000, som("direito", 0.45, 1234.5))]

@@ -99,7 +99,6 @@ class Motor:
         self.jogadores: dict[str, int] = {}
         self._fila: list[_Evento] = []
         self.universais = universais.criar(s["de"] for s in self.sentidos.values())
-        self.vibrando: frozenset[str] = frozenset()
         self.caminho = Caminho()
         self.vencedores: dict[Vaga, Pedido] = {}
         self.agora_ms = 0.0
@@ -332,7 +331,7 @@ class Motor:
         fila, self._fila = self._fila, []
         derivados: list[universais.Derivado] = []
         for sentido in self.universais:
-            derivados += sentido.tique(t_ms, self.jogadores, self.vibrando)
+            derivados += sentido.tique(t_ms, self.jogadores, self.vibrando(t_ms))
         for evento in fila:
             self.caminho.ler(evento.topico, evento.nome, evento.uniq, evento.dados, t_ms)
             for sentido in self.universais:
@@ -349,9 +348,13 @@ class Motor:
             decidir(p for a in self.ativas for p in self._pedidos(a)), t_ms,
             self.haptica_pelo_motor)
         self.vencedores = vencedores
-        self.vibrando = frozenset(p.uniq for p in vencedores.values()
-                                  if p.canal in ("motor", "haptica") and p.forca > 0)
         return vencedores
+
+    def vibrando(self, t_ms: float) -> frozenset[str]:
+        """Os controles que a extensão faz vibrar no instante: o padrão só vibra nos golpes dele."""
+        return frozenset(p.uniq for p in self.vencedores.values() if p.forca > 0 and (
+            p.canal == "motor" or (p.canal == "haptica" and catalogo.envelope(
+                p.params["padrao"], t_ms - p.params["inicio_ms"], p.params["bpm"]) > 0)))  # (noqa-acento)
 
 
 async def rodar(motor: Motor, saida: Saida, parar: asyncio.Event,
