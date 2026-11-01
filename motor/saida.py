@@ -6,8 +6,11 @@ esquerdo é o ``forte``, o direito o ``fraco``, e o par se renova antes dos 3 s 
 som da caixa pelo id, ou o recorte do estalo do jogo pelo ``t`` do ``jogo.som``) e ``leds.set``
 (as luzes de jogador por máscara e prazo). O teto é o do tato vivo, 12 escritas por segundo em
 cada controle e 40 no total: o que passa espera o tique seguinte, e o valor mais novo é o que sai.
-Quando a porta não conhece ``haptica.tocar``, o padrão cai no motor, pelo envelope; quando não
-conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala.
+Quando a porta não conhece ``haptica.tocar``, o padrão cai no motor, pelo envelope, e quem pediu
+o mede de novo contra o motor do jogo (``pelo_motor``); quando não
+conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala. A escrita que a porta recusa com
+``-32011`` (mais fraca que o pedido vivo no canal) não ficou escrita: ela vai a quem a pediu, e o
+mesmo valor não se repete enquanto continuar pedido.
 """
 from __future__ import annotations
 
@@ -25,17 +28,25 @@ JANELA_MS = 1000.0
 RENOVA_MS = 2500.0
 ATE_MS_DA_HAPTICA = 3000
 METODO_DESCONHECIDO = -32601
+MAIS_FRACO = -32011
 
 Pedir = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 Chave = tuple[str, str, str]
+Recusado = Callable[[Chave, dict[str, Any], Any], None]
+Vencedores = dict[Vaga, Pedido]
 
 
 class Saida:
     """O que já foi escrito em cada controle, e a conta do teto."""
 
-    def __init__(self, pedir: Pedir, diario: Callable[[str], None] | None = None) -> None:
+    def __init__(self, pedir: Pedir, diario: Callable[[str], None] | None = None,
+                 recusado: Recusado | None = None,
+                 pelo_motor: Callable[[Vencedores], Vencedores] | None = None) -> None:
         self._pedir = pedir
         self._diario = diario or (lambda _frase: None)
+        self._recusado = recusado or (lambda _chave, _params, _dados: None)
+        self._pelo_motor = pelo_motor or (lambda vencedores: vencedores)
+        self.recusados: dict[Chave, dict[str, Any]] = {}
         self.escrito: dict[Chave, tuple[float, dict[str, Any]]] = {}
         self.janela: deque[tuple[float, str]] = deque()
         self.sem_haptica = False
@@ -60,6 +71,11 @@ class Saida:
             await self._pedir(metodo, params)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
+            if codigo == MAIS_FRACO:
+                del self.escrito[chave]
+                self.recusados[chave] = params
+                self._recusado(chave, params, getattr(exc, "dados", None))
+                return True
             if codigo == METODO_DESCONHECIDO and metodo == "haptica.tocar":
                 self.sem_haptica = True
                 self._diario("a porta não toca háptica: o padrão segue pelo motor")
@@ -130,13 +146,15 @@ class Saida:
     async def aplicar(self, t_ms: float, vencedores: dict[Vaga, Pedido]) -> None:
         """Escreve o que mudou desde o tique anterior, sob o teto."""
         desejo = self._desejado(t_ms, vencedores)
+        self.recusados = {chave: params for chave, params in self.recusados.items()
+                          if chave in desejo and self._sem_marca(desejo[chave][1]) == params}
         if self.sem_haptica is False and any(m == "haptica.tocar" for m, _, _ in desejo.values()):
             for chave in sorted(desejo):
                 metodo, params, zero = desejo[chave]
                 if metodo == "haptica.tocar" and not await self._tocar(t_ms, chave, params, zero):
                     break
             if self.sem_haptica:
-                desejo = self._desejado(t_ms, vencedores)
+                desejo = self._desejado(t_ms, self._pelo_motor(vencedores))
         vivos: set[tuple[str, str, float]] = set()
         for chave in sorted(desejo):
             metodo, params, zero = desejo[chave]
@@ -151,6 +169,8 @@ class Saida:
                 if await self._escrever(t_ms, chave, metodo, params):
                     self._tocados.add(marca)
                 continue
+            if self.recusados.get(chave) == params:
+                continue
             antes = self.escrito.get(chave)
             vence = metodo == "vibracao.set" and antes is not None and not zero and (
                 t_ms - antes[0] >= RENOVA_MS)
@@ -159,7 +179,13 @@ class Saida:
             await self._escrever(t_ms, chave, metodo, params, zero)
         self._tocados &= vivos
 
+    @staticmethod
+    def _sem_marca(params: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in params.items() if k != "inicio_ms"}
+
     async def _tocar(self, t_ms: float, chave: Chave, params: dict[str, Any], zero: bool) -> bool:
+        if self.recusados.get(chave) == params:
+            return True
         antes = self.escrito.get(chave)
         vence = antes is not None and not zero and t_ms - antes[0] >= RENOVA_MS
         if antes is not None and antes[1] == params and not vence:

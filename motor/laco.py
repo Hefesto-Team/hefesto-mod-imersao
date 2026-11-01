@@ -4,7 +4,10 @@ O :meth:`Motor.passo` é puro no tempo: recebe o instante e devolve o vencedor d
 (controle, canal e lado). Quem o chama a 60 Hz é :func:`rodar`, que entrega os vencedores à
 :class:`~motor.saida.Saida`. Um evento vale um tique; um efeito sem ``dura_ms`` vale enquanto a
 regra vale, e nunca menos que :data:`DURACAO_MINIMA_MS`. Os sentidos universais que a receita lê
-recebem cada evento da porta e o tique, e o que eles derivam entra no mesmo tique.
+recebem cada evento da porta e o tique, e o que eles derivam entra no mesmo tique. O
+:class:`~motor.caminho.Caminho` mede em que canal o jogo escreve, e o vencedor de um canal ocupado
+só sai quando é mais forte que o jogo; quando a porta não toca háptica, a saída o diz por
+:meth:`Motor.pelo_motor`, e a háptica passa a disputar com o motor do jogo.
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ import sentidos as universais
 from efeitos import luzes
 from motor import efeitos as catalogo
 from motor.arbitragem import Pedido, Vaga, decidir
+from motor.caminho import Caminho
 from motor.estados import Acumulador, Estado, continua_com_histerese
 from motor.saida import Saida
 from receita import expressao
@@ -96,6 +100,10 @@ class Motor:
         self._fila: list[_Evento] = []
         self.universais = universais.criar(s["de"] for s in self.sentidos.values())
         self.vibrando: frozenset[str] = frozenset()
+        self.caminho = Caminho()
+        self.vencedores: dict[Vaga, Pedido] = {}
+        self.agora_ms = 0.0
+        self.haptica_pelo_motor = False
 
     def controles(self, lista: list[dict[str, Any]]) -> None:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
@@ -104,6 +112,26 @@ class Motor:
 
     def evento(self, topico: str, nome: str, uniq: str | None, dados: dict[str, Any]) -> None:
         self._fila.append(_Evento(topico, nome, uniq, dados if isinstance(dados, dict) else {}))
+
+    def recusado(self, chave: Vaga, params: dict[str, Any], dados: Any) -> None:
+        """A porta recusou com ``-32011`` a escrita da :class:`~motor.saida.Saida` em ``chave``."""
+        uniq, canal, _ = chave
+        if canal == "vibracao":
+            for lado_do_motor, nome in (("esquerdo", "forte"), ("direito", "fraco")):
+                forca = params.get(nome, 0) / 255
+                if forca > 0:
+                    self.caminho.recusou((uniq, "motor", lado_do_motor), forca, dados,
+                                         self.agora_ms)
+            return
+        pedido = self.vencedores.get(chave)
+        if pedido is not None:
+            self.caminho.recusou(chave, pedido.forca, dados, self.agora_ms)
+
+    def pelo_motor(self, vencedores: dict[Vaga, Pedido]) -> dict[Vaga, Pedido]:
+        """Os vencedores medidos de novo com a háptica no motor: a porta não toca háptica."""
+        self.haptica_pelo_motor = True
+        self.vencedores = self.caminho.filtrar(vencedores, self.agora_ms, True)
+        return self.vencedores
 
     def _ler_evento(self, evento: _Evento) -> None:
         for ident, sentido in self.sentidos.items():
@@ -298,6 +326,7 @@ class Motor:
 
     def passo(self, t_ms: float) -> dict[Vaga, Pedido]:
         """Um tique: lê os eventos, calcula a cena, roda as regras e decide cada vaga."""
+        self.agora_ms = t_ms
         for leitura in self.leituras.values():
             leitura.disparou = False
         fila, self._fila = self._fila, []
@@ -305,6 +334,7 @@ class Motor:
         for sentido in self.universais:
             derivados += sentido.tique(t_ms, self.jogadores, self.vibrando)
         for evento in fila:
+            self.caminho.ler(evento.topico, evento.nome, evento.uniq, evento.dados, t_ms)
             for sentido in self.universais:
                 if evento.topico in sentido.origens:
                     derivados += sentido.ler(evento.topico, evento.nome, evento.uniq,
@@ -315,7 +345,10 @@ class Motor:
         self._calcular(t_ms)
         self._rodar_as_regras(t_ms)
         self.ativas = [a for a in self.ativas if a.fim_ms is None or t_ms < a.fim_ms]
-        vencedores = decidir(p for a in self.ativas for p in self._pedidos(a))
+        vencedores = self.caminho.filtrar(
+            decidir(p for a in self.ativas for p in self._pedidos(a)), t_ms,
+            self.haptica_pelo_motor)
+        self.vencedores = vencedores
         self.vibrando = frozenset(p.uniq for p in vencedores.values()
                                   if p.canal in ("motor", "haptica") and p.forca > 0)
         return vencedores
