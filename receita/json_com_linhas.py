@@ -68,7 +68,12 @@ class _Leitor:
             raise self.recusa(f"valor inesperado começando em «{letra}»")
         self.i = achado.end()
         bruto = achado.group()
-        return float(bruto) if any(c in bruto for c in ".eE") else int(bruto)
+        if any(c in bruto for c in ".eE"):
+            return float(bruto)
+        try:
+            return int(bruto)
+        except ValueError as exc:
+            raise self.recusa(f"número de {len(bruto)} algarismos", achado.start()) from exc
 
     def cadeia(self) -> str:
         inicio = self.i

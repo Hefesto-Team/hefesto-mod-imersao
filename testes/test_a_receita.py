@@ -58,7 +58,7 @@ def test_o_gatilho_fora_da_faixa_do_console_recusa_cada_efeito_na_sua_linha() ->
     texto = str(recusa)
     assert "arma_cedo.inicio: 1 fora da faixa de 2 a 7" in texto
     assert "o fim (4) tem de passar do início (6)" in texto
-    assert "vibra_sem_frequencia.frequencia: 0 fora da faixa de 1 a 255" in texto
+    assert "vibra_sem_frequencia.frequencia: a frequência 0 desliga o gatilho" in texto
     assert "resiste_sem_forca.forca: 0 fora da faixa de 1 a 8" in texto
 
 
@@ -174,7 +174,9 @@ def test_os_sete_modos_do_gatilho_passam_nas_pontas_da_faixa() -> None:
     ({"modo": "rampa", "inicio": 5, "fim": 5, "forca_inicio": 1, "forca_fim": 1},
      "tem de passar do início"),
     ({"modo": "vibracao_por_zona", "frequencia": 0, "amplitudes": [1] * 10},  # (noqa-acento)
-     "fora da faixa de 1 a 255"),
+     "a frequência 0 desliga o gatilho"),
+    ({"modo": "vibracao", "posicao": 0, "amplitude": 1, "frequencia": 256},  # (noqa-acento)
+     "fora da faixa de 0 a 255"),
     ({"modo": "turbo"}, "«modo» pede um de"),
 ])
 def test_o_gatilho_que_o_console_recusaria_recusa(mudanca: dict[str, Any], trecho: str) -> None:
@@ -187,3 +189,13 @@ def test_cada_gatilho_valido_vira_um_trigger_set_que_o_hefesto_aceita() -> None:
     for efeito in _gatilhos_validos():
         nome, params = para_o_trigger_set(efeito)
         gatilhos.build_from_name(nome, params)
+
+
+def test_o_aninhamento_fundo_e_o_numero_sem_fim_recusam_com_a_linha() -> None:
+    fundo = "(" * 200 + "1 > 0" + ")" * 200
+    recusa = _recusa(json.dumps(_base(estados={"x": {"quando": fundo}}), indent=1))
+    assert "níveis um dentro do outro" in str(recusa) and recusa.linha == 6
+    assert ler_receita(json.dumps(_base(estados={"x": {"quando": "(" * 32 + "1" + ")" * 32}})))
+    sem_fim = '{\n "formato": 1,\n "motor": ">=1,<2",\n "regras": ' + "9" * 5000 + "\n}"
+    recusa = _recusa(sem_fim)
+    assert "número de 5000 algarismos" in str(recusa) and recusa.linha == 4

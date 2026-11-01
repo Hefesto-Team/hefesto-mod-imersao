@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 TAMANHO_MAXIMO = 512
 NOS_MAXIMOS = 64
+PROFUNDIDADE_MAXIMA = 32
 
 OPERADORES_DE_COMPARACAO = ("<=", ">=", "==", "!=", "<", ">")
 PALAVRAS = ("e", "ou", "nao")  # (noqa-acento)
@@ -101,6 +102,7 @@ class _Analisador:
         self.fichas = _fichas(texto)
         self.i = 0
         self.nos = 0
+        self.fundo = 0
         self.fim = len(texto) + 1
 
     def ver(self) -> tuple[str, str, int] | None:
@@ -119,6 +121,12 @@ class _Analisador:
         if ficha is not None and ficha[0] == "op" and ficha[1] in ops:
             return ficha[1]
         return None
+
+    def descer(self, coluna: int) -> None:
+        self.fundo += 1
+        if self.fundo > PROFUNDIDADE_MAXIMA:
+            raise ExpressaoRecusada(f"mais de {PROFUNDIDADE_MAXIMA} níveis um dentro do outro",
+                                    coluna)
 
     def contar(self, no: No) -> No:
         self.nos += 1
@@ -142,8 +150,11 @@ class _Analisador:
 
     def nao(self) -> No:
         if self.e_palavra("nao"):  # (noqa-acento)
+            self.descer(self.coluna())
             self.i += 1
-            return self.contar(Unario("nao", self.nao()))  # (noqa-acento)
+            no = self.contar(Unario("nao", self.nao()))  # (noqa-acento)
+            self.fundo -= 1
+            return no
         return self.comparacao()
 
     def comparacao(self) -> No:
@@ -172,8 +183,11 @@ class _Analisador:
 
     def unario(self) -> No:
         if self.e_op("-"):
+            self.descer(self.coluna())
             self.i += 1
-            return self.contar(Unario("-", self.unario()))
+            no = self.contar(Unario("-", self.unario()))
+            self.fundo -= 1
+            return no
         return self.atomo()
 
     def atomo(self) -> No:
@@ -187,10 +201,12 @@ class _Analisador:
         if tipo == "entrada":
             return self.contar(Entrada(bruto[1:]))
         if tipo == "op" and bruto == "(":
+            self.descer(coluna)
             no = self.ou()
             if not self.e_op(")"):
                 raise ExpressaoRecusada("falta o «)»", self.coluna())
             self.i += 1
+            self.fundo -= 1
             return no
         if tipo == "nome":
             return self.nome(bruto, coluna)
@@ -202,6 +218,7 @@ class _Analisador:
         if self.e_op("("):
             if bruto not in FUNCOES:
                 raise ExpressaoRecusada(f"função fora da lista: «{bruto}»", coluna)
+            self.descer(coluna)
             self.i += 1
             args: list[No] = []
             if not self.e_op(")"):
@@ -212,6 +229,7 @@ class _Analisador:
             if not self.e_op(")"):
                 raise ExpressaoRecusada("falta o «)» da função", self.coluna())
             self.i += 1
+            self.fundo -= 1
             minimo, maximo = FUNCOES[bruto]
             if not minimo <= len(args) <= maximo:
                 raise ExpressaoRecusada(f"«{bruto}» pede de {minimo} a {maximo} valores", coluna)

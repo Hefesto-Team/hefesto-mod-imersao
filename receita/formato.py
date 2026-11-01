@@ -325,6 +325,7 @@ _DURA = Inteiro(1, 600_000)
 _POSICAO = Inteiro(0, 9)
 _FORCA_DO_GATILHO = Inteiro(1, 8)
 _ZONA = Inteiro(0, 8)
+_FREQUENCIA = Inteiro(0, 255)
 
 
 def _gatilho(obrigatorios: tuple[str, ...] = (), **params: Esquema) -> Objeto:
@@ -339,12 +340,12 @@ _EFEITO_DE_GATILHO = Discriminado("modo", {
     "arma": _gatilho(("inicio", "fim", "forca"), inicio=Inteiro(2, 7), fim=Inteiro(3, 8),
                      forca=_FORCA_DO_GATILHO),
     "vibracao": _gatilho(("posicao", "amplitude", "frequencia"), posicao=_POSICAO,  # (noqa-acento)
-                         amplitude=_FORCA_DO_GATILHO, frequencia=Inteiro(1, 255)),
+                         amplitude=_FORCA_DO_GATILHO, frequencia=_FREQUENCIA),
     "resistencia_por_zona": _gatilho(("forcas",), forcas=Lista(_ZONA, ZONAS, minimo=ZONAS)),
     "rampa": _gatilho(("inicio", "fim", "forca_inicio", "forca_fim"), inicio=Inteiro(0, 8),
                       fim=Inteiro(1, 9), forca_inicio=_FORCA_DO_GATILHO,
                       forca_fim=_FORCA_DO_GATILHO),
-    "vibracao_por_zona": _gatilho(("frequencia", "amplitudes"), frequencia=Inteiro(1, 255),  # (noqa-acento)
+    "vibracao_por_zona": _gatilho(("frequencia", "amplitudes"), frequencia=_FREQUENCIA,  # (noqa-acento)
                                   amplitudes=Lista(_ZONA, ZONAS, minimo=ZONAS)),
 })
 
@@ -359,7 +360,10 @@ class EfeitoDeGatilho(Esquema):
         modo = valor["modo"]
         if modo in ("arma", "rampa") and valor["fim"] <= valor["inicio"]:
             erros.append(((*caminho, "fim"), (f"o fim ({valor['fim']}) tem de passar do início "
-                                             f"({valor['inicio']}), como no console")))
+                                             f"({valor['inicio']})")))
+        if valor.get("frequencia") == 0:  # (noqa-acento)
+            erros.append(((*caminho, "frequencia"),  # (noqa-acento)
+                          "a frequência 0 desliga o gatilho: use o modo «desliga»"))
         zonas = {"resistencia_por_zona": "forcas", "vibracao_por_zona": "amplitudes"}.get(modo)
         if zonas and not any(valor[zonas]):
             erros.append(((*caminho, zonas), "todas as zonas sem força: use o modo «desliga»"))
