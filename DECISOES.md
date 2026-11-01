@@ -10,3 +10,5 @@ Uma linha por decisão de produto tomada na implementação, por delegação, a 
 - 01/11/2026 · A luz não se solta ao fim do efeito nem ao parar: a porta não diz qual era a luz de antes, e devolvê-la é do Hefesto. Por delegação, a validar.
 - 01/11/2026 · `haptica.tocar` e `som.tocar` são os nomes provisórios até a porta os ter; quando ela responde «método desconhecido», a háptica cai no motor pelo envelope do padrão e o som se cala. Por delegação, a validar.
 - 01/11/2026 · Um efeito «enquanto» dura pelo menos 250 ms, para o estado que pisca não virar zumbido. Por delegação, a validar.
+- 01/11/2026 · A frequência 0 no gatilho recusa e aponta o modo `desliga`: o console a lê como desligado, e a receita diz o que o controle faz. Por delegação, a validar.
+- 01/11/2026 · A receita pode ler um tópico que a porta ainda não entrega: o processo não o assina, o diário diz qual é, e o sentido dele fica parado até a porta o ter. Por delegação, a validar.
