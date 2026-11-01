@@ -3,8 +3,9 @@
 Fala com o Hefesto pela porta das modificações (``mod.ola``, ``controles.lista``,
 ``eventos.assinar`` e as escritas da :class:`~motor.saida.Saida`). A receita de quem joga mora em
 ``$HEFESTO_MOD_DADOS/receita.json``; sem ela, ou com ela recusada, vale o universal
-(``receitas/universal.json``), e a recusa vai ao diário com a linha de cada erro. Nada aqui fala
-com a rede.
+(``receitas/universal.json``), e a recusa vai ao diário com a linha de cada erro. Além do que a
+receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
+do controle (``jogo.identidade`` entra quando a porta o entregar). Nada aqui fala com a rede.
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
 import sentidos as universais  # noqa: E402
+from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
@@ -35,6 +37,10 @@ TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento",
 )
+CAMINHO_POR_CANAL = (
+    ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
+    ("gatilho", "jogo.gatilho"),
+)
 
 
 def diario(frase: str) -> None:
@@ -43,11 +49,12 @@ def diario(frase: str) -> None:
 
 
 class RecusaDaPorta(RuntimeError):
-    """O ``error`` que a porta devolveu: a mensagem e o ``code`` dele."""
+    """O ``error`` que a porta devolveu: a mensagem, o ``code`` e o ``data`` dele."""
 
-    def __init__(self, mensagem: str, codigo: int | None = None) -> None:
+    def __init__(self, mensagem: str, codigo: int | None = None, dados: Any = None) -> None:
         super().__init__(mensagem)
         self.codigo = codigo
+        self.dados = dados
 
 
 class Porta:
@@ -103,7 +110,7 @@ class Porta:
             erro = resposta["error"] if isinstance(resposta["error"], dict) else {}
             codigo = erro.get("code")
             raise RecusaDaPorta(str(erro.get("message", "recusado")),
-                                codigo if isinstance(codigo, int) else None)
+                                codigo if isinstance(codigo, int) else None, erro.get("data"))
         resultado: dict[str, Any] = resposta.get("result") or {}
         return resultado
 
@@ -141,10 +148,18 @@ def _lidos(receita: Receita) -> set[str]:
     return universais.origens(s["de"] for s in receita.secao("sentidos").values())
 
 
+def topicos_do_caminho(receita: Receita) -> set[str]:
+    """O que o jogo escreve nos canais em que a receita escreve: o caminho medido pelo motor."""
+    canais = {e["canal"] for e in receita.secao("efeitos").values()}
+    topicos = {t for canal, t in CAMINHO_POR_CANAL if canal in canais}
+    return topicos | ({"jogo.identidade"} if canais & set(CANAIS_DO_JOGO) else set())
+
+
 def topicos_da_receita(receita: Receita) -> list[str]:
-    """Os tópicos da porta que a receita lê (o sentido universal pelas origens dele) e que a
-    porta de hoje entrega, e sempre a ``conexao``."""  # (noqa-acento)
-    pedidos = _lidos(receita) | {"conexao"}  # (noqa-acento)
+    """Os tópicos da porta que a receita lê (o sentido universal pelas origens dele), os do
+    caminho dos canais em que ela escreve e sempre o das conexões, quando a porta de hoje os
+    entrega."""
+    pedidos = _lidos(receita) | topicos_do_caminho(receita) | {"conexao"}  # (noqa-acento)
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
@@ -160,7 +175,7 @@ class Extensao:
         self.porta = porta
         self.receita = receita
         self.motor = Motor(receita)
-        self.saida = Saida(porta.pedir, diario)
+        self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
 
     async def atualizar_os_controles(self) -> None:
         resposta = await self.porta.pedir("controles.lista", {})
