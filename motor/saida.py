@@ -2,10 +2,12 @@
 
 Cada tique recebe o vencedor de cada vaga e escreve a diferença: ``vibracao.set`` (o motor
 esquerdo é o ``forte``, o direito o ``fraco``, e o par se renova antes dos 3 s da porta),
-``gatilho.set`` com os nomes do ``trigger.set``, ``luz.set``, ``haptica.tocar`` e ``som.tocar``.
-O teto é o do tato vivo, 12 escritas por segundo em cada controle e 40 no total: o que passa
-espera o tique seguinte, e o valor mais novo é o que sai. Quando a porta não conhece
-``haptica.tocar``, o padrão cai no motor, pelo envelope.
+``gatilho.set`` com os nomes do ``trigger.set``, ``luz.set``, ``haptica.tocar``, ``som.tocar`` (o
+som da caixa pelo id, ou o recorte do estalo do jogo pelo ``t`` do ``jogo.som``) e ``leds.set``
+(as luzes de jogador por máscara e prazo). O teto é o do tato vivo, 12 escritas por segundo em
+cada controle e 40 no total: o que passa espera o tique seguinte, e o valor mais novo é o que sai.
+Quando a porta não conhece ``haptica.tocar``, o padrão cai no motor, pelo envelope; quando não
+conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala.
 """
 from __future__ import annotations
 
@@ -38,7 +40,8 @@ class Saida:
         self.janela: deque[tuple[float, str]] = deque()
         self.sem_haptica = False
         self.sem_som = False
-        self._sons_tocados: set[tuple[str, str, float]] = set()
+        self.sem_leds = False
+        self._tocados: set[tuple[str, str, float]] = set()
 
     def _cabe(self, t_ms: float, uniq: str) -> bool:
         while self.janela and t_ms - self.janela[0][0] >= JANELA_MS:
@@ -65,6 +68,10 @@ class Saida:
             if codigo == METODO_DESCONHECIDO and metodo == "som.tocar":
                 self.sem_som = True
                 self._diario("a porta não toca som: o efeito de som fica calado")
+                return False
+            if codigo == METODO_DESCONHECIDO and metodo == "leds.set":
+                self.sem_leds = True
+                self._diario("a porta não acende as luzes de jogador: o lado na luz fica calado")
                 return False
             self._diario(f"{metodo} recusado: {exc}")
         return True
@@ -93,8 +100,14 @@ class Saida:
                 desejo[(uniq, "luz", "-")] = ("luz.set", {
                     "uniq": uniq, "rgb": p["rgb"], "brilho": p["brilho"]}, False)
             elif canal == "som":
-                desejo[(uniq, "som", "-")] = ("som.tocar", {
-                    "uniq": uniq, "som": p["som"], "volume": p["volume"],
+                som = {"uniq": uniq, "som": p["som"], "volume": p["volume"]}
+                if "t" in p:
+                    som["t"] = p["t"]
+                desejo[(uniq, "som", "-")] = ("som.tocar", {**som, "inicio_ms": p["inicio_ms"]},
+                                              False)
+            elif canal == "leds":
+                desejo[(uniq, "leds", "-")] = ("leds.set", {
+                    "uniq": uniq, "mascara": p["mascara"], "ate_ms": p["ate_ms"],
                     "inicio_ms": p["inicio_ms"]}, False)
         for uniq, lados in motores.items():
             forte, fraco = round(lados["esquerdo"] * 255), round(lados["direito"] * 255)
@@ -129,13 +142,14 @@ class Saida:
             metodo, params, zero = desejo[chave]
             if metodo == "haptica.tocar":
                 continue
-            if metodo == "som.tocar":
-                marca = (chave[0], params["som"], params.pop("inicio_ms"))
+            if metodo in ("som.tocar", "leds.set"):
+                marca = (chave[0], metodo, params.pop("inicio_ms"))
                 vivos.add(marca)
-                if self.sem_som or marca in self._sons_tocados:
+                calado = self.sem_som if metodo == "som.tocar" else self.sem_leds
+                if calado or marca in self._tocados:
                     continue
                 if await self._escrever(t_ms, chave, metodo, params):
-                    self._sons_tocados.add(marca)
+                    self._tocados.add(marca)
                 continue
             antes = self.escrito.get(chave)
             vence = metodo == "vibracao.set" and antes is not None and not zero and (
@@ -143,7 +157,7 @@ class Saida:
             if antes is not None and antes[1] == params and not vence:
                 continue
             await self._escrever(t_ms, chave, metodo, params, zero)
-        self._sons_tocados &= vivos
+        self._tocados &= vivos
 
     async def _tocar(self, t_ms: float, chave: Chave, params: dict[str, Any], zero: bool) -> bool:
         antes = self.escrito.get(chave)

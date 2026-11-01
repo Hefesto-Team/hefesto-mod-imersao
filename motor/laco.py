@@ -3,7 +3,8 @@
 O :meth:`Motor.passo` é puro no tempo: recebe o instante e devolve o vencedor de cada vaga
 (controle, canal e lado). Quem o chama a 60 Hz é :func:`rodar`, que entrega os vencedores à
 :class:`~motor.saida.Saida`. Um evento vale um tique; um efeito sem ``dura_ms`` vale enquanto a
-regra vale, e nunca menos que :data:`DURACAO_MINIMA_MS`.
+regra vale, e nunca menos que :data:`DURACAO_MINIMA_MS`. Os sentidos universais que a receita lê
+recebem cada evento da porta e o tique, e o que eles derivam entra no mesmo tique.
 """
 from __future__ import annotations
 
@@ -13,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import sentidos as universais
+from efeitos import luzes
 from motor import efeitos as catalogo
 from motor.arbitragem import Pedido, Vaga, decidir
 from motor.estados import Acumulador, Estado, continua_com_histerese
@@ -34,6 +37,7 @@ class Leitura:
     uniq: str | None = None
     disparou: bool = False
     anterior: float = 0.0
+    t: float | None = None
 
 
 @dataclass
@@ -43,6 +47,7 @@ class Ativacao:
     alvos: tuple[str, ...]
     inicio_ms: float
     fim_ms: float | None
+    t_do_jogo: float | None = None
 
 
 @dataclass
@@ -89,6 +94,8 @@ class Motor:
         self.ativas: list[Ativacao] = []
         self.jogadores: dict[str, int] = {}
         self._fila: list[_Evento] = []
+        self.universais = universais.criar(s["de"] for s in self.sentidos.values())
+        self.vibrando: frozenset[str] = frozenset()
 
     def controles(self, lista: list[dict[str, Any]]) -> None:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
@@ -121,6 +128,9 @@ class Motor:
                 escala = sentido.get("escala")
                 if escala:
                     valor = min(1.0, max(0.0, (valor - escala[0]) / (escala[1] - escala[0])))
+            marca = evento.dados.get("t")
+            if isinstance(marca, (int, float)) and not isinstance(marca, bool):
+                leitura.t = float(marca)
             if evento.uniq is not None:
                 leitura.uniq = evento.uniq
                 leitura.jogador = float(self.jogadores.get(evento.uniq, 0))
@@ -201,15 +211,21 @@ class Motor:
             return t_ms + float(efeito["dura_ms"])
         if efeito["canal"] == "haptica" and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
             return t_ms + catalogo.PADROES[efeito["padrao"]].dura_ms  # (noqa-acento)
+        if efeito["canal"] == "leds":
+            return t_ms + luzes.PRAZO_MAXIMO_MS
         return t_ms + DURACAO_MINIMA_MS if de_borda else None
 
     def _ativar(self, indice: int, nomes: Any, t_ms: float, de_borda: bool) -> None:
         regra = self.receita.regras[indice]
         alvos = self._alvos(regra, indice)
+        no = self.receita.expressoes[("regras", indice, "quando")]
+        marcas = [self.leituras[n].t for n in sorted(expressao.nomes(no))
+                  if n in self.leituras and self.leituras[n].disparou]
+        t_do_jogo = next((m for m in marcas if m is not None), None)
         for nome in [nomes] if isinstance(nomes, str) else nomes:
             efeito = self.receita.secao("efeitos")[nome]
             self.ativas.append(Ativacao(indice, nome, alvos, t_ms,
-                                        self._fim(efeito, t_ms, de_borda)))
+                                        self._fim(efeito, t_ms, de_borda), t_do_jogo))
 
     def _rodar_as_regras(self, t_ms: float) -> None:
         for indice, regra in enumerate(self.receita.regras):
@@ -261,9 +277,19 @@ class Motor:
             forca = catalogo.forca_da_luz(efeito["cor"], brilho)
             params.update(rgb=catalogo.rgb(efeito["cor"]), brilho=brilho)
             lados = ["-"]
+        elif canal == "leds":
+            forca = 1.0
+            fim = ativa.fim_ms if ativa.fim_ms is not None else ativa.inicio_ms
+            params.update(mascara=luzes.mascara(efeito["lado"]),
+                          ate_ms=luzes.prazo(fim - ativa.inicio_ms))
+            lados = ["-"]
         else:
             forca = float(efeito.get("volume", 1.0))
             params.update(som=efeito["som"], volume=forca)
+            if efeito["som"] == "recorte":
+                if ativa.t_do_jogo is None:
+                    return []
+                params["t"] = ativa.t_do_jogo
             lados = ["-"]
         prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
         return [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade, ativa.inicio_ms,
@@ -275,12 +301,24 @@ class Motor:
         for leitura in self.leituras.values():
             leitura.disparou = False
         fila, self._fila = self._fila, []
+        derivados: list[universais.Derivado] = []
+        for sentido in self.universais:
+            derivados += sentido.tique(t_ms, self.jogadores, self.vibrando)
+        for evento in fila:
+            for sentido in self.universais:
+                if evento.topico in sentido.origens:
+                    derivados += sentido.ler(evento.topico, evento.nome, evento.uniq,
+                                             evento.dados, t_ms)
+        fila += [_Evento(d.topico, d.nome, d.uniq, d.dados) for d in derivados]
         for evento in fila:
             self._ler_evento(evento)
         self._calcular(t_ms)
         self._rodar_as_regras(t_ms)
         self.ativas = [a for a in self.ativas if a.fim_ms is None or t_ms < a.fim_ms]
-        return decidir(p for a in self.ativas for p in self._pedidos(a))
+        vencedores = decidir(p for a in self.ativas for p in self._pedidos(a))
+        self.vibrando = frozenset(p.uniq for p in vencedores.values()
+                                  if p.canal in ("motor", "haptica") and p.forca > 0)
+        return vencedores
 
 
 async def rodar(motor: Motor, saida: Saida, parar: asyncio.Event,

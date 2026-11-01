@@ -4,8 +4,8 @@ A receita diz ao motor o que ler do jogo (``sentidos``), o que calcular (``deriv
 cena muda (``estados``), o que tocar no controle (``efeitos``) e a ligação entre os dois
 (``regras``). Campo desconhecido recusa, em todo nível; o arquivo passa de 64 KB e recusa antes
 de ser lido; expressão fora da lista fechada recusa; o ciclo entre derivados e estados recusa; e
-o gatilho fala os sete modos com as faixas que o console aceita. Sem sentido nenhum, a receita é
-o universal.
+o gatilho fala os sete modos com as faixas que o console aceita. Um sentido lê um tópico da porta
+ou um sentido universal (``sentido.<nome>``), e este pede as permissões de todas as origens dele.
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+import sentidos as universais
+from efeitos import luzes
 from receita import expressao
 from receita.json_com_linhas import Caminho, JsonRecusado, ler, linha_de
 
@@ -36,9 +38,10 @@ TOPICOS_POR_CONTROLE = (
 TOPICOS_GLOBAIS = ("perfil.jogo", "jogo.som", "jogo.tela", "jogo.memoria", "jogo.identidade")
 TOPICOS = TOPICOS_POR_CONTROLE + TOPICOS_GLOBAIS
 PERMISSOES = tuple(f"ler:{t}" for t in TOPICOS)
-CANAIS = ("haptica", "motor", "gatilho", "luz", "som")
+TOPICOS_DOS_SENTIDOS = universais.TOPICOS
+CANAIS = ("haptica", "motor", "gatilho", "luz", "som", "leds")
 PADROES_PCM = ("coracao", "susto", "estalo")  # (noqa-acento)
-SONS = ("susto", "estalo")
+SONS = ("susto", "estalo", "recorte")
 LADOS = ("esquerdo", "direito", "ambos")
 LADOS_DO_GATILHO = ("l2", "r2", "ambos")
 JOGADORES = ("p1", "p2", "p3", "p4")
@@ -286,7 +289,7 @@ _LEITURA = estrito(
 
 _SENTIDO = estrito(
     ("de", "especie"),
-    de=Texto(escolhas=TOPICOS),
+    de=Texto(escolhas=TOPICOS + TOPICOS_DOS_SENTIDOS),
     especie=Texto(escolhas=("nivel", "estado", "evento")),
     nome=Texto(40, NOME_DO_EVENTO),
     campo=Texto(80, CAMPO_DO_EVENTO),
@@ -381,6 +384,8 @@ _EFEITO = Discriminado("canal", {
                    brilho=Real(0.0, 1.0), dura_ms=_DURA),
     "som": estrito(("canal", "som"), canal=Texto(escolhas=CANAIS), som=Texto(escolhas=SONS),
                    volume=Real(0.0, 1.0)),
+    "leds": estrito(("canal", "lado"), canal=Texto(escolhas=CANAIS), lado=Texto(escolhas=LADOS),
+                    dura_ms=Inteiro(1, luzes.PRAZO_MAXIMO_MS)),
 })
 
 _EFEITO_ID = Texto(32, ID)
@@ -443,6 +448,7 @@ class Receita:
     dados: dict[str, Any]
     expressoes: dict[Caminho, expressao.No] = field(default_factory=dict)
     ordem: tuple[str, ...] = ()
+    universal: bool = False
 
     def secao(self, nome: str) -> dict[str, Any]:
         valor = self.dados.get(nome, {})
@@ -453,12 +459,12 @@ class Receita:
         return list(self.dados.get("regras", []))
 
     @property
-    def universal(self) -> bool:
+    def vazia(self) -> bool:
         return not self.secao("sentidos") and not self.regras
 
 
 def receita_vazia() -> Receita:
-    """O universal: a receita sem sentido nem regra."""
+    """A receita sem sentido nem regra: não toca nada."""
     return Receita({"formato": FORMATO, "motor": f">={MOTOR},<{MOTOR + 1}"})
 
 
@@ -551,9 +557,10 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
 
     for ident, sentido in sentidos.items():
         caminho = ("sentidos", ident)
-        if f"ler:{sentido['de']}" not in permissoes:
-            erros.append(((*caminho, "de"), (f"lê «{sentido['de']}» sem declarar "
-                                            f"«ler:{sentido['de']}» nas permissoes")))  # (noqa-acento)
+        for origem in sorted(universais.origens([sentido["de"]])):
+            if f"ler:{origem}" not in permissoes:
+                erros.append(((*caminho, "de"), (f"lê «{sentido['de']}» sem declarar "
+                                                f"«ler:{origem}» nas permissoes")))  # (noqa-acento)
         if sentido["de"] == "jogo.memoria":
             if memoria != "pede":
                 erros.append(((*caminho, "de"), (f"lê a memória com a leitura_de_memoria "
@@ -635,7 +642,8 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
         if "para" in regra:
             de_controle = no is not None and any(
                 sentidos.get(n, {}).get("especie") == "evento"
-                and sentidos[n]["de"] in TOPICOS_POR_CONTROLE for n in expressao.nomes(no))
+                and sentidos[n]["de"] in TOPICOS_POR_CONTROLE + universais.POR_CONTROLE
+                for n in expressao.nomes(no))
             if regra["para"] == "quem_levou" and no is not None and not de_controle:
                 erros.append(((*caminho, "para"), ("«quem_levou» pede um sentido de evento que "
                                                   "diga o controle (um tópico por controle)")))
