@@ -134,7 +134,7 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("eventos.assinar") == [{"topicos": [  # (noqa-acento)
-        "conexao", "jogo.vibracao", "jogo.haptica", "entradas", "botoes", "movimento"]}]  # (noqa-acento)
+        "conexao", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas", "botoes", "movimento"]}]  # (noqa-acento)
     diario = capsys.readouterr().err
     if arquivo:
         assert "foi recusada; vale o universal" in diario
