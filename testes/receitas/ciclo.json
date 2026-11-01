@@ -3,7 +3,7 @@
   "motor": ">=1,<2",
   "permissoes": ["ler:jogo.vibracao"],
   "sentidos": {
-    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte"}
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "pedido.1"}
   },
   "derivados": {
     "medo": {"expr": "rumble + calma"},

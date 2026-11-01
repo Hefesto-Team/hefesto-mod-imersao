@@ -16,6 +16,12 @@ UM, DOIS, TRES, QUATRO = (f"aa:bb:cc:00:00:0{n}" for n in range(1, 5))
 QUATRO_CONTROLES = [{"uniq": u, "jogador": j} for j, u in enumerate((UM, DOIS, TRES, QUATRO), 1)]
 
 
+def vibracao_do_jogo(uniq: str, forte: int, fraco: int = 0, jogador: int = 1) -> dict[str, Any]:
+    """Os dados do ``jogo.vibracao`` como a porta os entrega: os pares em ``[fraco, forte]``."""
+    return {"uniq": uniq, "jogador": jogador, "pedido": [fraco, forte],
+            "efetivo": [fraco, forte], "jogo": [forte, fraco], "toques": [0, 0], "t": 1.0}
+
+
 class Recusa(RuntimeError):
     def __init__(self, mensagem: str, codigo: int) -> None:
         super().__init__(mensagem)

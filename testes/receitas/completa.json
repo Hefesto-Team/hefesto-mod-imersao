@@ -14,8 +14,8 @@
     "com_luz": {"rotulo": "Luz no susto", "tipo": "ligado", "padrao": true}
   },
   "sentidos": {
-    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte", "escala": [0, 255]},
-    "golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte", "escala": [0, 255],
+    "rumble": {"de": "jogo.vibracao", "especie": "nivel", "campo": "pedido.1", "escala": [0, 255]},
+    "golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "pedido.1", "escala": [0, 255],
               "limiar": 0.6},
     "cruz": {"de": "botoes", "especie": "evento", "nome": "button.down", "campo": "botao",
              "igual": "cross"},

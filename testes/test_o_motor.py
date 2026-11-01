@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import pytest
-from apoio import DOIS, QUATRO_CONTROLES, UM, EscritasDeMentira
+from apoio import DOIS, QUATRO_CONTROLES, UM, EscritasDeMentira, vibracao_do_jogo
 
 from motor import efeitos
 from motor.arbitragem import Pedido, decidir
@@ -48,8 +48,22 @@ def _correr(motor: Motor, saida: Saida, escritas: EscritasDeMentira, ate_ms: flo
     asyncio.run(correr())
 
 
-def _vib(forte: float) -> Evento:
-    return ("jogo.vibracao", "rumble", UM, {"forte": forte, "fraco": 0})
+def _vib(forte: int) -> Evento:
+    return ("jogo.vibracao", "jogo.vibracao", UM, vibracao_do_jogo(UM, forte))
+
+
+def test_o_sentido_le_o_par_da_porta_pelo_indice_e_o_indice_que_falta_nao_vira_zero() -> None:
+    motor, saida, escritas = _motor({
+        "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
+        "sentidos": {"forte": {"de": "jogo.vibracao", "especie": "nivel", "campo": "pedido.1",
+                               "escala": [0, 255]},
+                     "fraco": {"de": "jogo.vibracao", "especie": "nivel", "campo": "efetivo.0",
+                               "escala": [0, 255]}},
+    })
+    _correr(motor, saida, escritas, 100, [(0, _vib(255)), (50, ("jogo.vibracao", "jogo.vibracao",
+                                                                UM, {"pedido": [], "efetivo": [51]}))])
+    assert motor.leituras["forte"].valor == 1.0
+    assert motor.leituras["fraco"].valor == pytest.approx(0.2)
 
 
 def _perto(t: float, alvo: float) -> bool:
@@ -59,7 +73,7 @@ def _perto(t: float, alvo: float) -> bool:
 def test_o_estado_que_sobe_e_desce_gera_os_efeitos_na_ordem_e_no_tempo() -> None:
     motor, saida, escritas = _motor({
         "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
-        "sentidos": {"tensao": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte",  # (noqa-acento)
+        "sentidos": {"tensao": {"de": "jogo.vibracao", "especie": "nivel", "campo": "pedido.1",  # (noqa-acento)
                                 "escala": [0, 255]}},
         "estados": {"perigo": {"quando": "tensao > 0.5", "histerese": 0.1, "minimo_ms": 500}},  # (noqa-acento)
         "efeitos": {"pulso": {"canal": "motor", "forca": 0.8, "lado": "esquerdo"},
@@ -190,7 +204,7 @@ def test_o_motor_que_segura_se_renova_antes_dos_tres_segundos_da_porta() -> None
 
 def test_quem_levou_e_a_lista_de_jogadores_escolhem_o_controle() -> None:
     golpe = {"permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
-             "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte",
+             "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "pedido.1",
                                     "escala": [0, 255], "limiar": 0.5}},
              "efeitos": {"tranco": {"canal": "motor", "forca": 1.0, "dura_ms": 200}}}
     dois = [{"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}]
@@ -198,7 +212,8 @@ def test_quem_levou_e_a_lista_de_jogadores_escolhem_o_controle() -> None:
         motor, saida, escritas = _motor(
             {**golpe, "regras": [{"quando": "golpe", "entao": "tranco", "para": para}]}, dois)
         _correr(motor, saida, escritas, 400,
-                [(0, ("jogo.vibracao", "rumble", DOIS, {"forte": 250}))])
+                [(0, ("jogo.vibracao", "jogo.vibracao", DOIS,
+                      vibracao_do_jogo(DOIS, 250, jogador=2)))])
         assert {p["uniq"] for _, p in escritas.de("vibracao.set")} == quem, para
 
 

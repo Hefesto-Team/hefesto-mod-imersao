@@ -62,9 +62,12 @@ class _Evento:
 
 def _campo(dados: Any, caminho: str) -> Any:
     for parte in caminho.split("."):
-        if not isinstance(dados, dict) or parte not in dados:
+        if isinstance(dados, dict) and parte in dados:
+            dados = dados[parte]
+        elif isinstance(dados, list) and parte.isdigit() and int(parte) < len(dados):
+            dados = dados[int(parte)]
+        else:
             return None
-        dados = dados[parte]
     return dados
 
 
