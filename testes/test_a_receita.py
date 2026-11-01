@@ -22,16 +22,16 @@ def _base(**mais: Any) -> dict[str, Any]:
     return {"formato": 1, "motor": ">=1,<2", **mais}
 
 
-def test_a_receita_vazia_e_o_universal() -> None:
-    receita = ler_receita((RECEITAS / "universal.json").read_bytes())
-    assert receita.universal and receita.ordem == ()
-    assert receita_vazia().universal
-    assert ler_receita(json.dumps(receita_vazia().dados)).universal
+def test_a_receita_vazia_passa_e_nao_toca_nada() -> None:
+    receita = ler_receita((RECEITAS / "vazia.json").read_bytes())
+    assert receita.vazia and receita.ordem == () and not receita.universal
+    assert receita_vazia().vazia
+    assert ler_receita(json.dumps(receita_vazia().dados)).vazia
 
 
 def test_a_receita_completa_passa_e_ordena_os_derivados_antes_dos_estados() -> None:
     receita = ler_receita((RECEITAS / "completa.json").read_bytes())
-    assert not receita.universal
+    assert not receita.vazia
     ordem = receita.ordem
     assert ordem.index("tensao") < ordem.index("perigo_total") < ordem.index("perigo")  # (noqa-acento)
     assert ordem.index("vida_baixa") < ordem.index("perigo")
@@ -66,7 +66,7 @@ def test_65_kb_recusa_antes_de_ler_e_64_kb_passam() -> None:
     corpo = json.dumps(_base(), indent=1)
     cabe = corpo[:-1] + " " * (TAMANHO_MAXIMO - len(corpo)) + "}"
     assert len(cabe.encode()) == TAMANHO_MAXIMO
-    assert ler_receita(cabe).universal
+    assert ler_receita(cabe).vazia
     linhas = "\n" * 2000
     passa = corpo[:-1] + linhas + " " * (65 * 1024 - len(corpo) - len(linhas)) + "}"
     recusa = _recusa(passa)

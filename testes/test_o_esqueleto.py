@@ -108,7 +108,7 @@ def test_o_processo_le_a_receita_assina_o_que_ela_usa_e_escreve_pela_porta(
     _subir(pasta_curta, porta, monkeypatch, json.dumps(_RECEITA).encode())
 
     async def corpo(extensao: servidor.Extensao) -> None:
-        assert not extensao.receita.universal
+        assert not extensao.receita.universal and not extensao.receita.vazia
         await porta.publicar("jogo.vibracao", "jogo.vibracao", vibracao_do_jogo(UM, 250), UM)
         await ate(lambda: bool(porta.de("vibracao.set")))
         await ate(lambda: len(porta.de("vibracao.set")) >= 2)
@@ -130,16 +130,18 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
     _subir(pasta_curta, porta, monkeypatch, bruto)
 
     async def corpo(extensao: servidor.Extensao) -> None:
-        assert extensao.receita.universal
+        assert extensao.receita.universal and not extensao.receita.vazia
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao"]}]  # (noqa-acento)
+    assert porta.de("eventos.assinar") == [{"topicos": [  # (noqa-acento)
+        "conexao", "jogo.vibracao", "jogo.haptica", "entradas", "botoes", "movimento"]}]  # (noqa-acento)
     diario = capsys.readouterr().err
     if arquivo:
         assert "foi recusada; vale o universal" in diario
         assert "linha 7: sentidos.rumble.taxa_hz: campo desconhecido" in diario
     else:
-        assert diario == ""
+        assert "foi recusada" not in diario
+    assert "a porta não entrega jogo.som, jogo.tela, microfone.nivel" in diario
 
 
 def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diario(
@@ -152,7 +154,7 @@ def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diari
     _subir(pasta_curta, porta, monkeypatch, json.dumps(receita).encode())
 
     async def corpo(extensao: servidor.Extensao) -> None:
-        assert not extensao.receita.universal
+        assert not extensao.receita.universal and not extensao.receita.vazia
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "botoes"]}]  # (noqa-acento)
