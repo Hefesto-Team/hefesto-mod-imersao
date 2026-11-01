@@ -14,7 +14,7 @@ TAMANHO_MAXIMO = 512
 NOS_MAXIMOS = 64
 
 OPERADORES_DE_COMPARACAO = ("<=", ">=", "==", "!=", "<", ">")
-PALAVRAS = ("e", "ou", "nao")
+PALAVRAS = ("e", "ou", "nao")  # (noqa-acento)
 CAMPOS_DO_SENTIDO = ("lado", "forca", "jogador", "valor")
 FUNCOES: dict[str, tuple[int, int]] = {
     "min": (2, 8),
@@ -141,9 +141,9 @@ class _Analisador:
         return no
 
     def nao(self) -> No:
-        if self.e_palavra("nao"):
+        if self.e_palavra("nao"):  # (noqa-acento)
             self.i += 1
-            return self.contar(Unario("nao", self.nao()))
+            return self.contar(Unario("nao", self.nao()))  # (noqa-acento)
         return self.comparacao()
 
     def comparacao(self) -> No:
@@ -290,7 +290,7 @@ def avaliar(no: No, ler_nome: LerNome, ler_entrada: LerEntrada) -> float:
         return ler_entrada(no.id)
     if isinstance(no, Unario):
         alvo = avaliar(no.alvo, ler_nome, ler_entrada)
-        return 1.0 - _verdade(alvo) if no.op == "nao" else -alvo
+        return 1.0 - _verdade(alvo) if no.op == "nao" else -alvo  # (noqa-acento)
     if isinstance(no, Binario):
         a = avaliar(no.esquerda, ler_nome, ler_entrada)
         if no.op == "e":

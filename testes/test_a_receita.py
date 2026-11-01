@@ -33,7 +33,7 @@ def test_a_receita_completa_passa_e_ordena_os_derivados_antes_dos_estados() -> N
     receita = ler_receita((RECEITAS / "completa.json").read_bytes())
     assert not receita.universal
     ordem = receita.ordem
-    assert ordem.index("tensao") < ordem.index("perigo_total") < ordem.index("perigo")
+    assert ordem.index("tensao") < ordem.index("perigo_total") < ordem.index("perigo")  # (noqa-acento)
     assert ordem.index("vida_baixa") < ordem.index("perigo")
 
 
@@ -78,7 +78,7 @@ def test_65_kb_recusa_antes_de_ler_e_64_kb_passam() -> None:
     ("topo", _base(autor="x")),
     ("jogo", _base(jogo={"chave": "steam_app_1", "loja": "x"})),
     ("builds", _base(jogo={"builds": {"steam_buildid": ["1", "2"], "gog": "3"}})),
-    ("entrada", _base(entradas={"f": {"rotulo": "F", "tipo": "ligado", "padrao": True,
+    ("entrada", _base(entradas={"f": {"rotulo": "F", "tipo": "ligado", "padrao": True,  # (noqa-acento)
                                       "cor": "#fff"}})),
     ("sentido", _base(permissoes=["ler:botoes"],
                       sentidos={"x": {"de": "botoes", "especie": "evento", "taxa_hz": 1}})),
@@ -119,7 +119,7 @@ def test_a_expressao_tem_teto_de_tamanho_e_de_nos() -> None:
     (_base(sentidos={"x": {"de": "botoes", "especie": "evento"}}), "sem declarar «ler:botoes»"),
     (_base(jogo={"leitura_de_memoria": "nunca"}, permissoes=["ler:jogo.memoria"],
            sentidos={"v": {"de": "jogo.memoria", "especie": "nivel",
-                           "leitura": {"tipo": "f32", "modulo": "a.exe", "base": "0x10"}}}),
+                           "leitura": {"tipo": "f32", "modulo": "a.exe", "base": "0x10"}}}),  # (noqa-acento)
      "só «pede» lê"),
     (_base(permissoes=["ler:jogo.som"], sentidos={"s": {"de": "jogo.som", "especie": "evento"}},
            efeitos={"m": {"canal": "motor", "forca": 1}},
@@ -144,16 +144,16 @@ def _gatilhos_validos() -> list[dict[str, Any]]:
     base = {"canal": "gatilho", "lado": "r2"}
     return [{**base, **m} for m in (
         {"modo": "desliga"},
-        {"modo": "resistencia", "posicao": 0, "forca": 1},
-        {"modo": "resistencia", "posicao": 9, "forca": 8},
+        {"modo": "resistencia", "posicao": 0, "forca": 1},  # (noqa-acento)
+        {"modo": "resistencia", "posicao": 9, "forca": 8},  # (noqa-acento)
         {"modo": "arma", "inicio": 2, "fim": 3, "forca": 1},
         {"modo": "arma", "inicio": 7, "fim": 8, "forca": 8},
-        {"modo": "vibracao", "posicao": 9, "amplitude": 8, "frequencia": 255},
-        {"modo": "vibracao", "posicao": 0, "amplitude": 1, "frequencia": 1},
+        {"modo": "vibracao", "posicao": 9, "amplitude": 8, "frequencia": 255},  # (noqa-acento)
+        {"modo": "vibracao", "posicao": 0, "amplitude": 1, "frequencia": 1},  # (noqa-acento)
         {"modo": "resistencia_por_zona", "forcas": [0, 0, 0, 0, 0, 0, 0, 0, 0, 8]},
         {"modo": "rampa", "inicio": 0, "fim": 1, "forca_inicio": 1, "forca_fim": 8},
         {"modo": "rampa", "inicio": 8, "fim": 9, "forca_inicio": 8, "forca_fim": 1},
-        {"modo": "vibracao_por_zona", "frequencia": 1, "amplitudes": [8] + [0] * 9},
+        {"modo": "vibracao_por_zona", "frequencia": 1, "amplitudes": [8] + [0] * 9},  # (noqa-acento)
     )]
 
 
@@ -165,7 +165,7 @@ def test_os_sete_modos_do_gatilho_passam_nas_pontas_da_faixa() -> None:
 @pytest.mark.parametrize(("mudanca", "trecho"), [
     ({"modo": "arma", "inicio": 8, "fim": 9, "forca": 1}, "fora da faixa de 2 a 7"),
     ({"modo": "arma", "inicio": 2, "fim": 9, "forca": 1}, "fora da faixa de 3 a 8"),
-    ({"modo": "resistencia", "posicao": 10, "forca": 1}, "fora da faixa de 0 a 9"),
+    ({"modo": "resistencia", "posicao": 10, "forca": 1}, "fora da faixa de 0 a 9"),  # (noqa-acento)
     ({"modo": "resistencia_por_zona", "forcas": [9] + [0] * 9}, "fora da faixa de 0 a 8"),
     ({"modo": "resistencia_por_zona", "forcas": [0] * 10}, "use o modo «desliga»"),
     ({"modo": "resistencia_por_zona", "forcas": [1] * 9}, "exatamente 10"),
@@ -173,7 +173,7 @@ def test_os_sete_modos_do_gatilho_passam_nas_pontas_da_faixa() -> None:
      "fora da faixa de 0 a 8"),
     ({"modo": "rampa", "inicio": 5, "fim": 5, "forca_inicio": 1, "forca_fim": 1},
      "tem de passar do início"),
-    ({"modo": "vibracao_por_zona", "frequencia": 0, "amplitudes": [1] * 10},
+    ({"modo": "vibracao_por_zona", "frequencia": 0, "amplitudes": [1] * 10},  # (noqa-acento)
      "fora da faixa de 1 a 255"),
     ({"modo": "turbo"}, "«modo» pede um de"),
 ])

@@ -56,7 +56,7 @@ class Saida:
         try:
             await self._pedir(metodo, params)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
-            codigo = getattr(exc, "codigo", None)
+            codigo = getattr(exc, "codigo", None)  # (noqa-acento)
             if codigo == METODO_DESCONHECIDO and metodo == "haptica.tocar":
                 self.sem_haptica = True
                 self._diario("a porta não toca háptica: o padrão segue pelo motor")
@@ -78,12 +78,12 @@ class Saida:
             if canal == "motor" or (canal == "haptica" and self.sem_haptica):
                 forca = p["forca"]
                 if canal == "haptica":
-                    forca *= catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"])
+                    forca *= catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"])  # (noqa-acento)
                 atual = motores.setdefault(uniq, {"esquerdo": 0.0, "direito": 0.0})
                 atual[lado] = max(atual[lado], forca)
             elif canal == "haptica":
                 desejo[(uniq, "haptica", lado)] = ("haptica.tocar", {
-                    "uniq": uniq, "id": p["padrao"], "forca": round(p["forca"], 3),
+                    "uniq": uniq, "id": p["padrao"], "forca": round(p["forca"], 3),  # (noqa-acento)
                     "bpm": round(p["bpm"]), "lado": lado, "ate_ms": ATE_MS_DA_HAPTICA}, False)
             elif canal == "gatilho":
                 nome, valores = p["trigger"]

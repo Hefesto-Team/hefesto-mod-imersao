@@ -28,7 +28,7 @@ from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia
 
 ARQUIVO_DA_RECEITA = "receita.json"
 TOPICOS_DA_PORTA = (
-    "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",
+    "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento",
 )
 
@@ -125,8 +125,8 @@ def carregar_a_receita(dados: Path | None) -> Receita:
 
 
 def topicos_da_receita(receita: Receita) -> list[str]:
-    """Os tópicos que a receita lê e que a porta de hoje entrega, e sempre a ``conexao``."""
-    pedidos = {s["de"] for s in receita.secao("sentidos").values()} | {"conexao"}
+    """Os tópicos que a receita lê e que a porta de hoje entrega, e sempre a ``conexao``."""  # (noqa-acento)
+    pedidos = {s["de"] for s in receita.secao("sentidos").values()} | {"conexao"}  # (noqa-acento)
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
@@ -152,7 +152,7 @@ class Extensao:
         if mensagem.get("method") != "evento" or not isinstance(params, dict):
             return True
         topico, nome = params.get("topico"), params.get("nome")
-        if topico == "conexao":
+        if topico == "conexao":  # (noqa-acento)
             with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
                 await self.atualizar_os_controles()
         if isinstance(topico, str) and isinstance(nome, str):

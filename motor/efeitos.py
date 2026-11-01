@@ -36,7 +36,7 @@ class Padrao:
 
 
 PADROES: dict[str, Padrao] = {
-    "coracao": Padrao((Golpe(0, 90, 55, 1.0), Golpe(180, 110, 45, 0.7)), repete=True),
+    "coracao": Padrao((Golpe(0, 90, 55, 1.0), Golpe(180, 110, 45, 0.7)), repete=True),  # (noqa-acento)
     "susto": Padrao((Golpe(0, 40, 90, 1.0), Golpe(40, 260, 60, 0.6)), repete=False),
     "estalo": Padrao((Golpe(0, 30, 120, 1.0),), repete=False),
 }
@@ -88,26 +88,26 @@ def _byte_da_forca(forca: int) -> int:
 def para_o_trigger_set(efeito: dict[str, Any]) -> tuple[str, list[int]]:
     """O nome e os parâmetros do ``trigger.set`` para um efeito de gatilho já validado."""
     modo = efeito["modo"]
-    if modo == "resistencia":
+    if modo == "resistencia":  # (noqa-acento)
         return "Feedback", [efeito["posicao"], efeito["forca"]]
     if modo == "arma":
         return "Weapon", [efeito["inicio"], efeito["fim"], _byte_da_forca(efeito["forca"])]
     if modo == "vibracao":
-        return "Vibration", [efeito["posicao"], efeito["amplitude"], efeito["frequencia"]]
+        return "Vibration", [efeito["posicao"], efeito["amplitude"], efeito["frequencia"]]  # (noqa-acento)
     if modo == "resistencia_por_zona":
         return "MultiPositionFeedback", list(efeito["forcas"])
     if modo == "rampa":
         return "SlopeFeedback", [efeito["inicio"], efeito["fim"], efeito["forca_inicio"],
                                  efeito["forca_fim"]]
     if modo == "vibracao_por_zona":
-        return "MultiPositionVibration", [efeito["frequencia"], *efeito["amplitudes"]]
+        return "MultiPositionVibration", [efeito["frequencia"], *efeito["amplitudes"]]  # (noqa-acento)
     return "Off", []
 
 
 def forca_do_gatilho(efeito: dict[str, Any]) -> float:
     """A força máxima do modo, de 0 a 1: a medida do «mais forte» no gatilho."""
     modo = efeito["modo"]
-    if modo in ("resistencia", "arma"):
+    if modo in ("resistencia", "arma"):  # (noqa-acento)
         bruto = efeito["forca"]
     elif modo == "vibracao":
         bruto = efeito["amplitude"]

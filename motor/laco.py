@@ -148,7 +148,7 @@ class Motor:
 
     def _ler_entrada(self, ident: str) -> float:
         entrada = self.receita.secao("entradas").get(ident, {})
-        valor = self.opcoes.get(ident, entrada.get("padrao", 0.0))
+        valor = self.opcoes.get(ident, entrada.get("padrao", 0.0))  # (noqa-acento)
         return float(valor) if isinstance(valor, (int, float)) else 0.0
 
     def _avaliar(self, caminho: tuple[str | int, ...]) -> float:
@@ -196,8 +196,8 @@ class Motor:
     def _fim(self, efeito: dict[str, Any], t_ms: float, de_borda: bool) -> float | None:
         if "dura_ms" in efeito:
             return t_ms + float(efeito["dura_ms"])
-        if efeito["canal"] == "haptica" and not catalogo.PADROES[efeito["padrao"]].repete:
-            return t_ms + catalogo.PADROES[efeito["padrao"]].dura_ms
+        if efeito["canal"] == "haptica" and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
+            return t_ms + catalogo.PADROES[efeito["padrao"]].dura_ms  # (noqa-acento)
         return t_ms + DURACAO_MINIMA_MS if de_borda else None
 
     def _ativar(self, indice: int, nomes: Any, t_ms: float, de_borda: bool) -> None:
@@ -243,7 +243,7 @@ class Motor:
             forca = self._numero(efeito.get("forca", 1.0), (*caminho, "forca"), 0.0, 1.0, 1.0)
             params["forca"] = forca
             if canal == "haptica":
-                params["padrao"] = efeito["padrao"]
+                params["padrao"] = efeito["padrao"]  # (noqa-acento)
                 params["bpm"] = self._numero(efeito.get("bpm", catalogo.BPM_PADRAO),
                                              (*caminho, "bpm"), 30.0, 220.0, catalogo.BPM_PADRAO)
             lado = efeito.get("lado", "ambos")

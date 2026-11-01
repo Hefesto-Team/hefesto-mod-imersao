@@ -94,7 +94,7 @@ async def _rodar(pasta: Path, porta: PortaDeMentira, corpo: Any) -> int:
 
 
 _RECEITA = {
-    "formato": 1, "motor": ">=1,<2", "permissoes": ["ler:jogo.vibracao"],
+    "formato": 1, "motor": ">=1,<2", "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
     "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte",
                            "escala": [0, 255], "limiar": 0.5}},
     "efeitos": {"tranco": {"canal": "motor", "forca": 1.0, "lado": "esquerdo", "dura_ms": 300}},
@@ -116,7 +116,7 @@ def test_o_processo_le_a_receita_assina_o_que_ela_usa_e_escreve_pela_porta(
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.metodos[:3] == ["mod.ola", "eventos.assinar", "controles.lista"]
     assert porta.de("mod.ola") == [{"ficha": "ficha-de-mentira"}]
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "jogo.vibracao"]}]
+    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "jogo.vibracao"]}]  # (noqa-acento)
     assert porta.de("vibracao.set")[:2] == [{"uniq": UM, "fraco": 0, "forte": 255},
                                             {"uniq": UM, "fraco": 0, "forte": 0}]
 
@@ -133,7 +133,7 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
         assert extensao.receita.universal
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao"]}]
+    assert porta.de("eventos.assinar") == [{"topicos": ["conexao"]}]  # (noqa-acento)
     diario = capsys.readouterr().err
     if arquivo:
         assert "foi recusada; vale o universal" in diario

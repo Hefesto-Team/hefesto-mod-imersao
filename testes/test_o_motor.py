@@ -58,10 +58,10 @@ def _perto(t: float, alvo: float) -> bool:
 
 def test_o_estado_que_sobe_e_desce_gera_os_efeitos_na_ordem_e_no_tempo() -> None:
     motor, saida, escritas = _motor({
-        "permissoes": ["ler:jogo.vibracao"],
-        "sentidos": {"tensao": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte",
+        "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
+        "sentidos": {"tensao": {"de": "jogo.vibracao", "especie": "nivel", "campo": "forte",  # (noqa-acento)
                                 "escala": [0, 255]}},
-        "estados": {"perigo": {"quando": "tensao > 0.5", "histerese": 0.1, "minimo_ms": 500}},
+        "estados": {"perigo": {"quando": "tensao > 0.5", "histerese": 0.1, "minimo_ms": 500}},  # (noqa-acento)
         "efeitos": {"pulso": {"canal": "motor", "forca": 0.8, "lado": "esquerdo"},
                     "alivio": {"canal": "luz", "cor": "#00ff00", "dura_ms": 300}},
         "regras": [{"quando": "perigo", "entao": "pulso", "senao": "alivio"}],
@@ -83,7 +83,7 @@ def _cruz(uniq: str = UM) -> Evento:
     return ("botoes", "button.down", uniq, {"botao": "cross"})
 
 
-_CRUZ = {"permissoes": ["ler:botoes"],
+_CRUZ = {"permissoes": ["ler:botoes"],  # (noqa-acento)
          "sentidos": {"cruz": {"de": "botoes", "especie": "evento", "nome": "button.down",
                                "campo": "botao", "igual": "cross"}}}
 
@@ -123,7 +123,7 @@ def test_forca_igual_desempata_pela_prioridade_e_depois_pelo_mais_recente() -> N
 
 def test_o_teto_do_tato_vivo_segura_cada_controle_e_o_total() -> None:
     motor, saida, escritas = _motor({
-        "permissoes": ["ler:entradas"],
+        "permissoes": ["ler:entradas"],  # (noqa-acento)
         "sentidos": {"l2": {"de": "entradas", "especie": "nivel", "campo": "l2",
                             "escala": [0, 255]}},
         "efeitos": {"aperto": {"canal": "motor", "forca": "l2", "lado": "esquerdo"}},
@@ -145,13 +145,13 @@ def test_o_teto_do_tato_vivo_segura_cada_controle_e_o_total() -> None:
 
 
 _CORACAO = {
-    "permissoes": ["ler:entradas"],
+    "permissoes": ["ler:entradas"],  # (noqa-acento)
     "sentidos": {"l2": {"de": "entradas", "especie": "nivel", "campo": "l2",
                         "escala": [0, 255]}},
     "estados": {"apertado": {"quando": "l2 > 0.5"}},
-    "efeitos": {"coracao": {"canal": "haptica", "padrao": "coracao", "forca": 1.0, "bpm": 60,
+    "efeitos": {"coracao": {"canal": "haptica", "padrao": "coracao", "forca": 1.0, "bpm": 60,  # (noqa-acento)
                             "lado": "esquerdo"}},
-    "regras": [{"quando": "apertado", "entao": "coracao"}],
+    "regras": [{"quando": "apertado", "entao": "coracao"}],  # (noqa-acento)
 }
 
 
@@ -173,14 +173,14 @@ def test_com_haptica_na_porta_o_coracao_sai_pelo_padrao_e_solta_com_o_zero() -> 
     _correr(motor, saida, escritas, 1000, [(0, _l2(255)), (500, _l2(0))])
     toques = escritas.de("haptica.tocar")
     assert [(p["id"], p["forca"], p["bpm"]) for _, p in toques] == [
-        ("coracao", 1.0, 60), ("coracao", 0.0, 60)]
+        ("coracao", 1.0, 60), ("coracao", 0.0, 60)]  # (noqa-acento)
     assert _perto(toques[1][0], 500)
     assert not escritas.de("vibracao.set")
 
 
 def test_o_motor_que_segura_se_renova_antes_dos_tres_segundos_da_porta() -> None:
     motor, saida, escritas = _motor({**_CORACAO, "efeitos": {
-        "coracao": {"canal": "motor", "forca": 0.5, "lado": "ambos"}}})
+        "coracao": {"canal": "motor", "forca": 0.5, "lado": "ambos"}}})  # (noqa-acento)
     _correr(motor, saida, escritas, 6000, [(0, _l2(255))])
     vezes = [t for t, p in escritas.de("vibracao.set")]
     assert [p for _, p in escritas.de("vibracao.set")] == [{"uniq": UM, "fraco": 128,
@@ -189,7 +189,7 @@ def test_o_motor_que_segura_se_renova_antes_dos_tres_segundos_da_porta() -> None
 
 
 def test_quem_levou_e_a_lista_de_jogadores_escolhem_o_controle() -> None:
-    golpe = {"permissoes": ["ler:jogo.vibracao"],
+    golpe = {"permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
              "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "forte",
                                     "escala": [0, 255], "limiar": 0.5}},
              "efeitos": {"tranco": {"canal": "motor", "forca": 1.0, "dura_ms": 200}}}
@@ -216,9 +216,9 @@ def test_o_limiar_dispara_na_subida_e_a_espera_segura_o_repique() -> None:
 def test_o_acumulador_sobe_por_evento_e_cai_pela_meia_vida() -> None:
     motor, _saida, _escritas = _motor({
         **_CRUZ,
-        "derivados": {"tensao": {"acumula": {"sobe_com": ["cruz"], "passo": 0.5,
+        "derivados": {"tensao": {"acumula": {"sobe_com": ["cruz"], "passo": 0.5,  # (noqa-acento)
                                              "meia_vida_ms": 1000}}},
-        "estados": {"perigo": {"quando": "tensao > 0.7"}},
+        "estados": {"perigo": {"quando": "tensao > 0.7"}},  # (noqa-acento)
     })
     vistos: list[tuple[float, float, float]] = []
 
@@ -228,7 +228,7 @@ def test_o_acumulador_sobe_por_evento_e_cai_pela_meia_vida() -> None:
             if k in (0, 6):
                 motor.evento(*_cruz())
             motor.passo(t)
-            vistos.append((t, motor.valores["tensao"], motor.valores["perigo"]))
+            vistos.append((t, motor.valores["tensao"], motor.valores["perigo"]))  # (noqa-acento)
 
     asyncio.run(correr())
     pico = max(v for _, v, _ in vistos)
@@ -253,7 +253,7 @@ def test_o_gatilho_sai_pelo_nome_do_trigger_set_e_solta_no_off() -> None:
 
 def test_o_coracao_e_o_susto_sao_padroes_pcm() -> None:
     taxa = 48_000
-    coracao = efeitos.pcm("coracao", 1000, bpm=60)
+    coracao = efeitos.pcm("coracao", 1000, bpm=60)  # (noqa-acento)
     assert len(coracao) == taxa
     def amostra(a: int, b: int, onda: Any) -> Any:
         return onda[int(a * taxa / 1000):int(b * taxa / 1000)]
@@ -263,12 +263,12 @@ def test_o_coracao_e_o_susto_sao_padroes_pcm() -> None:
     assert not any(amostra(90, 180, coracao)) and not any(amostra(300, 1000, coracao))
     susto = efeitos.pcm("susto", 600)
     assert max(map(abs, amostra(0, 40, susto))) > 10_000 and not any(amostra(300, 600, susto))
-    assert efeitos.envelope("susto", 500) == 0.0 and efeitos.envelope("coracao", 1000, 60) == 1.0
+    assert efeitos.envelope("susto", 500) == 0.0 and efeitos.envelope("coracao", 1000, 60) == 1.0  # (noqa-acento)
 
 
 def test_o_laco_roda_perto_de_60_hz_e_solta_tudo_ao_parar() -> None:
     motor, saida, escritas = _motor({**_CORACAO, "efeitos": {
-        "coracao": {"canal": "motor", "forca": 1.0}}})
+        "coracao": {"canal": "motor", "forca": 1.0}}})  # (noqa-acento)
     passos = 0
     original = motor.passo
 

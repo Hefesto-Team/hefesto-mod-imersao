@@ -72,7 +72,7 @@ class PortaDeMentira:
             erro = None
             resultado: Any = {"status": "ok"}
             if metodo == "mod.ola":
-                resultado = {"id": "imersao", "api": 2, "permissoes": []}
+                resultado = {"id": "imersao", "api": 2, "permissoes": []}  # (noqa-acento)
             elif metodo == "controles.lista":
                 resultado = {"controles": self.controles}
             elif metodo == "eventos.assinar":

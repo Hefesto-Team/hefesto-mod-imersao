@@ -30,20 +30,20 @@ HEXA = re.compile(r"^0x[0-9a-fA-F]{1,16}$")
 _CLAUSULA = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+)$")
 
 TOPICOS_POR_CONTROLE = (
-    "conexao", "entradas", "botoes", "movimento", "bateria",
+    "conexao", "entradas", "botoes", "movimento", "bateria",  # (noqa-acento)
     "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "microfone.nivel",
 )
 TOPICOS_GLOBAIS = ("perfil.jogo", "jogo.som", "jogo.tela", "jogo.memoria", "jogo.identidade")
 TOPICOS = TOPICOS_POR_CONTROLE + TOPICOS_GLOBAIS
 PERMISSOES = tuple(f"ler:{t}" for t in TOPICOS)
 CANAIS = ("haptica", "motor", "gatilho", "luz", "som")
-PADROES_PCM = ("coracao", "susto", "estalo")
+PADROES_PCM = ("coracao", "susto", "estalo")  # (noqa-acento)
 SONS = ("susto", "estalo")
 LADOS = ("esquerdo", "direito", "ambos")
 LADOS_DO_GATILHO = ("l2", "r2", "ambos")
 JOGADORES = ("p1", "p2", "p3", "p4")
 MODOS_DO_GATILHO = (
-    "desliga", "resistencia", "arma", "vibracao", "resistencia_por_zona", "rampa",
+    "desliga", "resistencia", "arma", "vibracao", "resistencia_por_zona", "rampa",  # (noqa-acento)
     "vibracao_por_zona",
 )
 ZONAS = 10
@@ -277,7 +277,7 @@ class FaixaDoMotor(Esquema):
 
 
 _LEITURA = estrito(
-    ("tipo", "modulo", "base"),
+    ("tipo", "modulo", "base"),  # (noqa-acento)
     tipo=Texto(escolhas=("u8", "i8", "u16", "i16", "u32", "i32", "f32", "f64")),
     modulo=Texto(120),
     base=Texto(18, HEXA),
@@ -313,7 +313,7 @@ _ESTADO = estrito(
 )
 
 _ENTRADA = estrito(
-    ("rotulo", "tipo", "padrao"),
+    ("rotulo", "tipo", "padrao"),  # (noqa-acento)
     rotulo=Texto(40),
     tipo=Texto(escolhas=("deslizante", "ligado")),
     minimo=Real(-1e9, 1e9),
@@ -335,16 +335,16 @@ def _gatilho(obrigatorios: tuple[str, ...] = (), **params: Esquema) -> Objeto:
 
 _EFEITO_DE_GATILHO = Discriminado("modo", {
     "desliga": _gatilho(),
-    "resistencia": _gatilho(("posicao", "forca"), posicao=_POSICAO, forca=_FORCA_DO_GATILHO),
+    "resistencia": _gatilho(("posicao", "forca"), posicao=_POSICAO, forca=_FORCA_DO_GATILHO),  # (noqa-acento)
     "arma": _gatilho(("inicio", "fim", "forca"), inicio=Inteiro(2, 7), fim=Inteiro(3, 8),
                      forca=_FORCA_DO_GATILHO),
-    "vibracao": _gatilho(("posicao", "amplitude", "frequencia"), posicao=_POSICAO,
+    "vibracao": _gatilho(("posicao", "amplitude", "frequencia"), posicao=_POSICAO,  # (noqa-acento)
                          amplitude=_FORCA_DO_GATILHO, frequencia=Inteiro(1, 255)),
     "resistencia_por_zona": _gatilho(("forcas",), forcas=Lista(_ZONA, ZONAS, minimo=ZONAS)),
     "rampa": _gatilho(("inicio", "fim", "forca_inicio", "forca_fim"), inicio=Inteiro(0, 8),
                       fim=Inteiro(1, 9), forca_inicio=_FORCA_DO_GATILHO,
                       forca_fim=_FORCA_DO_GATILHO),
-    "vibracao_por_zona": _gatilho(("frequencia", "amplitudes"), frequencia=Inteiro(1, 255),
+    "vibracao_por_zona": _gatilho(("frequencia", "amplitudes"), frequencia=Inteiro(1, 255),  # (noqa-acento)
                                   amplitudes=Lista(_ZONA, ZONAS, minimo=ZONAS)),
 })
 
@@ -366,7 +366,7 @@ class EfeitoDeGatilho(Esquema):
 
 
 _EFEITO = Discriminado("canal", {
-    "haptica": estrito(("canal", "padrao"), canal=Texto(escolhas=CANAIS),
+    "haptica": estrito(("canal", "padrao"), canal=Texto(escolhas=CANAIS),  # (noqa-acento)
                        padrao=Texto(escolhas=PADROES_PCM), forca=RealOuExpressao(0.0, 1.0),
                        bpm=RealOuExpressao(30.0, 220.0), lado=Texto(escolhas=LADOS),
                        dura_ms=_DURA),
@@ -419,7 +419,7 @@ RECEITA = estrito(
         chave=Texto(40, CHAVE_DE_JOGO),
         janela=Lista(Texto(120), 8, minimo=1, unicos=True),
         builds=estrito(("steam_buildid",), steam_buildid=Lista(Texto(12, BUILD), 2, minimo=2)),
-        leitura_de_memoria=Texto(escolhas=("nao", "pede", "nunca")),
+        leitura_de_memoria=Texto(escolhas=("nao", "pede", "nunca")),  # (noqa-acento)
     ),
     permissoes=Lista(Texto(escolhas=PERMISSOES), len(PERMISSOES), unicos=True),
     entradas=Dicionario(_ENTRADA, 16),
@@ -513,8 +513,8 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
     estados: dict[str, Any] = dados.get("estados", {})
     entradas: dict[str, Any] = dados.get("entradas", {})
     efeitos: dict[str, Any] = dados.get("efeitos", {})
-    permissoes = set(dados.get("permissoes", []))
-    memoria = dados.get("jogo", {}).get("leitura_de_memoria", "nao")
+    permissoes = set(dados.get("permissoes", []))  # (noqa-acento)
+    memoria = dados.get("jogo", {}).get("leitura_de_memoria", "nao")  # (noqa-acento)
 
     donos: dict[str, str] = {}
     for secao, grupo in (("sentidos", sentidos), ("derivados", derivados), ("estados", estados)):
@@ -530,26 +530,26 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
     for ident, entrada in entradas.items():
         caminho: Caminho = ("entradas", ident)
         if entrada["tipo"] == "ligado":
-            if not isinstance(entrada["padrao"], bool):
-                erros.append(((*caminho, "padrao"), "a entrada ligado tem padrão verdadeiro/falso"))
-            for campo in ("minimo", "maximo"):
+            if not isinstance(entrada["padrao"], bool):  # (noqa-acento)
+                erros.append(((*caminho, "padrao"), "a entrada ligado tem padrão verdadeiro/falso"))  # (noqa-acento)
+            for campo in ("minimo", "maximo"):  # (noqa-acento)
                 if campo in entrada:
                     erros.append(((*caminho, campo), "a entrada ligado não tem faixa"))
             continue
-        if "minimo" not in entrada or "maximo" not in entrada:
-            erros.append((caminho, "o deslizante pede «minimo» e «maximo»"))
+        if "minimo" not in entrada or "maximo" not in entrada:  # (noqa-acento)
+            erros.append((caminho, "o deslizante pede «minimo» e «maximo»"))  # (noqa-acento)
             continue
-        if entrada["minimo"] >= entrada["maximo"]:
-            erros.append(((*caminho, "maximo"), "o máximo tem de passar do mínimo"))
-        padrao = entrada["padrao"]
-        if isinstance(padrao, bool) or not entrada["minimo"] <= padrao <= entrada["maximo"]:
-            erros.append(((*caminho, "padrao"), "o padrão fica fora da faixa do deslizante"))
+        if entrada["minimo"] >= entrada["maximo"]:  # (noqa-acento)
+            erros.append(((*caminho, "maximo"), "o máximo tem de passar do mínimo"))  # (noqa-acento)
+        padrao = entrada["padrao"]  # (noqa-acento)
+        if isinstance(padrao, bool) or not entrada["minimo"] <= padrao <= entrada["maximo"]:  # (noqa-acento)
+            erros.append(((*caminho, "padrao"), "o padrão fica fora da faixa do deslizante"))  # (noqa-acento)
 
     for ident, sentido in sentidos.items():
         caminho = ("sentidos", ident)
         if f"ler:{sentido['de']}" not in permissoes:
             erros.append(((*caminho, "de"), (f"lê «{sentido['de']}» sem declarar "
-                                            f"«ler:{sentido['de']}» nas permissoes")))
+                                            f"«ler:{sentido['de']}» nas permissoes")))  # (noqa-acento)
         if sentido["de"] == "jogo.memoria":
             if memoria != "pede":
                 erros.append(((*caminho, "de"), (f"lê a memória com a leitura_de_memoria "
