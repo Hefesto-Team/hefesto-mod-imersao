@@ -24,8 +24,8 @@
   extensão escreve o mesmo de antes.
 - O Modo imersão pesa a mira pela receita: no universal e no Minecraft Dungeons II, o perigo e o
   dano recente deixam o giroscópio de 1 a 0,6, e o alívio o devolve. O «Peso da mira» da aba
-  Efeitos nasce ligado, e o manifesto pede `escrever:mira`; o jogo que recusa o peso o cala até
-  o jogo trocar, sem derrubar a extensão.
+  Efeitos nasce ligado, e o manifesto pede `escrever:mira`; o jogo que recusa o peso o cala por
+  5 s, ou até o jogo trocar, sem derrubar a extensão.
 - No FAÇA do Estúdio, a dica do efeito diz a entrada pelo nome e pelo valor de agora («pinta a luz
   de «Cor do dano» (#ff0000)»), e não pelo `$cor_do_dano` cru.
 

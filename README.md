@@ -62,8 +62,9 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   renova a cada 500 ms enquanto o efeito vale; com o ganho em 1, nada se pede, e o Hefesto
   devolve a mira no prazo. O «Peso da mira» da aba Efeitos (nasce ligado), a Força, «O golpe vai
   para» e o controle calado valem para ele como para os outros canais. A recusa `-32013` (o jogo
-  com anticheat, ou o controle fora do modo da extensão) cala a mira daquele controle até o jogo
-  trocar, sem repetir o pedido; a porta sem o método cala o canal, com uma linha no diário.
+  com anticheat, ou o controle fora do modo da extensão) cala a mira daquele controle por 5 s, ou
+  até o jogo trocar, sem linha no diário: a chave ligada com o jogo aberto vale no pedido seguinte.
+  A porta sem o método cala o canal, com uma linha no diário.
 
 ## A receita (formato 1)
 

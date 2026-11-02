@@ -102,7 +102,7 @@ class Motor:
         self.jogadores: dict[str, int] = {}
         self.calados: frozenset[str] = frozenset()
         self.jogo: str | None = None
-        self.mira_recusada: frozenset[str] = frozenset()
+        self.mira_recusada: dict[str, float] = {}
         self._fila: list[_Evento] = []
         self.caminho = Caminho()
         self.vencedores: dict[Vaga, Pedido] = {}
@@ -148,10 +148,10 @@ class Motor:
     def recusado(self, chave: Vaga, params: dict[str, Any], dados: Any) -> None:
         """A porta recusou a escrita da :class:`~motor.saida.Saida` em ``chave``: com ``-32011``,
         mais fraca que o jogo; no ``mira.peso``, com ``-32013``, e a mira desse controle se cala até
-        o jogo mudar."""
+        o jogo mudar ou por :data:`~efeitos.peso_da_mira.TENTA_DE_NOVO_MS`, o que vier antes."""
         uniq, canal, _ = chave
         if canal == "mira":
-            self.mira_recusada |= {uniq}
+            self.mira_recusada[uniq] = self.agora_ms
             return
         if canal == "vibracao":
             for lado_do_motor, nome in (("esquerdo", "forte"), ("direito", "fraco")):
@@ -401,9 +401,10 @@ class Motor:
                 for uniq in ativa.alvos if self._sente(uniq, canal) for lado in lados]
 
     def _sente(self, uniq: str, canal: str) -> bool:
-        """O controle conectado, que a janela não calou e, na mira, que a porta não recusou."""
+        """O controle conectado, que a janela não calou e, na mira, que a porta não recusou agora."""
+        recusou = self.mira_recusada.get(uniq) if canal == "mira" else None
         return (uniq in self.jogadores and uniq not in self.calados
-                and not (canal == "mira" and uniq in self.mira_recusada))
+                and (recusou is None or self.agora_ms - recusou >= peso_da_mira.TENTA_DE_NOVO_MS))
 
     def clima(self) -> int:
         """A tensão da cena agora, de 0 a 10: o derivado do clima da receita, ou 0 sem ele."""
@@ -422,7 +423,7 @@ class Motor:
             jogo = evento.dados.get("jogo") if evento.topico == "perfil.jogo" else self.jogo
             if jogo != self.jogo:
                 self.jogo = jogo if isinstance(jogo, str) else None
-                self.mira_recusada = frozenset()
+                self.mira_recusada = {}
         calados = ajustes.topicos_calados(self.opcoes)
         fila = [e for e in fila if e.topico not in calados]
         for ident, sentido in self.sentidos.items():

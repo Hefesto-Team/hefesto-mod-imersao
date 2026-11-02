@@ -162,7 +162,7 @@ def test_a_recusa_do_jogo_cala_a_mira_sem_repetir_e_o_jogo_novo_a_devolve() -> N
     assert porta.de("haptica.tocar")
     assert not [f for f in diario if "mira" in f]
     aceitos = [t for t, _ in porta.de("mira.peso")]
-    assert aceitos and min(aceitos) >= 5000
+    assert aceitos and 5000 <= min(aceitos) < 5000 + peso_da_mira.RENOVA_MS
 
 
 def test_a_porta_sem_o_mira_peso_cala_o_canal_uma_vez_so() -> None:
@@ -183,3 +183,25 @@ def test_a_receita_recusa_o_ganho_fora_de_0_3_a_1(ganho: float) -> None:
         ler_receita(json.dumps(dados))
     efeito["ganho"] = 0.6
     assert ler_receita(json.dumps(dados)).secao("efeitos")["pesa"]["canal"] == "mira"
+
+
+def test_a_recusa_que_dura_pede_de_novo_so_de_tempos_em_tempos_e_a_chave_ligada_no_jogo_volta(
+) -> None:
+    porta = PortaDaMira(NAO_ESCREVEU)
+    porta.recusa_ate = 9000.0
+    linha = [(0, _jogo("steam_app_1")), *_batimento(0, 15_000)]
+    diario = _correr(_dungeons({}), porta, 15_000, linha)
+    instantes = [t for t, _ in porta.recusadas]
+    assert len(instantes) >= 2
+    assert min(b - a for a, b in itertools.pairwise(instantes)) >= peso_da_mira.TENTA_DE_NOVO_MS
+    aceitos = [t for t, _ in porta.de("mira.peso")]
+    assert aceitos and min(aceitos) - 9000.0 <= peso_da_mira.TENTA_DE_NOVO_MS
+    assert not [f for f in diario if "mira" in f]
+
+
+def test_o_peso_que_a_forca_arredonda_a_zero_nao_se_pede() -> None:
+    assert peso_da_mira.ganho(0.6, 0.05) == 1.0
+    porta = PortaDaMira()
+    _correr(_universal(None, {ajustes.FORCA: 5}), porta, 20_000, TENSO)
+    assert porta.de("haptica.tocar")
+    assert porta.de("mira.peso") == []

@@ -3,7 +3,8 @@
 O ganho vai de :data:`GANHO_MINIMO` a 1 (1 é a mira de sempre) e anda em degraus de
 :data:`DEGRAU`; a Força da janela escala o quanto a mira pesa, e a opção :data:`OPCAO` o liga em
 toda receita. Cada pedido vale :data:`PRAZO_MS`: a saída o renova a cada :data:`RENOVA_MS`
-enquanto o efeito vale, e quando ele acaba o Hefesto devolve o ganho 1 no prazo, sem pedido.
+enquanto o efeito vale, e quando ele acaba o Hefesto devolve o ganho 1 no prazo, sem pedido. O
+controle que a porta recusou só volta a pedir depois de :data:`TENTA_DE_NOVO_MS`, ou no jogo novo.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ GANHO_MINIMO = 0.3
 DEGRAU = 0.05
 PRAZO_MS = 800
 RENOVA_MS = 500
+TENTA_DE_NOVO_MS = 5000
 
 
 def ganho(bruto: float, forca: float) -> float:
