@@ -21,7 +21,7 @@ escritas ainda livres no teto. O efeito novo, o zero e a passagem por zero saem 
 from __future__ import annotations
 
 import asyncio
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -64,19 +64,23 @@ class Saida:
         self._tocados: set[tuple[str, str, float]] = set()
         self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
         self._degrau_em: dict[tuple[str, str], float] = {}
+        self._no_tique: tuple[float, list[tuple[str, str]]] = (-1.0, [])
 
-    def _cabe(self, t_ms: float, uniq: str, reserva: int = 0) -> bool:
+    def _cabe(self, t_ms: float, uniq: str, reserva: int = 0,
+              reserva_total: int | None = None) -> bool:
         while self.janela and t_ms - self.janela[0][0] >= JANELA_MS:
             self.janela.popleft()
         no_controle = sum(1 for _, u in self.janela if u == uniq)
-        return (len(self.janela) < TETO_TOTAL - reserva
+        total = reserva if reserva_total is None else reserva_total
+        return (len(self.janela) < TETO_TOTAL - total
                 and no_controle < TETO_POR_CONTROLE - reserva)
 
     @staticmethod
     def _sente(nome: str, antes: float, agora: float) -> bool:
         return (antes == 0) != (agora == 0) or abs(agora - antes) >= DEGRAUS[nome] - 1e-9
 
-    def _no_degrau(self, t_ms: float, vaga: Vaga, pedido: Pedido) -> dict[str, Any]:
+    def _no_degrau(self, t_ms: float, vaga: Vaga, pedido: Pedido, irmaos: int = 1
+                   ) -> dict[str, Any]:
         identidade = (pedido.efeito, pedido.inicio_ms, pedido.regra)
         novos = {k: float(pedido.params[k]) for k in DEGRAUS if k in pedido.params}
         vivo = self._vivos.get(vaga)
@@ -88,8 +92,16 @@ class Saida:
             ultimo = self._degrau_em.get((uniq, canal))
             passagem = any((aceitos[k] == 0) != (v == 0) for k, v in novos.items())
             cedo = ultimo is not None and ultimo != t_ms and t_ms - ultimo < INTERVALO_DO_DEGRAU_MS
-            if not passagem and (cedo or not self._cabe(t_ms, uniq, VAGA_DO_EVENTO)):
+            if self._no_tique[0] != t_ms:
+                self._no_tique = (t_ms, [])
+            agora = self._no_tique[1]
+            junto = (uniq, canal) in agora
+            reserva = VAGA_DO_EVENTO + irmaos - 1
+            cabe = self._cabe(t_ms, uniq, reserva + sum(1 for u, _ in agora if u == uniq),
+                              reserva + len(agora))
+            if not passagem and not junto and (cedo or not cabe):
                 return {**pedido.params, **aceitos}
+            agora.append((uniq, canal))
         self._degrau_em[(vaga[0], vaga[1])] = t_ms
         self._vivos[vaga] = (identidade, novos)
         return pedido.params
@@ -138,8 +150,9 @@ class Saida:
         desejo: dict[Chave, tuple[str, dict[str, Any], bool]] = {}
         motores: dict[str, dict[str, float]] = {}
         self._vivos = {vaga: vivo for vaga, vivo in self._vivos.items() if vaga in vencedores}
+        grupos = Counter((uniq, canal) for uniq, canal, _ in vencedores)
         for (uniq, canal, lado), pedido in sorted(vencedores.items()):
-            p = self._no_degrau(t_ms, (uniq, canal, lado), pedido)
+            p = self._no_degrau(t_ms, (uniq, canal, lado), pedido, grupos[(uniq, canal)])
             if canal == "motor" or (canal == "haptica" and self.sem_haptica):
                 forca = p["forca"]
                 if canal == "haptica":

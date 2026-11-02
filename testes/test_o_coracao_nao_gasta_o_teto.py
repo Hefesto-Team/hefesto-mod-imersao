@@ -10,6 +10,8 @@ import asyncio
 from collections.abc import Callable, Sequence
 from typing import Any
 
+import pytest
+
 from apoio import UM, EscritasDeMentira
 
 import servidor
@@ -168,3 +170,33 @@ def test_o_degrau_do_coracao_deixa_vaga_no_teto_para_o_evento_do_mesmo_tique() -
     _aplicar(saida, porta, t, {**_coracao(0.6, 120), (UM, "motor", "esquerdo"): golpe})
     assert [p["forte"] for tt, p in porta.de("vibracao.set") if tt == t] == [round(0.7 * 255)]
     assert not [p for tt, p in porta.de("haptica.tocar") if tt == t]
+
+
+@pytest.mark.parametrize("cheio", range(2, modulo.TETO_POR_CONTROLE - 3))
+def test_os_dois_lados_do_coracao_no_mesmo_tique_nao_comem_a_vaga_do_evento(cheio: int) -> None:
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    saida = Saida(porta.pedir)
+    _aplicar(saida, porta, 0.0, _coracao(0.4, 90))
+    t = 600.0
+    for k in range(cheio - 2):
+        t = 600.0 + k * TIQUE
+        luz = Pedido(UM, "luz", "-", f"luz{k}", 1.0, 0, t, 1,
+                     {"inicio_ms": t, "rgb": [0, k, 255], "brilho": 1.0})
+        _aplicar(saida, porta, t, {**_coracao(0.4, 90), (UM, "luz", "-"): luz})
+    t += TIQUE
+    evento = {
+        (UM, "motor", "esquerdo"): Pedido(UM, "motor", "esquerdo", "golpe", 0.7, 0, t, 2,
+                                          {"inicio_ms": t, "forca": 0.7}),
+        (UM, "luz", "-"): Pedido(UM, "luz", "-", "vermelho", 1.0, 0, t, 3,
+                                 {"inicio_ms": t, "rgb": [255, 0, 0], "brilho": 1.0}),
+        (UM, "leds", "-"): Pedido(UM, "leds", "-", "luzes", 1.0, 0, t, 4,
+                                  {"inicio_ms": t, "mascara": 1, "ate_ms": 600}),
+        (UM, "som", "-"): Pedido(UM, "som", "-", "recorte", 1.0, 0, t, 5,
+                                 {"inicio_ms": t, "som": "recorte", "volume": 1.0, "t": 1.0}),
+    }
+    _aplicar(saida, porta, t, {**_coracao(0.6, 120), **evento})
+    no_tique = [m for tt, m, _ in porta.escritas if tt == t]
+    assert sorted(m for m in no_tique if m != "haptica.tocar") == [
+        "leds.set", "luz.set", "som.tocar", "vibracao.set"]
+    assert no_tique.count("haptica.tocar") in (0, 2)
+    assert len([tt for tt, _, _ in porta.escritas if t - 1000 < tt <= t]) <= modulo.TETO_POR_CONTROLE
