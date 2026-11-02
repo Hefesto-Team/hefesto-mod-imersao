@@ -289,3 +289,26 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_ligada(
     assert respostas[2]["origem"] == "Receita da comunidade"
     estados = [p["perfil"] for m, p in porta.pedidos if m == "acessorios.estado"]
     assert estados[-1] == "Receita da comunidade"
+
+
+def test_a_receita_que_sai_do_indice_assinado_sai_do_disco_e_volta_a_estudada_ou_o_universal(
+        tmp_path: Path) -> None:
+    _comunidade(tmp_path, Repositorio({ARQUIVO: _receita()})).procurar(JOGO, agora=True)
+    biblioteca = Biblioteca(RAIZ / "receitas" / "estudadas", tmp_path,
+                            servidor.carregar_o_universal)
+    assert biblioteca.para(JOGO).origem == "comunidade"
+    resultado = _comunidade(tmp_path, Repositorio({})).procurar(JOGO, agora=True)
+    assert resultado == {"tipo": "procurado", "achou": False}
+    assert biblioteca.para(JOGO).origem == "universal"
+
+
+def test_sem_internet_a_receita_baixada_fica_e_a_tela_nao_ve_o_erro_cru(tmp_path: Path) -> None:
+    _comunidade(tmp_path, Repositorio({ARQUIVO: _receita()})).procurar(JOGO, agora=True)
+
+    def sem_rede(_endereco: str, _teto: int) -> bytes:
+        raise OSError("[Errno -3] Temporary failure in name resolution")
+
+    resultado = Comunidade(tmp_path, sem_rede, PUBLICA, lambda: 1e9).procurar(JOGO, agora=True)
+    assert resultado["tipo"] == "erro" and "Errno" not in resultado["frase"]
+    assert "Errno" in resultado["detalhe"]
+    assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()

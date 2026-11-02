@@ -341,6 +341,11 @@ class Comunidade:
         _gravar(arquivo, bruto)
         return True
 
+    def esquecer(self, chave: str) -> None:
+        """Apaga a receita do jogo que o índice conferido deixou de listar."""
+        with contextlib.suppress(OSError):
+            (self.dados / PASTA_DA_COMUNIDADE / f"{chave}.json").unlink()
+
     def procurar(self, chave: str | None, agora: bool = False) -> dict[str, Any]:
         """O «Procurar receitas» (``agora``) ou a volta diária, para o jogo ``chave``."""
         try:
@@ -350,12 +355,14 @@ class Comunidade:
                 return {"tipo": "procurado", "achou": False}
             entrada = self.entrada_do_jogo(chave)
             if entrada is None:
+                self.esquecer(chave)
                 return {"tipo": "procurado", "achou": False}
             nova = self.baixar_a_receita(entrada)
         except (AssinaturaRecusada, ReceitaDaComunidadeRecusada) as exc:
             return {"tipo": "recusado", "frase": str(exc)}
         except (OSError, ValueError) as exc:
-            return {"tipo": "erro", "frase": f"sem as receitas da comunidade: {exc}"}
+            return {"tipo": "erro", "frase": "as receitas da comunidade não vieram",
+                    "detalhe": str(exc)}
         return {"tipo": "procurado", "achou": True, "nova": nova, "nome": entrada.nome,
                 "memoria": entrada.memoria, "memoria_ligada": self.memoria_ligada(chave),
                 "anticheat": entrada.anticheat}

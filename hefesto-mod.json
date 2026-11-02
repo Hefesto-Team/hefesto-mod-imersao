@@ -5,7 +5,7 @@
   "api": ">=2,<3",
   "licenca": "GPL-3.0-or-later",
   "descricao": "O jogo chega ao controle como no console: a receita de cada jogo lê o que acontece na cena e responde com a vibração, os gatilhos e a luz. Sem receita, vale o modo universal.",
-  "aviso": "Extensão independente: não é afiliada à Sony nem endossada por ela. Da internet, a extensão só baixa o índice assinado das receitas da comunidade e a receita do jogo aberto; nada do que se joga sai deste computador.",
+  "aviso": "Extensão independente: não é afiliada à Sony nem endossada por ela. Da internet, a extensão só baixa o índice assinado das receitas da comunidade e a receita do jogo aberto, e o pedido diz qual jogo está aberto.",
   "tipos": [
     "processo"
   ],

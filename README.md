@@ -6,7 +6,7 @@ a porta os tiver, pela háptica e pelo alto-falante. Licença GPL-3.0-or-later (
 
 > **Aviso.** Extensão independente: não é afiliada à Sony nem endossada por ela. Da internet, a
 > extensão só baixa o índice assinado das receitas da comunidade e a receita do jogo aberto (o
-> manifesto declara `rede:internet`); nada do que se joga sai deste computador.
+> manifesto declara `rede:internet`), e o pedido diz qual jogo está aberto.
 
 **Estado (0.4.0, 02/11/2026):** o formato da receita, o validador, o motor e o universal que vale
 em todo jogo, com a porta de mentira das provas. A extensão ainda não toca o controle de verdade: o Hefesto de hoje recusa o campo

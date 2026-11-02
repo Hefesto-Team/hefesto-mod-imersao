@@ -318,9 +318,16 @@ class Extensao:
             self.parar_de_tocar.set()
             await asyncio.gather(self.tocando, return_exceptions=True)
         self.parar_de_tocar = asyncio.Event()
-        self.tocando = asyncio.create_task(
-            linha_do_tempo.tocar(linha, self.motor.evento, self.parar_de_tocar))
+        self.tocando = asyncio.create_task(self._tocar_ate_o_fim(linha, self.parar_de_tocar))
         return {"tipo": "tocando", "segundos": round(linha.duracao_ms / 1000, 1)}
+
+    async def _tocar_ate_o_fim(self, linha: linha_do_tempo.LinhaDoTempo,
+                               parar: asyncio.Event) -> None:
+        """Toca a linha e, no fim dela, a página volta a mostrar a linha parada."""
+        await linha_do_tempo.tocar(linha, self.motor.evento, parar)
+        if not parar.is_set():
+            await self.responder_ao_estudio({"tipo": "tocado",
+                                             "segundos": round(linha.duracao_ms / 1000, 1)})
 
     async def procurar(self, agora: bool = False) -> dict[str, Any]:
         """A receita da comunidade do jogo aberto; a nova vale no tique seguinte."""
@@ -328,8 +335,10 @@ class Extensao:
             return {"tipo": "erro", "frase": "sem a pasta de dados da extensão"}
         resultado = await asyncio.to_thread(self.comunidade.procurar, self.jogo, agora)
         if resultado.get("tipo") != "procurado":
-            diario(f"as receitas da comunidade não vieram: {resultado.get('frase')}")
+            diario(f"as receitas da comunidade não vieram: "
+                   f"{resultado.get('detalhe') or resultado.get('frase')}")
         await self.escolher()
+        resultado.pop("detalhe", None)
         return {**resultado, "origem": self.escolhida.rotulo}
 
     def procurar_em_fundo(self) -> None:

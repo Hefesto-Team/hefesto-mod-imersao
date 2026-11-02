@@ -210,7 +210,7 @@ def test_a_pagina_grava_para_e_toca_a_linha_no_motor_vivo(tmp_path: Path) -> Non
 
     vistos = asyncio.run(corpo())
     respostas = [p["dados"] for m, p in porta.pedidos if m == "extensao.resposta"]
-    assert [r["tipo"] for r in respostas] == ["gravando", "gravado", "tocando"]
+    assert [r["tipo"] for r in respostas] == ["gravando", "gravado", "tocando", "tocado"]
     assert respostas[1]["marcos"] == 1
     assert [v[0] for v in vistos if v[0] != "extensao.mensagem"] == ["jogo.vibracao"]
     assert ler_do_disco(tmp_path, JOGO) is not None
