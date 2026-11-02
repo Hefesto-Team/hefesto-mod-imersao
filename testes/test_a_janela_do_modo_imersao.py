@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 from apoio import DOIS, QUATRO, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
+from test_a_receita_minecraft_dungeons_ii import LINHA_DO_GATILHO, _batimento
+from test_a_receita_minecraft_dungeons_ii import _motor as _dungeons
 from test_o_universal import (
     _correr,
     _motores,
@@ -21,6 +23,8 @@ from test_o_universal import (
 
 import opcoes as ajustes
 import servidor
+from motor.laco import Motor
+from receita.formato import ler_receita
 
 ABAS = ["Geral", "Sentidos", "Efeitos", "Canais"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
@@ -155,7 +159,7 @@ class _Porta:
         return {}
 
 
-def test_o_botao_procurar_receitas_da_aba_receitas_procura_na_hora() -> None:
+def test_o_botao_procurar_receitas_da_aba_geral_procura_na_hora() -> None:
     extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal())  # type: ignore[arg-type]
     pedidos: list[bool] = []
     extensao.procurar_em_fundo = lambda agora=False: pedidos.append(agora)  # type: ignore[method-assign]
@@ -168,3 +172,68 @@ def test_o_botao_procurar_receitas_da_aba_receitas_procura_na_hora() -> None:
 
     asyncio.run(corpo())
     assert pedidos == [True]
+
+
+RECEITAS_DE_FABRICA = [RAIZ / "receitas" / "universal.json",
+                       *sorted((RAIZ / "receitas" / "estudadas").glob("*.json"))]
+SO_NO_UNIVERSAL = {"alivio", "peso_da_mira"}
+
+
+@pytest.mark.parametrize("arquivo", RECEITAS_DE_FABRICA, ids=lambda a: a.stem)
+def test_toda_receita_de_fabrica_le_a_aba_efeitos_com_o_padrao_da_janela(arquivo: Any) -> None:
+    efeitos = {i: o for i, o in _opcoes().items() if o["grupo"] == "Efeitos"}
+    declaradas = ler_receita(arquivo.read_bytes()).secao("entradas")
+    fora = {"peso_da_mira"} if arquivo.stem == "universal" else SO_NO_UNIVERSAL
+    pedidas = set(efeitos) - fora
+    assert pedidas <= set(declaradas)
+    for ident in set(efeitos) & set(declaradas):
+        entrada, opcao = declaradas[ident], efeitos[ident]
+        assert (entrada["tipo"], entrada["padrao"]) == (opcao["tipo"], opcao["padrao"])  # (noqa-acento)
+        assert (entrada.get("minimo"), entrada.get("maximo")) == (  # (noqa-acento)
+            opcao.get("minimo"), opcao.get("maximo"))  # (noqa-acento)
+
+
+def _no_dungeons(opcoes: dict[str, Any], linha: list[Any], ate_ms: int) -> EscritasDeMentira:
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    _correr(_dungeons(opcoes), porta, ate_ms, linha)
+    return porta
+
+
+def test_no_dungeons_a_janela_no_padrao_escreve_o_mesmo_e_cada_efeito_muda_o_que_sai() -> None:
+    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    susto = _batimento(0, 9000) + [(7000, som("direito", 0.45, 70.0))]
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    for linha, ate in ((susto, 9000), (LINHA_DO_GATILHO, 5000), (estalo, 600)):
+        assert _no_dungeons(padroes, linha, ate).escritas == _no_dungeons({}, linha, ate).escritas
+    assert _sustos(_no_dungeons({"susto_no_alto_falante": False}, susto, 9000)) == (False, True)
+    assert _sustos(_no_dungeons({"susto_no_tato": False}, susto, 9000)) == (True, False)
+    assert not _coracoes(_no_dungeons({"coracao": 0}, susto, 9000))  # (noqa-acento)
+    acelerados = [(c, {p["forca"] for _, p in _no_dungeons({"clima": c}, susto, 9000).de(  # (noqa-acento)
+        "haptica.tocar") if p["id"] == "coracao"}) for c in (35, 90)]  # (noqa-acento)
+    assert [(c, 0.75 in forcas) for c, forcas in acelerados] == [(35, True), (90, False)]
+    assert _primeiro_estalo(_no_dungeons({"golpe_com_lado": 35}, estalo, 600)) == round(0.3 * 255)
+    impactos = [p for _, p in _no_dungeons({"impacto_nos_gatilhos": False}, LINHA_DO_GATILHO,
+                                           5000).de("gatilho.set") if p["modo"] != "Off"]
+    assert not impactos
+    rajada = [(t, rumble(UM, 230)) for t in (1000, 1100, 1200, 1300, 1400)] + [(1500, rumble(UM, 0))]
+    assert _no_dungeons({}, rajada, 2000).de("luz.set")
+    assert not _no_dungeons({"luz_do_dano": False}, rajada, 2000).de("luz.set")
+
+
+ESTALO_CRU = json.dumps({
+    "formato": 1, "motor": ">=1,<2", "permissoes": ["ler:jogo.som"],  # (noqa-acento)
+    "sentidos": {"estalo": {"de": "jogo.som", "especie": "evento", "nome": "jogo.som"}},
+    "efeitos": {"tranco": {"canal": "motor", "lado": "ambos", "forca": 0.5, "dura_ms": 100}},
+    "regras": [{"quando": "estalo", "entao": "tranco", "para": "todos"}]})
+
+
+def test_o_sentido_desligado_cala_tambem_a_receita_que_le_o_topico_cru() -> None:
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    feitos = []
+    for opcoes in ({}, {"sentido_som": False}):
+        motor = Motor(ler_receita(ESTALO_CRU), opcoes)
+        motor.controles([{"uniq": UM, "jogador": 1}])
+        porta = EscritasDeMentira()
+        _correr(motor, porta, 600, estalo)
+        feitos.append(bool([m for m in _motores(porta) if m[1]]))
+    assert feitos == [True, False]

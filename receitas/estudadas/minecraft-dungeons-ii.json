@@ -11,7 +11,19 @@
     "ler:botoes"
   ],
   "entradas": {
-    "lado_na_luz": {"rotulo": "Lado na luz", "tipo": "ligado", "padrao": false}
+    "lado_na_luz": {"rotulo": "Lado na luz", "tipo": "ligado", "padrao": false},
+    "coracao": {"rotulo": "Coração", "tipo": "deslizante", "minimo": 0, "maximo": 100,
+                "padrao": 100},
+    "golpe_com_lado": {"rotulo": "Golpe com lado", "tipo": "deslizante", "minimo": 0,
+                       "maximo": 100, "padrao": 70},
+    "luz_do_dano": {"rotulo": "Luz do dano", "tipo": "ligado", "padrao": true},
+    "susto_no_alto_falante": {"rotulo": "Susto no alto-falante", "tipo": "ligado",
+                              "padrao": true},
+    "susto_no_tato": {"rotulo": "Susto no tato", "tipo": "ligado", "padrao": true},
+    "impacto_nos_gatilhos": {"rotulo": "Impacto nos gatilhos", "tipo": "ligado",
+                             "padrao": true},
+    "clima": {"rotulo": "Clima", "tipo": "deslizante", "minimo": 10, "maximo": 90,
+              "padrao": 35}
   },
   "sentidos": {
     "estalo_forte": {"de": "sentido.som", "especie": "evento", "nome": "estalo_forte"},
@@ -32,16 +44,18 @@
     "tensao": {"expr": "limita(max(batimento, dano_do_rumble * 0.6), 0, 1)"}
   },
   "estados": {
-    "tenso": {"quando": "tensao > 0.35", "histerese": 0.1, "minimo_ms": 2000},
-    "muito_tenso": {"quando": "tensao > 0.7", "histerese": 0.1, "minimo_ms": 2000}
+    "tenso": {"quando": "tensao > $clima / 100", "histerese": 0.1, "minimo_ms": 2000},
+    "muito_tenso": {"quando": "tensao > $clima / 100 + 0.35", "histerese": 0.1, "minimo_ms": 2000}
   },
   "efeitos": {
-    "coracao": {"canal": "haptica", "padrao": "coracao", "lado": "ambos", "forca": 0.5,
-                "bpm": 95},
+    "coracao": {"canal": "haptica", "padrao": "coracao", "lado": "ambos",
+                "forca": "0.5 * $coracao / 100", "bpm": 95},
     "coracao_acelerado": {"canal": "haptica", "padrao": "coracao", "lado": "ambos",
-                          "forca": 0.75, "bpm": 130},
-    "motor_esquerdo": {"canal": "motor", "lado": "esquerdo", "forca": 0.6, "dura_ms": 160},
-    "motor_direito": {"canal": "motor", "lado": "direito", "forca": 0.6, "dura_ms": 160},
+                          "forca": "0.75 * $coracao / 100", "bpm": 130},
+    "motor_esquerdo": {"canal": "motor", "lado": "esquerdo",
+                       "forca": "$golpe_com_lado / 70 * 0.6", "dura_ms": 160},
+    "motor_direito": {"canal": "motor", "lado": "direito",
+                      "forca": "$golpe_com_lado / 70 * 0.6", "dura_ms": 160},
     "luzes_da_esquerda": {"canal": "leds", "lado": "esquerdo", "dura_ms": 600},
     "luzes_da_direita": {"canal": "leds", "lado": "direito", "dura_ms": 600},
     "vermelho": {"canal": "luz", "cor": "#ff0000", "brilho": 1.0, "dura_ms": 400},
@@ -59,10 +73,14 @@
     {"quando": "estalo_direito", "entao": "motor_direito", "para": "todos"},
     {"quando": "estalo_esquerdo e $lado_na_luz", "entao": "luzes_da_esquerda", "para": "todos"},
     {"quando": "estalo_direito e $lado_na_luz", "entao": "luzes_da_direita", "para": "todos"},
-    {"quando": "rajada", "entao": "vermelho", "para": "quem_levou"},
-    {"quando": "estalo_forte e tenso", "entao": ["susto_no_alto_falante", "susto_no_tato"],
+    {"quando": "rajada e $luz_do_dano", "entao": "vermelho", "para": "quem_levou"},
+    {"quando": "estalo_forte e tenso e $susto_no_alto_falante", "entao": "susto_no_alto_falante",
      "prioridade": 10, "espera_ms": 5000, "para": "todos"},
-    {"quando": "golpe_no_r2", "entao": "impacto_no_r2", "para": "quem_levou"},
-    {"quando": "golpe_no_l2", "entao": "impacto_no_l2", "para": "quem_levou"}
+    {"quando": "estalo_forte e tenso e $susto_no_tato", "entao": "susto_no_tato",
+     "prioridade": 10, "espera_ms": 5000, "para": "todos"},
+    {"quando": "golpe_no_r2 e $impacto_nos_gatilhos", "entao": "impacto_no_r2",
+     "para": "quem_levou"},
+    {"quando": "golpe_no_l2 e $impacto_nos_gatilhos", "entao": "impacto_no_l2",
+     "para": "quem_levou"}
   ]
 }

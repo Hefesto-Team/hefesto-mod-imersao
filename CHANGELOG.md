@@ -11,6 +11,9 @@
   alto-falante e no tato, impacto nos gatilhos, clima tenso e peso da mira), Canais e «Ensinar
   este jogo», a página do Estúdio. Cada ajuste vale no tique seguinte, em toda receita; no padrão,
   a extensão escreve o mesmo de antes.
+- A receita do Minecraft Dungeons II lê a aba Efeitos como o universal: o coração, o golpe com
+  lado, a luz do dano, os dois sustos, o impacto nos gatilhos e o clima tenso mudam o que ela
+  escreve; no padrão, ela escreve o mesmo de antes.
 
 ## 0.4.8 (02/11/2026)
 
