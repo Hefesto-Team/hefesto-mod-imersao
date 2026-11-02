@@ -1,5 +1,14 @@
 # Mudanças
 
+## 0.4.8 (02/11/2026)
+
+- A receita da comunidade que sai do índice assinado sai do disco; sem internet, a baixada fica, e
+  a tela não vê o erro cru. O «Tocar» avisa a página quando a linha acaba. Na página, o erro sai
+  numa linha laranja sem trocar de vista, e o que deu certo não se narra.
+- A procura da comunidade roda num fio que não segura a saída: com a rede lenta, a extensão
+  para na hora em que o Hefesto pede. O pedido do Estúdio que a porta recusa para a caça e
+  responde à página, e a extensão segue ouvindo o jogo.
+
 ## 0.4.7 (02/11/2026)
 
 
