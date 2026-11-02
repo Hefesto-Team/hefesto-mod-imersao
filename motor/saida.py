@@ -17,8 +17,9 @@ Um pedido vivo que só anda nos parâmetros contínuos (força, batimento, brilh
 quando a mudança se sente: um degrau de :data:`DEGRAUS` desde o que está no controle, no máximo uma
 vez por :data:`INTERVALO_DO_DEGRAU_MS` em cada canal e controle, e só com :data:`VAGA_DO_EVENTO`
 escritas ainda livres no teto. O efeito novo, o zero e a passagem por zero saem no tique deles.
-A batida do padrão que se repete, desenhada no motor pelo envelope, passa pela mesma regra: só
-sai com :data:`VAGA_DO_EVENTO` escritas livres, e a que não cabe se adia, nunca o evento.
+A batida do padrão que se repete, desenhada no motor pelo envelope, conta no teto: só liga com
+:data:`VAGA_DO_EVENTO` escritas livres e mais a do zero que a encerra, e a que não cabe se adia,
+nunca o evento.
 """
 from __future__ import annotations
 
@@ -113,7 +114,7 @@ class Saida:
     async def _escrever(self, t_ms: float, chave: Chave, metodo: str,
                         params: dict[str, Any], zero: bool = False, reserva: int = 0) -> bool:
         uniq = chave[0]
-        if (reserva or not zero) and not self._cabe(t_ms, uniq, reserva):
+        if not zero and not self._cabe(t_ms, uniq, reserva):
             return False
         self.janela.append((t_ms, uniq))
         antes = self.escrito.get(chave)
@@ -254,8 +255,10 @@ class Saida:
             if antes is not None and antes[1] == params and not vence:
                 self._em_dia(chave)
                 continue
-            reserva = VAGA_DO_EVENTO if self._batida(chave, antes, params) else 0
-            if await self._escrever(t_ms, chave, metodo, params, zero, reserva):
+            batida = self._batida(chave, antes, params)
+            liga = batida and bool(params["forte"] or params["fraco"])
+            reserva = VAGA_DO_EVENTO + 1 if liga else 0
+            if await self._escrever(t_ms, chave, metodo, params, zero and not batida, reserva):
                 self._em_dia(chave)
         for uniq in self._no_motor:
             if (uniq, "vibracao", "-") not in desejo:

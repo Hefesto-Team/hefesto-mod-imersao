@@ -1,14 +1,16 @@
 """O coração pelo motor também deixa vaga para o evento: a batida conta no teto e se adia, o evento não.
 
 Sem a háptica na porta, o coração se desenha no motor pelo envelope, e cada batida é um
-``vibracao.set``. A batida só sai com :data:`motor.saida.VAGA_DO_EVENTO` escritas ainda livres no
-teto, a mesma vaga do pedido vivo pela háptica; o estalo e o susto saem no tique deles.
+``vibracao.set``. A batida só liga com :data:`motor.saida.VAGA_DO_EVENTO` escritas ainda livres no
+teto, a mesma vaga do pedido vivo pela háptica, e mais a do zero que a encerra, para nunca prender o
+motor ligado; o estalo e o susto saem no tique deles.
 """
 from __future__ import annotations
 
 import asyncio
 import math
 from collections.abc import Callable, Sequence
+from itertools import pairwise
 from typing import Any
 
 import pytest
@@ -29,6 +31,17 @@ Evento = tuple[str, str, "str | None", dict[str, Any]]
 
 def _no_maximo_por_segundo(instantes: list[float]) -> int:
     return max((sum(1 for o in instantes if t <= o < t + 1000) for t in instantes), default=0)
+
+
+def _ligado_ms(porta: EscritasDeMentira, uniq: str, ate: float) -> list[float]:
+    motor = [(t, p) for t, p in porta.de("vibracao.set") if p["uniq"] == uniq and t < ate]
+    return [b[0] - a[0] for a, b in pairwise(motor)
+            if (a[1]["forte"] or a[1]["fraco"]) and not (b[1]["forte"] or b[1]["fraco"])]
+
+
+def _o_golpe_mais_longo_em_tiques() -> float:
+    golpes = catalogo.PADROES["coracao"].golpes  # (noqa-acento)
+    return math.ceil(max(g.dura_ms for g in golpes) / TIQUE) * TIQUE + 1e-6
 
 
 def _microfone(nivel: float) -> Evento:
@@ -163,6 +176,7 @@ def test_o_coracao_rapido_pelo_motor_deixa_o_estalo_e_o_susto_sairem_no_tique_de
         batidas = [t for t, p in porta.de("vibracao.set") if p["uniq"] == uniq and t < evento_ms]
         assert len(batidas) > 20
         assert _no_maximo_por_segundo(batidas) <= TETO_DA_BATIDA
+        assert max(_ligado_ms(porta, uniq, evento_ms)) <= _o_golpe_mais_longo_em_tiques()
     janela = [t for t, _, p in porta.escritas if p["uniq"] == alvo and evento_ms - 1000 < t]
     assert _no_maximo_por_segundo(janela) <= modulo.TETO_POR_CONTROLE
     assert _no_maximo_por_segundo([t for t, _, _ in porta.escritas]) <= modulo.TETO_TOTAL
@@ -202,3 +216,23 @@ def test_o_coracao_que_para_solta_o_motor_no_tique_dele_mesmo_com_o_teto_cheio()
     fim = asyncio.run(correr())
     assert porta.de("vibracao.set")[-1] == (fim, {"uniq": UM, "fraco": 0, "forte": 0})
     assert [m for t, m, _ in porta.escritas if t == fim] == ["vibracao.set"]
+
+
+def test_a_batida_nunca_prende_o_motor_ligado_com_o_controle_ocupado() -> None:
+    porta = EscritasDeMentira()
+    saida = Saida(porta.pedir)
+
+    async def correr() -> None:
+        k = 0
+        while (t := k * TIQUE) <= 8000:
+            vencedores = _coracao(UM, 50.0)
+            if t >= 1000:
+                vencedores.update(_luz(UM, k // 6))
+            porta.agora = t
+            await saida.aplicar(t, vencedores)
+            k += 1
+
+    asyncio.run(correr())
+    assert sum(1 for t, _ in porta.de("luz.set") if 3000 <= t < 4000) > TETO_DA_BATIDA
+    assert max(_ligado_ms(porta, UM, 8000)) <= _o_golpe_mais_longo_em_tiques()
+    assert not (porta.de("vibracao.set")[-1][1]["forte"] or porta.de("vibracao.set")[-1][1]["fraco"])
