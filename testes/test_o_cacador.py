@@ -27,6 +27,7 @@ from estudio.cacador import (
     Estudio,
     MemoriaDesligada,
     Retrato,
+    VarredorDaPorta,
     VarredorDeRetratos,
     para_a_receita,
 )
@@ -340,12 +341,9 @@ def _evento(topico: str, nome: str, dados: dict[str, Any],
                                            "dados": dados}}
 
 
-class VarredorDeUmSo:
+async def _porta_de_um_so(_metodo: str, _params: dict[str, Any]) -> dict[str, Any]:
     """A porta que acha um endereço só já na primeira varredura, em todo tipo."""
-
-    async def varrer(self, tipo: str, comparacao: str, token: str | None = None,
-                     valor: float | None = None) -> dict[str, Any]:
-        return {"token": "t", "candidatos": 1, "endereco": hex(ALVO), "valor": 80}
+    return {"token": "t", "candidatos": 1, "endereco": hex(ALVO), "valor": 80}
 
 
 @pytest.mark.parametrize(("gestos", "acha"), [
@@ -356,7 +354,7 @@ class VarredorDeUmSo:
 def test_o_endereco_unico_cedo_so_vale_com_dois_perder_e_um_parado(
         gestos: tuple[str, ...], acha: bool) -> None:
     async def cacar() -> CacadorDeValor:
-        cacador = CacadorDeValor(VarredorDeUmSo(), memoria_ligada=True)
+        cacador = CacadorDeValor(VarredorDaPorta(_porta_de_um_so), memoria_ligada=True)
         await cacador.comecar()
         for gesto in gestos:
             await cacador.gesto(gesto)
