@@ -202,8 +202,8 @@ def topicos_fora_da_porta(receita: Receita) -> list[str]:
     return sorted(_lidos(receita) - set(TOPICOS_DA_PORTA))
 
 
-async def em_fio_solto(funcao: Callable[..., Any], *args: Any) -> Any:
-    """``funcao`` num fio daemon: a rede lenta não segura a saída do processo."""
+async def em_fio_solto(trabalho: Callable[..., Any], *args: Any) -> Any:
+    """``trabalho`` num fio daemon: a rede lenta não segura a saída do processo."""
     laco = asyncio.get_running_loop()
     feito: asyncio.Future[Any] = laco.create_future()
 
@@ -217,9 +217,9 @@ async def em_fio_solto(funcao: Callable[..., Any], *args: Any) -> Any:
 
     def correr() -> None:
         resultado: Any = None
-        erro: BaseException | None = RuntimeError(f"{funcao.__name__} caiu")
+        erro: BaseException | None = RuntimeError(f"{trabalho!r} caiu")
         try:
-            resultado, erro = funcao(*args), None
+            resultado, erro = trabalho(*args), None
         finally:
             with contextlib.suppress(RuntimeError):
                 laco.call_soon_threadsafe(entregar, resultado, erro)
