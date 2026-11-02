@@ -10,7 +10,9 @@ moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, o
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
 ``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale. Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
-do controle (``jogo.identidade`` entra quando a porta o entregar).
+do controle (``jogo.identidade`` entra quando a porta o entregar). O
+:class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
+``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import json
 import os
 import signal
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -30,6 +33,7 @@ if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
 import sentidos as universais  # noqa: E402
+from estudio.cacador import Estudio  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
@@ -52,6 +56,8 @@ TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento",
 )
+TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
+BOTAO_DA_MARCA = "ps"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -201,6 +207,7 @@ class Extensao:
         self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
         self.assinados: set[str] = set()
         self.estados_publicados: list[str] = []
+        self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
 
     @property
     def escolha(self) -> str:
@@ -213,6 +220,42 @@ class Extensao:
         if faltam:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
+
+    async def assinar_o_estudio(self) -> None:
+        """O Estúdio ouve o som do jogo e o botão do meio enquanto caça."""
+        for topico in TOPICOS_DO_ESTUDIO:
+            if topico in self.assinados:
+                continue
+            with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+                await self.porta.pedir("eventos.assinar", {"topicos": [topico]})
+                self.assinados.add(topico)
+
+    async def responder_ao_estudio(self, resposta: dict[str, Any] | None,
+                                   pedido: Any = None) -> None:
+        """A resposta do Estúdio volta à página pela porta (``extensao.resposta``)."""
+        if resposta is None:
+            return
+        params: dict[str, Any] = {"dados": resposta}
+        if pedido is not None:
+            params["id"] = pedido
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.porta.pedir("extensao.resposta", params)
+
+    async def ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any]) -> None:
+        """Os eventos que o Estúdio usa: a mensagem da página, o som e o botão da marca."""
+        agora_ms = time.monotonic() * 1000.0
+        if topico == "extensao.mensagem":
+            pedido = dados.get("dados", dados)
+            if isinstance(pedido, dict):
+                if pedido.get("tipo") == "comecar":
+                    await self.assinar_o_estudio()
+                await self.responder_ao_estudio(await self.estudio.mensagem(pedido, agora_ms),
+                                                dados.get("id"))
+        elif topico == "jogo.som":
+            self.estudio.ouvir(dados, agora_ms)
+        elif (topico == "botoes" and nome == "button.down" and self.estudio.ativo
+              and BOTAO_DA_MARCA in (dados.get("botao"), dados.get("button"))):
+            await self.responder_ao_estudio(await self.estudio.marca(agora_ms))
 
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale."""
@@ -264,11 +307,15 @@ class Extensao:
         elif topico == "perfil.jogo" and isinstance(dados, dict):
             jogo = dados.get("jogo")
             self.jogo = jogo if isinstance(jogo, str) and jogo else None
+            self.estudio.jogo = self.jogo
+            self.estudio.memoria_ligada = dados.get("memoria") is True
             await self.escolher()
         elif topico == "extensao.opcao" and isinstance(dados, dict):
             ident, valor = dados.get("id"), dados.get("valor")
             if isinstance(ident, str) and isinstance(valor, (int, float)):
                 self.motor.opcoes[ident] = valor
+        if isinstance(topico, str) and isinstance(dados, dict):
+            await self.ao_estudio(topico, nome, dados)
         if isinstance(topico, str) and isinstance(nome, str):
             uniq = params.get("uniq")
             dados = params.get("dados")

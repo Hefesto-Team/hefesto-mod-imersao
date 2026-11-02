@@ -9,6 +9,8 @@ ou um sentido universal (``sentido.<nome>``), e este pede as permissões de toda
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -29,6 +31,9 @@ CAMPO_DO_EVENTO = re.compile(r"^[a-z_][a-z0-9_]*(?:\.[a-z0-9_]+){0,3}$")
 NOME_DO_EVENTO = re.compile(r"^[a-z][a-z0-9_.]{0,39}$")
 COR = re.compile(r"^#[0-9a-fA-F]{6}$")
 HEXA = re.compile(r"^0x[0-9a-fA-F]{1,16}$")
+BASE64 = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
+TETO_DA_IMPRESSAO = 4096
+ANCORAS = ("canto_sup_esq", "canto_sup_dir", "canto_inf_esq", "canto_inf_dir")
 _CLAUSULA = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+)$")
 
 TOPICOS_POR_CONTROLE = (
@@ -287,6 +292,24 @@ _LEITURA = estrito(
     saltos=Lista(Texto(18, HEXA), 8),
 )
 
+_IMPRESSAO = estrito(
+    ("bandas", "quadros", "vetor"),
+    bandas=Inteiro(1, 64),
+    quadros=Inteiro(1, 64),
+    vetor=Texto(5464, BASE64),
+    limiar=Real(0.5, 1.0),
+)
+
+_REGIAO = estrito(
+    ("x", "y", "w", "h"),
+    ancora=Texto(escolhas=ANCORAS),
+    x=Real(0.0, 1.0),
+    y=Real(0.0, 1.0),
+    w=Real(0.0, 1.0),
+    h=Real(0.0, 1.0),
+    referencia=Lista(Inteiro(1, 16384), 2, minimo=2),
+)
+
 _SENTIDO = estrito(
     ("de", "especie"),
     de=Texto(escolhas=TOPICOS + TOPICOS_DOS_SENTIDOS),
@@ -297,6 +320,8 @@ _SENTIDO = estrito(
     escala=Lista(Real(-1e9, 1e9), 2, minimo=2),
     limiar=Real(-1e9, 1e9),
     leitura=_LEITURA,
+    impressao=_IMPRESSAO,
+    regiao=_REGIAO,
 )
 
 _ACUMULA = estrito(
@@ -516,6 +541,39 @@ def _ordem(grafo: dict[str, set[str]]) -> tuple[str, ...]:
     return tuple(feitos)
 
 
+def _conferir_a_impressao(sentido: dict[str, Any], caminho: Caminho, erros: Erros) -> None:
+    impressao = sentido.get("impressao")  # (noqa-acento)
+    if impressao is None:
+        return
+    if sentido["de"] != "jogo.som" or sentido["especie"] != "evento":
+        erros.append(((*caminho, "impressao"),  # (noqa-acento)
+                      "só o evento de jogo.som tem «impressao»"))  # (noqa-acento)
+        return
+    try:
+        vetor = base64.b64decode(impressao["vetor"], validate=True)
+    except (binascii.Error, ValueError):
+        erros.append(((*caminho, "impressao", "vetor"), "o vetor não é base64"))  # (noqa-acento)
+        return
+    if len(vetor) > TETO_DA_IMPRESSAO:
+        erros.append(((*caminho, "impressao", "vetor"),  # (noqa-acento)
+                      f"a impressão tem {len(vetor)} bytes, e o teto é {TETO_DA_IMPRESSAO}"))
+    elif len(vetor) != impressao["bandas"] * impressao["quadros"]:
+        erros.append(((*caminho, "impressao", "vetor"),  # (noqa-acento)
+                      "o vetor não tem bandas × quadros números"))
+
+
+def _conferir_a_regiao(sentido: dict[str, Any], caminho: Caminho, erros: Erros) -> None:
+    regiao = sentido.get("regiao")
+    if regiao is None:
+        return
+    if sentido["de"] != "jogo.tela" or sentido["especie"] != "nivel":
+        erros.append(((*caminho, "regiao"), "só o nível de jogo.tela tem «regiao»"))
+    elif regiao["w"] <= 0 or regiao["h"] <= 0:
+        erros.append(((*caminho, "regiao"), "a região pede largura e altura"))
+    elif regiao["x"] + regiao["w"] > 1 or regiao["y"] + regiao["h"] > 1:
+        erros.append(((*caminho, "regiao"), "a região passa da borda da tela"))
+
+
 def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
     analisadas: dict[Caminho, expressao.No] = {}
     sentidos: dict[str, Any] = dados.get("sentidos", {})
@@ -569,7 +627,10 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
                 erros.append((caminho, "o sentido da memória pede a «leitura»"))
         elif "leitura" in sentido:
             erros.append(((*caminho, "leitura"), "só o sentido de jogo.memoria tem «leitura»"))
-        if sentido["especie"] != "evento" and "campo" not in sentido and "leitura" not in sentido:
+        _conferir_a_impressao(sentido, caminho, erros)
+        _conferir_a_regiao(sentido, caminho, erros)
+        if (sentido["especie"] != "evento" and "campo" not in sentido
+                and "leitura" not in sentido and "regiao" not in sentido):
             erros.append((caminho, "o sentido de nível ou de estado pede o «campo»"))
         escala = sentido.get("escala")
         if escala and escala[0] == escala[1]:

@@ -25,6 +25,7 @@ from motor.caminho import Caminho
 from motor.estados import Acumulador, Estado, continua_com_histerese
 from motor.saida import Saida
 from receita import expressao
+from receita import impressao as impressoes
 from receita.formato import Receita
 
 HZ = 60
@@ -78,6 +79,17 @@ def _campo(dados: Any, caminho: str) -> Any:
         else:
             return None
     return dados
+
+
+def _campo_do_sentido(ident: str, sentido: dict[str, Any]) -> str | None:
+    """O campo que o sentido lê: o dele, o nome dele na memória lida ou a região dele na tela."""
+    if "campo" in sentido:
+        return str(sentido["campo"])
+    if "leitura" in sentido:
+        return ident
+    if "regiao" in sentido:
+        return f"regioes.{ident}"
+    return None
 
 
 class Motor:
@@ -150,10 +162,15 @@ class Motor:
                 continue
             if "nome" in sentido and sentido["nome"] != evento.nome:
                 continue
+            impressao = sentido.get("impressao")  # (noqa-acento)
+            if impressao is not None and not impressoes.reconhece(impressao,
+                                                                 evento.dados.get("bandas")):
+                continue
             leitura = self.leituras[ident]
             valor = 1.0
-            if "campo" in sentido:
-                bruto = _campo(evento.dados, sentido["campo"])
+            campo = _campo_do_sentido(ident, sentido)
+            if campo is not None:
+                bruto = _campo(evento.dados, campo)
                 if bruto is None:
                     continue
                 if "igual" in sentido:

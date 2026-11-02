@@ -96,6 +96,13 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
   pelo batimento do rumble, o susto, o lado pelo som, a barra vermelha na rajada e o impacto do
   golpe, que só troca o gatilho do jogo quando é mais forte. Sem memória.
 
+## O Estúdio
+
+O botão «Ensinar este jogo» (página em `estudio/pagina/`) guia com frases curtas, e o botão do meio
+do controle marca o gesto. O caçador do valor (só com a chave «Memória» do jogo ligada), o do som e
+o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele; o achado vira um
+`estado` na sua receita, com o nome que você der.
+
 ## Instalar
 
 ```bash

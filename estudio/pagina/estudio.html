@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Estúdio</title>
+<style>
+:root { --fundo: #15161c; --texto: #eceef4; --apagado: #8c90a0; --acento: #6aa8ff; --borda: #2c2f3a; }
+body { margin: 0; padding: 16px; background: var(--fundo); color: var(--texto); font: 15px/1.4 system-ui, sans-serif; }
+button { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer; }
+button.principal { background: var(--acento); color: #0b0c10; border-color: var(--acento); }
+button[hidden], section[hidden] { display: none; }
+#frase { font-size: 28px; font-weight: 600; margin: 16px 0 4px; }
+#vez { color: var(--apagado); }
+.linha { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+input { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; font: inherit; }
+</style>
+</head>
+<body>
+<button id="ensinar" class="principal" data-gesto="ensinar">Ensinar este jogo</button>
+<section id="escolha" hidden>
+  <div class="linha" id="cacadores"></div>
+</section>
+<section id="caca" hidden>
+  <div id="frase"></div>
+  <div id="vez"></div>
+  <div class="linha">
+    <button id="marcar" class="principal" data-gesto="marcar">Feito</button>
+    <button id="cancelar" data-gesto="cancelar">Cancelar</button>
+  </div>
+</section>
+<section id="nomear" hidden>
+  <div id="frase-do-achado"></div>
+  <div class="linha">
+    <input id="nome" maxlength="40" placeholder="Nome">
+    <button id="guardar" class="principal" data-gesto="guardar">Guardar</button>
+  </div>
+</section>
+<script>
+"use strict";
+const ROTULOS = { valor: "Valor", som: "Som", tela: "Canto da tela" };
+const el = (id) => document.getElementById(id);
+const mandar = (pedido) => window.parent.postMessage(pedido, "*");
+const mostrar = (qual) => {
+  for (const id of ["escolha", "caca", "nomear"]) el(id).hidden = id !== qual;
+};
+function receber(resposta) {
+  if (!resposta || typeof resposta !== "object") return;
+  if (resposta.tipo === "estudio") {
+    const lista = el("cacadores");
+    lista.replaceChildren();
+    for (const cacador of resposta.cacadores || []) {
+      const botao = document.createElement("button");
+      botao.textContent = ROTULOS[cacador] || cacador;
+      botao.dataset.gesto = "cacador-" + cacador;
+      botao.addEventListener("click", () => mandar({ tipo: "comecar", cacador }));
+      lista.append(botao);
+    }
+    mostrar("escolha");
+  } else if (resposta.tipo === "passo") {
+    el("frase").textContent = resposta.frase;
+    el("vez").textContent = resposta.passo + " de " + resposta.de;
+    mostrar("caca");
+  } else if (resposta.tipo === "achou") {
+    el("frase-do-achado").textContent = resposta.frase;
+    mostrar("nomear");
+  } else if (resposta.tipo === "guardado" || resposta.tipo === "cancelado") {
+    mostrar(null);
+  } else if (resposta.tipo === "nada" || resposta.tipo === "erro") {
+    el("frase").textContent = resposta.frase;
+    el("vez").textContent = "";
+    mostrar("caca");
+  }
+}
+window.addEventListener("message", (evento) => receber(evento.data && evento.data.dados ? evento.data.dados : evento.data));
+el("ensinar").addEventListener("click", () => mandar({ tipo: "abrir" }));
+el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));
+el("cancelar").addEventListener("click", () => mandar({ tipo: "cancelar" }));
+el("guardar").addEventListener("click", () => mandar({ tipo: "guardar", nome: el("nome").value }));
+</script>
+</body>
+</html>
