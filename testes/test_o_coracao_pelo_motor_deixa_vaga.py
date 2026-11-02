@@ -7,6 +7,7 @@ teto, a mesma vaga do pedido vivo pela háptica; o estalo e o susto saem no tiqu
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -14,6 +15,7 @@ import pytest
 from apoio import QUATRO_CONTROLES, UM, EscritasDeMentira
 
 import servidor
+from motor import efeitos as catalogo
 from motor import saida as modulo
 from motor.arbitragem import Pedido, Vaga
 from motor.laco import Motor
@@ -93,8 +95,8 @@ def test_o_estalo_e_o_susto_pelo_motor_saem_no_tique_deles() -> None:
     do_som = tique(lambda v: (UM, "som", "-") in v)
     cheio = next(t for t, p in porta.de("vibracao.set") if t >= ESTALO_MS and p["forte"] == 255)
     som = next(t for t, _ in porta.de("som.tocar"))
-    assert cheio - max(do_estalo, do_susto) <= TIQUE + 1e-6
-    assert som - do_som <= TIQUE + 1e-6
+    assert cheio == max(do_estalo, do_susto)
+    assert som == do_som
 
 
 def _coracao(uniq: str, bpm: float) -> dict[Vaga, Pedido]:
@@ -152,6 +154,11 @@ def test_o_coracao_rapido_pelo_motor_deixa_o_estalo_e_o_susto_sairem_no_tique_de
     no_tique = [(m, p) for t, m, p in porta.escritas if t == evento_ms and p["uniq"] == alvo]
     assert ("vibracao.set", {"uniq": alvo, "fraco": 255, "forte": 255}) in no_tique
     assert ("luz.set", {"uniq": alvo, "rgb": [255, 255, 255], "brilho": 1.0}) in no_tique
+    segundo_golpe = catalogo.PADROES["susto"].golpes[1]
+    meio = (180 + fase + math.ceil(segundo_golpe.inicio_ms / TIQUE)) * TIQUE
+    fraco = round(segundo_golpe.amplitude * 255)
+    no_meio = [p for t, m, p in porta.escritas if t == meio and m == "vibracao.set"]
+    assert {"uniq": alvo, "fraco": fraco, "forte": 178} in no_meio
     for uniq in controles:
         batidas = [t for t, p in porta.de("vibracao.set") if p["uniq"] == uniq and t < evento_ms]
         assert len(batidas) > 20
@@ -161,9 +168,18 @@ def test_o_coracao_rapido_pelo_motor_deixa_o_estalo_e_o_susto_sairem_no_tique_de
     assert _no_maximo_por_segundo([t for t, _, _ in porta.escritas]) <= modulo.TETO_TOTAL
 
 
+def _luz(uniq: str, k: int) -> dict[Vaga, Pedido]:
+    return {(uniq, "luz", "-"): Pedido(uniq, "luz", "-", "clarao", 1.0, 0, 0.0, 9, {
+        "inicio_ms": 0.0, "rgb": [k % 256, 0, 0], "brilho": 1.0})}
+
+
 def test_o_coracao_que_para_solta_o_motor_no_tique_dele_mesmo_com_o_teto_cheio() -> None:
     porta = EscritasDeMentira()
     saida = Saida(porta.pedir)
+
+    def cheio(t: float) -> bool:
+        return sum(1 for o, _, p in porta.escritas if p["uniq"] == UM and t - o < 1000) >= (
+            modulo.TETO_POR_CONTROLE)
 
     async def correr() -> float:
         k = 0
@@ -171,13 +187,18 @@ def test_o_coracao_que_para_solta_o_motor_no_tique_dele_mesmo_com_o_teto_cheio()
             porta.agora = t
             await saida.aplicar(t, _coracao(UM, 180.0))
             k += 1
-        while porta.escritas[-1][2]["forte"] == 0:
+        while porta.de("vibracao.set")[-1][1]["forte"] == 0:
             porta.agora = t = k * TIQUE
             await saida.aplicar(t, _coracao(UM, 180.0))
             k += 1
-        porta.agora = t = k * TIQUE
-        await saida.aplicar(t, {})
+        while not cheio(t := k * TIQUE):
+            porta.agora = t
+            await saida.aplicar(t, {**_coracao(UM, 180.0), **_luz(UM, k)})
+            k += 1
+        porta.agora = t
+        await saida.aplicar(t, _luz(UM, k))
         return t
 
     fim = asyncio.run(correr())
-    assert porta.escritas[-1] == (fim, "vibracao.set", {"uniq": UM, "fraco": 0, "forte": 0})
+    assert porta.de("vibracao.set")[-1] == (fim, {"uniq": UM, "fraco": 0, "forte": 0})
+    assert [m for t, m, _ in porta.escritas if t == fim] == ["vibracao.set"]
