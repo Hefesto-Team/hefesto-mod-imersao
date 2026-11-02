@@ -12,7 +12,8 @@ sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arr
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem; o ``jogo.tela`` nasce
-desligado, porque assiná-lo abre o portal de captura do sistema. O
+desligado, porque assiná-lo abre o portal de captura do sistema, e se liga quando a pessoa
+ensina pela tela uma receita que o lê. O
 :class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
@@ -62,7 +63,7 @@ from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia
 ARQUIVO_DA_RECEITA = ARQUIVO_DE_ANTES
 ARQUIVO_DO_UNIVERSAL = AQUI / "receitas" / "universal.json"
 PASTA_DAS_ESTUDADAS = AQUI / "receitas" / "estudadas"
-ARQUIVO_DAS_OPCOES = "opcoes.json"
+ARQUIVO_DAS_OPCOES = ajustes.ARQUIVO_DAS_OPCOES
 OPCAO_DA_RECEITA = "receita"
 ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
@@ -336,7 +337,7 @@ class Extensao:
                         await self.assinar_o_estudio()
                     resposta = await self.estudio.mensagem(pedido, agora_ms)
                 if resposta.get("tipo") in RESPOSTAS_QUE_GRAVAM:
-                    await self.escolher()
+                    await self.reler_as_opcoes()
                 await self.responder_ao_estudio(resposta, dados.get("id"))
         if self.gravador.gravando and isinstance(nome, str):
             self.gravador.ouvir(topico, nome, uniq if isinstance(uniq, str) else None, dados,

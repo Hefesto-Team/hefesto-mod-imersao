@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import opcoes as ajustes
 from receita import impressao as impressoes
 
 TIPOS: dict[str, tuple[str, int]] = {"i8": ("b", 1), "i16": ("h", 2), "i32": ("i", 4),
@@ -56,6 +57,7 @@ PARECIDO = 0.9
 TOLERANCIA_DA_TELA = 40
 TETO_DA_REGIAO = 0.25
 FAIXA_DO_REAL = (1e-3, 1e7)
+TOPICO_DO_ACHADO = {"valor": "jogo.memoria", "som": "jogo.som", "tela": "jogo.tela"}
 
 
 class MemoriaDesligada(RuntimeError):
@@ -412,18 +414,16 @@ def para_a_receita(receita: dict[str, Any] | None, chave: str, nome: str,
         else:
             estados[estado] = {"quando": f"{sinal} > 0", "histerese": 0.05}
         dados["jogo"]["leitura_de_memoria"] = "pede"  # (noqa-acento)
-        topico = "jogo.memoria"
     elif achado.tipo == "som":
         sentidos[sinal] = {"de": "jogo.som", "especie": "evento",
                            "impressao": achado.dados["impressao"]}  # (noqa-acento)
         estados[estado] = {"quando": sinal, "minimo_ms": 1500}
-        topico = "jogo.som"
     elif achado.tipo == "tela":
         sentidos[sinal] = {"de": "jogo.tela", "especie": "nivel", "regiao": achado.dados["regiao"]}
         estados[estado] = {"quando": f"{sinal} > 0.5", "histerese": 0.1}
-        topico = "jogo.tela"
     else:
         raise ValueError(f"achado desconhecido: {achado.tipo}")
+    topico = TOPICO_DO_ACHADO[achado.tipo]
     if f"ler:{topico}" not in permissoes:
         permissoes.append(f"ler:{topico}")
     dados.update(sentidos=sentidos, estados=estados, permissoes=permissoes)  # (noqa-acento)
@@ -436,7 +436,8 @@ class Estudio:
     A página manda ``abrir``, ``comecar`` (com o ``cacador``), ``passo``, ``guardar`` (com o
     ``nome``) e ``cancelar``; o botão do meio do controle vale um ``passo``. Cada resposta traz a
     ``frase`` da vez. O achado guardado vai à receita de quem joga, em
-    ``$HEFESTO_MOD_DADOS/receitas/<chave>.json``, só depois de validado.
+    ``$HEFESTO_MOD_DADOS/receitas/<chave>.json``, só depois de validado, e liga o sentido que a
+    receita passa a ler (:func:`opcoes.consentir`).
     """
 
     def __init__(self, pedir: Pedir, receitas: Path | None,
@@ -558,6 +559,7 @@ class Estudio:
         temporario = arquivo.with_suffix(".json.novo")
         temporario.write_bytes(bruto)
         os.replace(temporario, arquivo)
+        ajustes.consentir(self.receitas.parent, TOPICO_DO_ACHADO[self.achado.tipo])
         estado = ident_do_nome(nome)
         self.cancelar()
         return {"tipo": "guardado", "estado": estado, "arquivo": arquivo.name}

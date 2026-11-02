@@ -3,8 +3,14 @@ os canais. Valem para toda receita (a sua, a estudada, a da comunidade e o unive
 seguinte, lidos do mesmo ``opcoes.json`` que a janela grava."""
 from __future__ import annotations
 
+import contextlib
+import json
+import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
+ARQUIVO_DAS_OPCOES = "opcoes.json"
 FORCA = "forca_geral"
 FORCA_PADRAO = 100.0
 PARA_QUEM = "para_quem"
@@ -68,3 +74,34 @@ def topico_ligado(topico: str, opcoes: dict[str, Any] | None = None) -> bool:
     """O tópico da porta que só se assina com o sentido dele ligado."""
     ident, padrao = TOPICOS_DA_PORTA_COM_CHAVE.get(topico, ("", True))
     return ligado(opcoes or {}, ident, padrao) if ident else True
+
+
+def consentir(dados: Path, topico: str) -> bool:
+    """Ensinar a receita pelo tópico é o gesto que o consente: o sentido dele passa a ligado no
+    ``opcoes.json`` (arquivo novo e ``rename``, em ``0600``, as outras opções intactas).
+    ``True`` quando a chave mudou; desligá-la depois volta a calar a receita."""
+    ident, padrao = TOPICOS_DA_PORTA_COM_CHAVE.get(topico, ("", True))
+    if not ident:
+        return False
+    arquivo = dados / ARQUIVO_DAS_OPCOES
+    try:
+        lidas = json.loads(arquivo.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        lidas = {}
+    valores: dict[str, Any] = lidas if isinstance(lidas, dict) else {}
+    if ligado(valores, ident, padrao):
+        return False
+    valores[ident] = True
+    dados.mkdir(parents=True, exist_ok=True)
+    fd, nome = tempfile.mkstemp(prefix=".opcoes-", suffix=".json", dir=dados)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as saida:
+            json.dump(valores, saida, ensure_ascii=False, indent=2)
+            saida.write("\n")
+        os.chmod(nome, 0o600)
+        os.replace(nome, arquivo)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(nome)
+        raise
+    return True

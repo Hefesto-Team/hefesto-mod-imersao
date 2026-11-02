@@ -3,12 +3,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 from apoio import DOIS, QUATRO, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
 from test_a_receita_minecraft_dungeons_ii import LINHA_DO_GATILHO, _batimento
 from test_a_receita_minecraft_dungeons_ii import _motor as _dungeons
+from test_o_cacador import (
+    JOGO,
+    _achar_a_tela,
+    _achar_o_som,
+    _evento,
+    _PortaDoEstudio,
+    _sem_porta,
+)
 from test_o_universal import (
     _correr,
     _motores,
@@ -23,6 +32,7 @@ from test_o_universal import (
 
 import opcoes as ajustes
 import servidor
+from estudio.cacador import Estudio
 from motor.laco import Motor
 from receita.formato import ler_receita
 
@@ -237,3 +247,82 @@ def test_o_sentido_desligado_cala_tambem_a_receita_que_le_o_topico_cru() -> None
         _correr(motor, porta, 600, estalo)
         feitos.append(bool([m for m in _motores(porta) if m[1]]))
     assert feitos == [True, False]
+
+
+def _ensinar_pela_tela(dados: Path, porta: _PortaDoEstudio) -> servidor.Extensao:
+    async def corpo() -> servidor.Extensao:
+        biblioteca = servidor.Biblioteca(servidor.PASTA_DAS_ESTUDADAS, dados,
+                                         servidor.carregar_o_universal, servidor.diario)
+        extensao = servidor.Extensao(porta, biblioteca.para(None, servidor.PELO_JOGO),  # type: ignore[arg-type]
+                                     biblioteca, dados)
+        await extensao.assinar()
+        await extensao.ao_evento(_evento("perfil.jogo", "perfil.trocou",
+                                         {"jogo": JOGO, "memoria": False}))
+        await extensao.ao_evento(_evento("extensao.mensagem", "extensao.mensagem",
+                                         {"id": 1, "dados": {"tipo": "comecar",
+                                                             "cacador": "tela"}}))
+        for _ in range(3):
+            await extensao.ao_evento(_evento("botoes", "button.down",
+                                             {"button": "ps", "botao": "ps", "pressed": True,
+                                              "uniq": UM, "jogador": 1}, UM))
+        await extensao.ao_evento(_evento("extensao.mensagem", "extensao.mensagem",
+                                         {"id": 2, "dados": {"tipo": "guardar",
+                                                             "nome": "Barra"}}))
+        return extensao
+
+    return asyncio.run(corpo())
+
+
+def _assinados_pela_porta(porta: _PortaDoEstudio) -> set[str]:
+    vivos: set[str] = set()
+    for metodo, params in porta.pedidos:
+        if metodo == "eventos.assinar":
+            vivos |= set(params["topicos"])
+        elif metodo == "eventos.desassinar":
+            vivos -= set(params["topicos"])
+    return vivos
+
+
+def test_a_receita_ensinada_pela_tela_liga_o_sentido_tela_e_assina_o_jogo_tela(
+        tmp_path: Path) -> None:
+    (tmp_path / "opcoes.json").write_text(json.dumps({"forca_geral": 70}), encoding="utf-8")
+    porta = _PortaDoEstudio()
+    extensao = _ensinar_pela_tela(tmp_path, porta)
+    assert extensao.escolhida.origem == "sua"
+    guardadas = json.loads((tmp_path / "opcoes.json").read_text(encoding="utf-8"))
+    assert guardadas == {"forca_geral": 70, "sentido_tela": True}
+    assert extensao.opcoes.get("sentido_tela") is True
+    assert "jogo.tela" in extensao.assinados
+    assert "jogo.tela" in _assinados_pela_porta(porta)
+
+    (tmp_path / "opcoes.json").write_text(json.dumps({"sentido_tela": False}), encoding="utf-8")
+    asyncio.run(extensao.reler_as_opcoes())
+    assert "jogo.tela" not in extensao.assinados
+    assert "jogo.tela" not in _assinados_pela_porta(porta)
+
+
+@pytest.mark.parametrize(("tipo", "topico", "sentido"), [
+    ("som", "jogo.som", "sentido_som"), ("tela", "jogo.tela", "sentido_tela")])
+def test_o_achado_guardado_liga_o_sentido_que_ele_le_e_nao_mexe_em_outro(
+        tmp_path: Path, tipo: str, topico: str, sentido: str) -> None:
+    desligados = {"sentido_som": False, "sentido_tela": False, "sentido_golpe": False}
+    (tmp_path / "opcoes.json").write_text(json.dumps(desligados), encoding="utf-8")
+    achado = _achar_o_som() if tipo == "som" else _achar_a_tela()
+    assert achado is not None
+    estudio = Estudio(_sem_porta, tmp_path / "receitas", ler_receita)
+    estudio.jogo, estudio.cacador, estudio.achado = JOGO, tipo, achado
+    resposta = asyncio.run(estudio.mensagem({"tipo": "guardar", "nome": "Achado"}, 0.0))
+    assert resposta["tipo"] == "guardado"
+    guardadas = json.loads((tmp_path / "opcoes.json").read_text(encoding="utf-8"))
+    assert guardadas == {**desligados, sentido: True}
+    assert ajustes.topico_ligado(topico, guardadas)
+
+
+def test_o_achado_recusado_nao_liga_sentido_nenhum(tmp_path: Path) -> None:
+    achado = _achar_a_tela()
+    assert achado is not None
+    estudio = Estudio(_sem_porta, tmp_path / "receitas", ler_receita)
+    estudio.jogo, estudio.cacador, estudio.achado = JOGO, "tela", achado
+    resposta = asyncio.run(estudio.mensagem({"tipo": "guardar", "nome": ""}, 0.0))
+    assert resposta["tipo"] == "erro"
+    assert not (tmp_path / "opcoes.json").exists()
