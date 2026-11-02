@@ -11,7 +11,6 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import pytest
-
 from apoio import UM, EscritasDeMentira
 
 import servidor
