@@ -33,7 +33,8 @@ from test_o_universal import (
 import opcoes as ajustes
 import servidor
 from estudio.cacador import Estudio
-from motor.laco import Motor
+from motor.laco import HZ, Motor
+from motor.saida import Saida
 from receita.formato import ler_receita
 
 ABAS = ["Geral", "Sentidos", "Efeitos", "Canais"]
@@ -513,3 +514,31 @@ def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
     asyncio.run(extensao.publicar_se_mudou())
     asyncio.run(extensao.publicar_se_mudou())
     assert [e["nivel"] for e in janela.estados()] == [0, 6]
+
+
+def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais_nada() -> None:
+    motor = _universal([{"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}],
+                       {ajustes.PARA_QUEM: ajustes.TODOS})
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    fila = sorted(TENSO, key=lambda e: e[0])
+    cala_ms = 15_000
+
+    async def correr() -> None:
+        k = 0
+        saida = Saida(porta.pedir)
+        while (t := k * 1000 / HZ) <= 20_000:
+            if t >= cala_ms and not motor.calados:
+                motor.calar({DOIS})
+            while fila and fila[0][0] <= t + 1e-6:
+                motor.evento(*fila.pop(0)[1])
+            porta.agora = t
+            await saida.aplicar(t, motor.passo(t))
+            k += 1
+
+    asyncio.run(correr())
+    antes = [p for t, _, p in porta.escritas if p.get("uniq") == DOIS and t < cala_ms]
+    depois = [p for t, _, p in porta.escritas if p.get("uniq") == DOIS and t >= cala_ms]
+    assert any(p.get("forca") for p in antes)
+    assert depois and all(p.get("forca") == 0.0 and p.get("ate_ms") == 0 for p in depois)
+    assert len(depois) == len({p["lado"] for p in depois})
+    assert [t for t, _, p in porta.escritas if p.get("uniq") == UM and t >= cala_ms]

@@ -256,7 +256,6 @@ class Extensao:
         self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
         self.assinados: set[str] = set()
         self.do_estudio: set[str] = set()
-        self.estados_publicados: list[str] = []
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
         self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
                                  lambda: (self.jogo, self.receita.dados))
@@ -427,12 +426,11 @@ class Extensao:
 
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no
-        nível; os controles conectados vão como aparelhos, cada um com a chave «Ligar» na aba
-        Geral."""
+        nível; os controles conectados vão como aparelhos, cada um com a chave «Sente os
+        efeitos» na aba Geral."""
         estado = self._estado()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.porta.pedir("acessorios.estado", estado)
-            self.estados_publicados.append(self.escolhida.rotulo)
             self.ultimo_estado = estado
 
     async def publicar_se_mudou(self) -> None:
