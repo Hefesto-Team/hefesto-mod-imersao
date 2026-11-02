@@ -31,8 +31,12 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
 - A janela tem seis abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita e «O
   golpe vai para» (quem levou, ou todos os controles). Sentidos e Canais: cada um se desliga, e o
   sentido desligado desassina o tópico dele (a Tela nasce desligada). Efeitos: as entradas do
-  universal. «Procurar receitas» fica na Geral. «Ensinar este jogo»: a página do Estúdio. Os ajustes de
-  Geral, Sentidos e Canais moram em `opcoes.py` e valem em toda receita.
+  universal, com a cor do dano e o intervalo do susto. «Procurar receitas» fica na Geral. «Ensinar
+  este jogo»: a página do Estúdio. Os ajustes de Geral, Sentidos e Canais moram em `opcoes.py` e
+  valem em toda receita.
+- Na Geral, cada controle conectado é um cartão com a chave «Sente os efeitos»: o desligado não
+  recebe nada da extensão, e a escolha fica em `controles.json`, pelo número do jogador. A coluna
+  «Agora» mostra o clima da cena (o derivado `tensao`, de 0 a 10) no «Nível».
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
   (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
   porta ainda não entrega vai ao diário, e o sentido dele fica parado.
@@ -65,12 +69,12 @@ gramática recusam, sempre com a linha.
 | `formato`, `motor` | `1` e a faixa do motor (`">=1,<2"`); obrigatórios |
 | `jogo` | `chave`, `janela`, `builds{steam_buildid}`, `leitura_de_memoria` (`nao`, `nunca` ou `pede`) |
 | `permissoes` | o que a receita lê (`ler:<tópico>`); o sentido que lê sem declarar recusa |
-| `entradas` | deslizantes da pessoa (`$nome` nas expressões) |
+| `entradas` | `deslizante`, `ligado` ou `cor` da pessoa (`$nome` nas expressões; a cor só na `cor` da luz) |
 | `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar` |
 | `derivados` | uma expressão, ou um acumulador (`sobe_com`, `passo`, `meia_vida_ms`) |
 | `estados` | `quando`, `histerese`, `minimo_ms` |
 | `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo), `leds` (as luzes de jogador do lado, até 600 ms) |
-| `regras` | `quando`, `entao`, `senao`, `prioridade`, `espera_ms`, `para` (`todos`, `quem_levou` ou `p1`..`p4`) |
+| `regras` | `quando`, `entao`, `senao`, `prioridade`, `espera_ms` (número ou expressão), `para` (`todos`, `quem_levou` ou `p1`..`p4`) |
 | `confere` | a faixa esperada de um sentido, ou a concordância entre dois |
 
 As expressões têm números, nomes, `$entrada`, `+ - * /`, comparações, `e`, `ou`, `nao` e as

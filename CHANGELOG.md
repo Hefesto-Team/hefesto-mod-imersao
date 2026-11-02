@@ -17,6 +17,11 @@
 - A receita ensinada pela tela no Estúdio liga o sentido «Tela» e passa a ler a tela do jogo na
   hora; a receita ensinada pelo som liga o sentido «Som do jogo». Desligar a chave depois cala a
   receita, como antes.
+- Na aba Geral, cada controle conectado ganha um cartão com a chave «Sente os efeitos»; o desligado
+  não recebe nada, e a escolha sobrevive ao reinício. O «Nível» da coluna «Agora» mostra o clima
+  da cena ao vivo.
+- A cor do dano e o intervalo do susto se ajustam na aba Efeitos; no padrão (vermelho e 5 s), a
+  extensão escreve o mesmo de antes.
 
 ## 0.4.8 (02/11/2026)
 
