@@ -88,6 +88,14 @@ atacou; a tensão (o batimento do rumble, o dano recente, o silêncio longo e o 
 mão, juntos) toca o coração de 60 a 140 bpm, e o barulho súbito no microfone o acalma; o estalo
 forte com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante.
 
+## As receitas estudadas
+
+Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga não tem a própria:
+
+- `minecraft-dungeons-ii.json` (Steam 1912410): o jogo manda nos gatilhos; a receita soma o coração
+  pelo batimento do rumble, o susto, o lado pelo som, a barra vermelha na rajada e o impacto do
+  golpe, que só troca o gatilho do jogo quando é mais forte. Sem memória.
+
 ## Instalar
 
 ```bash

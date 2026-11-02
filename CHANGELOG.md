@@ -11,6 +11,10 @@
   «Receita» (Pelo jogo ou Universal) e «Lado na luz», e o motor lê o valor salvo
   (`opcoes.json`, relido a cada meio segundo) e o arrasto ao vivo (`extensao.opcao`). O
   deslizante fica entre o mínimo e o máximo da entrada, e o «ligado» só vale verdadeiro ou falso.
+- A receita estudada do Minecraft Dungeons II (`receitas/estudadas/minecraft-dungeons-ii.json`), só
+  do estudo, sem memória: o coração em dois degraus pelo batimento do rumble do jogo, o susto pelo
+  estalo forte na cena tensa, o lado pelo som, a barra vermelha na rajada e o impacto do golpe no
+  gatilho. Os gatilhos do jogo só cedem ao impacto mais forte que eles.
 - A coluna «Agora» da janela diz qual receita vale (`acessorios.estado`, no campo «Perfil»): a
   sua, a estudada, a da comunidade ou o universal.
 
