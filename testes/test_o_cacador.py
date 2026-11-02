@@ -338,3 +338,29 @@ def _evento(topico: str, nome: str, dados: dict[str, Any],
             uniq: str | None = None) -> dict[str, Any]:
     return {"method": "evento", "params": {"topico": topico, "nome": nome, "uniq": uniq,
                                            "dados": dados}}
+
+
+class VarredorDeUmSo:
+    """A porta que acha um endereço só já na primeira varredura, em todo tipo."""
+
+    async def varrer(self, tipo: str, comparacao: str, token: str | None = None,
+                     valor: float | None = None) -> dict[str, Any]:
+        return {"token": "t", "candidatos": 1, "endereco": hex(ALVO), "valor": 80}
+
+
+@pytest.mark.parametrize(("gestos", "acha"), [
+    (("parado", "perder"), False),
+    (("perder", "perder"), False),
+    (("parado", "perder", "perder"), True),
+])
+def test_o_endereco_unico_cedo_so_vale_com_dois_perder_e_um_parado(
+        gestos: tuple[str, ...], acha: bool) -> None:
+    async def cacar() -> CacadorDeValor:
+        cacador = CacadorDeValor(VarredorDeUmSo(), memoria_ligada=True)
+        await cacador.comecar()
+        for gesto in gestos:
+            await cacador.gesto(gesto)
+        return cacador
+
+    achado = asyncio.run(cacar()).achado()
+    assert (achado is not None) is acha
