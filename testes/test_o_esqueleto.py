@@ -37,7 +37,7 @@ def test_o_manifesto_vale_no_hefesto_e_o_modo_da_aba_espera_o_hefesto_que_o_conh
     assert manifesto.id == "imersao" and manifesto.api == ">=2,<3"
     assert manifesto.licenca == "GPL-3.0-or-later"
     assert do_hefesto.aceita_a_api(manifesto.api)
-    assert "rede:nenhuma" in manifesto.permissoes
+    assert [p for p in manifesto.permissoes if p.startswith("rede:")] == ["rede:internet"]
     assert [p for p in manifesto.permissoes if p.startswith("publicar:")] == [
         "publicar:acessorios.estado"]
 

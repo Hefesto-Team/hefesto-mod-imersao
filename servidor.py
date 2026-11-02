@@ -13,6 +13,9 @@ receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o m
 do controle (``jogo.identidade`` entra quando a porta o entregar). O
 :class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
+A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
+que abre (o índice se baixa uma vez por dia) e no «Procurar receitas» da página; a leitura da
+memória da receita da comunidade só chega ao motor com a chave «Memória» dela ligada.
 """
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
 import sentidos as universais  # noqa: E402
+from comunidade import TIPOS_DA_COMUNIDADE, Comunidade  # noqa: E402
 from estudio import linha_do_tempo  # noqa: E402
 from estudio.blocos import TIPOS_DO_MONTADOR, Montador  # noqa: E402
 from estudio.cacador import Estudio  # noqa: E402
@@ -199,7 +203,8 @@ class Extensao:
     """A porta, o motor da receita e a saída, juntos."""
 
     def __init__(self, porta: Porta, receita: Receita | Escolhida,
-                 biblioteca: Biblioteca | None = None, dados: Path | None = None) -> None:
+                 biblioteca: Biblioteca | None = None, dados: Path | None = None,
+                 comunidade: Comunidade | None = None) -> None:
         self.porta = porta
         self.escolhida = receita if isinstance(receita, Escolhida) else Escolhida(
             receita, "universal" if receita.universal else "sua")
@@ -220,6 +225,9 @@ class Extensao:
         self.gravador = Gravador()
         self.tocando: asyncio.Task[None] | None = None
         self.parar_de_tocar = asyncio.Event()
+        self.comunidade = comunidade
+        self.procurando: asyncio.Task[dict[str, Any]] | None = None
+        self.memoria_vale = True
 
     @property
     def escolha(self) -> str:
@@ -265,6 +273,8 @@ class Extensao:
                     resposta = self.montador.mensagem(pedido)
                 elif tipo in TIPOS_DO_EDITOR:
                     resposta = self.editor.mensagem(pedido)
+                elif tipo in TIPOS_DA_COMUNIDADE:
+                    resposta = await self.ao_comunidade(str(tipo), pedido)
                 elif tipo in TIPOS_DO_GRAVADOR:
                     resposta = await self.ao_gravador(str(tipo), agora_ms)
                 else:
@@ -312,6 +322,35 @@ class Extensao:
             linha_do_tempo.tocar(linha, self.motor.evento, self.parar_de_tocar))
         return {"tipo": "tocando", "segundos": round(linha.duracao_ms / 1000, 1)}
 
+    async def procurar(self, agora: bool = False) -> dict[str, Any]:
+        """A receita da comunidade do jogo aberto; a nova vale no tique seguinte."""
+        if self.comunidade is None:
+            return {"tipo": "erro", "frase": "sem a pasta de dados da extensão"}
+        resultado = await asyncio.to_thread(self.comunidade.procurar, self.jogo, agora)
+        if resultado.get("tipo") != "procurado":
+            diario(f"as receitas da comunidade não vieram: {resultado.get('frase')}")
+        await self.escolher()
+        return {**resultado, "origem": self.escolhida.rotulo}
+
+    def procurar_em_fundo(self) -> None:
+        if self.comunidade is not None and (self.procurando is None or self.procurando.done()):
+            self.procurando = asyncio.create_task(self.procurar())
+
+    async def ao_comunidade(self, tipo: str, pedido: dict[str, Any]) -> dict[str, Any]:
+        """«Procurar receitas» e a chave «Memória» da receita da comunidade."""
+        if tipo == "procurar":
+            return await self.procurar(agora=True)
+        if self.comunidade is None:
+            return {"tipo": "erro", "frase": "sem a pasta de dados da extensão"}
+        resposta = self.comunidade.ligar_a_memoria(self.jogo, pedido.get("ligar") is True,
+                                                   pedido.get("confirmado") is True)
+        self.memoria_vale = self._memoria_vale()
+        return resposta
+
+    def _memoria_vale(self) -> bool:
+        return self.escolhida.origem != "comunidade" or (
+            self.comunidade is not None and self.comunidade.memoria_ligada(self.jogo))
+
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale."""
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
@@ -326,8 +365,10 @@ class Extensao:
             return
         nova = self.biblioteca.para(self.jogo, self.escolha)
         if nova.marca == self.escolhida.marca and nova.receita.dados == self.receita.dados:
+            self.memoria_vale = self._memoria_vale()
             return
         self.escolhida, self.receita = nova, nova.receita
+        self.memoria_vale = self._memoria_vale()
         self.motor.trocar(nova.receita)
         diario(f"vale a receita {nova.arquivo or 'universal'} ({nova.rotulo})")
         if fora := topicos_fora_da_porta(nova.receita):
@@ -365,12 +406,16 @@ class Extensao:
             self.estudio.jogo = self.jogo
             self.estudio.memoria_ligada = dados.get("memoria") is True
             await self.escolher()
+            if self.jogo is not None:
+                self.procurar_em_fundo()
         elif topico == "extensao.opcao" and isinstance(dados, dict):
             ident, valor = dados.get("id"), dados.get("valor")
             if isinstance(ident, str) and isinstance(valor, (int, float)):
                 self.motor.opcoes[ident] = valor
         if isinstance(topico, str) and isinstance(dados, dict):
             await self.ao_estudio(topico, nome, dados, params.get("uniq"))
+        if topico == "jogo.memoria" and not self.memoria_vale:
+            return True
         if isinstance(topico, str) and isinstance(nome, str):
             uniq = params.get("uniq")
             dados = params.get("dados")
@@ -392,7 +437,8 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     opcoes = ler_as_opcoes(dados)
     escolha = opcoes.get(OPCAO_DA_RECEITA, PELO_JOGO)
     extensao = Extensao(porta, biblioteca.para(None, escolha if isinstance(escolha, str) else
-                                               PELO_JOGO), biblioteca, dados)
+                                               PELO_JOGO), biblioteca, dados,
+                        Comunidade(dados) if dados is not None else None)
     if fora := topicos_fora_da_porta(extensao.receita):
         diario(f"a porta não entrega {', '.join(fora)}: os sentidos desses tópicos ficam parados")
     await extensao.assinar()
@@ -431,7 +477,8 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
             await asyncio.wait_for(motor, 2.0)
     finally:
         extensao.parar_de_tocar.set()
-        tarefas = [ouvir, vigiar, motor, *([extensao.tocando] if extensao.tocando else [])]
+        tarefas = [ouvir, vigiar, motor, *([extensao.tocando] if extensao.tocando else []),
+                   *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()
         await asyncio.gather(*tarefas, return_exceptions=True)

@@ -27,6 +27,7 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
   <button id="tocar" data-gesto="tocar">Tocar</button>
   <button id="ver-grafo" data-gesto="grafo">Grafo</button>
   <button id="ver-texto" data-gesto="texto">Texto</button>
+  <button id="procurar" data-gesto="procurar">Procurar receitas</button>
 </div>
 <div id="linha-do-tempo" class="apagado"></div>
 <section id="escolha" hidden>
@@ -58,6 +59,17 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
   <svg id="desenho" role="img" aria-label="Grafo da receita"></svg>
   <div id="erros-do-grafo" class="apagado"></div>
 </section>
+<section id="comunidade" hidden>
+  <div id="origem"></div>
+  <label id="chave-da-memoria" hidden><input type="checkbox" id="memoria" data-gesto="memoria"> Memória</label>
+  <div id="aviso" hidden>
+    <div id="frase-do-aviso"></div>
+    <div class="linha">
+      <button id="ligar-mesmo-assim" class="principal" data-gesto="ligar-mesmo-assim">Ligar</button>
+      <button id="nao-ligar" data-gesto="nao-ligar">Cancelar</button>
+    </div>
+  </div>
+</section>
 <section id="texto" hidden>
   <textarea id="receita-em-texto" spellcheck="false" rows="18"></textarea>
   <div id="erros-do-texto" class="apagado"></div>
@@ -72,7 +84,7 @@ const ROTULOS = { valor: "Valor", som: "Som", tela: "Canto da tela" };
 const el = (id) => document.getElementById(id);
 const mandar = (pedido) => window.parent.postMessage(pedido, "*");
 const mostrar = (qual) => {
-  for (const id of ["escolha", "caca", "nomear", "blocos", "grafo", "texto"]) el(id).hidden = id !== qual;
+  for (const id of ["escolha", "caca", "nomear", "blocos", "grafo", "texto", "comunidade"]) el(id).hidden = id !== qual;
 };
 let vista = null;
 const PARA = { todos: "Todos", quem_levou: "Quem levou" };
@@ -156,7 +168,23 @@ function mostrarErros(erros) {
 }
 function receber(resposta) {
   if (!resposta || typeof resposta !== "object") return;
-  if (resposta.tipo === "grafo") {
+  if (resposta.tipo === "procurado") {
+    el("origem").textContent = resposta.achou ? "Vale: " + resposta.origem : "Sem receita da comunidade para este jogo. Vale: " + resposta.origem;
+    el("chave-da-memoria").hidden = !resposta.memoria;
+    el("memoria").checked = resposta.memoria_ligada === true;
+    el("aviso").hidden = true;
+    mostrar("comunidade");
+  } else if (resposta.tipo === "recusado") {
+    el("origem").textContent = resposta.frase;
+    mostrar("comunidade");
+  } else if (resposta.tipo === "aviso") {
+    el("frase-do-aviso").textContent = resposta.frase;
+    el("memoria").checked = false;
+    el("aviso").hidden = false;
+  } else if (resposta.tipo === "memoria") {
+    el("memoria").checked = resposta.ligada;
+    el("aviso").hidden = true;
+  } else if (resposta.tipo === "grafo") {
     desenharGrafo(resposta);
   } else if (resposta.tipo === "exportado") {
     el("receita-em-texto").value = resposta.texto;
@@ -205,6 +233,10 @@ el("ver-texto").addEventListener("click", () => mandar({ tipo: "exportar" }));
 el("exportar").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText(el("receita-em-texto").value));
 el("receita-em-texto").addEventListener("input", () => mandar({ tipo: "validar", texto: el("receita-em-texto").value }));
 el("importar").addEventListener("click", () => mandar({ tipo: "importar", texto: el("receita-em-texto").value }));
+el("procurar").addEventListener("click", () => mandar({ tipo: "procurar" }));
+el("memoria").addEventListener("change", () => mandar({ tipo: "memoria", ligar: el("memoria").checked }));
+el("ligar-mesmo-assim").addEventListener("click", () => mandar({ tipo: "memoria", ligar: true, confirmado: true }));
+el("nao-ligar").addEventListener("click", () => { el("aviso").hidden = true; });
 el("montar").addEventListener("click", () => vista && mandar({ tipo: "montar", vista }));
 for (const tipo of ["gravar", "parar", "tocar"]) el(tipo).addEventListener("click", () => mandar({ tipo }));
 el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));

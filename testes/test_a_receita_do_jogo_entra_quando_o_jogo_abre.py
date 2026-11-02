@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 from apoio import RAIZ, UM, PortaDeMentira, ate
 
+import comunidade
 import servidor
 from receita.biblioteca import Biblioteca
 from receita.formato import ler_receita
@@ -62,7 +63,12 @@ def _subir(pasta: Path, monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setenv("HEFESTO_MOD_SOCKET", str(pasta / "mods.sock"))
     monkeypatch.setenv("HEFESTO_MOD_FICHA", "ficha-de-mentira")
     monkeypatch.setenv("HEFESTO_MOD_DADOS", str(dados))
+    monkeypatch.setattr(comunidade, "baixar_da_internet", _sem_internet)
     return dados
+
+
+def _sem_internet(endereco: str, teto: int) -> bytes:
+    raise OSError(f"as provas não saem para a internet: {endereco}")
 
 
 async def _rodar(pasta: Path, porta: PortaDeMentira, corpo: Any) -> int:

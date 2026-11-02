@@ -4,8 +4,9 @@ O **Modo imersão** do Hefesto, numa extensão: um motor de receitas que lê a c
 das modificações e a leva ao controle, pela vibração, pelos gatilhos adaptativos, pela luz e, quando
 a porta os tiver, pela háptica e pelo alto-falante. Licença GPL-3.0-or-later (`LICENSE`).
 
-> **Aviso.** Extensão independente: não é afiliada à Sony nem endossada por ela. Nada sai deste
-> computador: o manifesto declara `rede:nenhuma`.
+> **Aviso.** Extensão independente: não é afiliada à Sony nem endossada por ela. Da internet, a
+> extensão só baixa o índice assinado das receitas da comunidade e a receita do jogo aberto (o
+> manifesto declara `rede:internet`); nada do que se joga sai deste computador.
 
 **Estado (0.4.0, 02/11/2026):** o formato da receita, o validador, o motor e o universal que vale
 em todo jogo, com a porta de mentira das provas. A extensão ainda não toca o controle de verdade: o Hefesto de hoje recusa o campo
@@ -105,6 +106,14 @@ o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele
 «Gravar» e «Tocar» repetem cinco minutos de jogo com a receita de agora, sem abrir o jogo.
 «Grafo» desenha a receita do sentido ao efeito e marca o nó com erro (ciclo, órfão, tipo errado);
 «Texto» mostra o JSON, validado a cada tecla, com «Exportar» e «Importar».
+
+## As receitas da comunidade
+
+Moram no repositório `hefesto-receitas-imersao` (as receitas são CC0). A extensão baixa o índice
+uma vez por dia, ou no «Procurar receitas», e só o aceita com a assinatura que fecha com a chave
+pública dela; depois baixa só a receita do jogo aberto, que tem de bater com a soma do índice e
+passar no validador. Vale a sua, depois a estudada, depois a da comunidade. A receita que lê a
+memória chega com a chave «Memória» desligada; no jogo com anticheat, ligá-la passa por um aviso.
 
 ## Instalar
 
