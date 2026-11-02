@@ -117,7 +117,8 @@ def test_o_processo_le_a_receita_assina_o_que_ela_usa_e_escreve_pela_porta(
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.metodos[:3] == ["mod.ola", "eventos.assinar", "controles.lista"]
     assert porta.de("mod.ola") == [{"ficha": "ficha-de-mentira"}]
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "perfil.jogo", "jogo.vibracao"]}]  # (noqa-acento)
+    assert porta.de("eventos.assinar") == [{"topicos": [  # (noqa-acento)
+        "conexao", "perfil.jogo", "jogo.vibracao", "jogo.identidade"]}]  # (noqa-acento)
     assert porta.de("vibracao.set")[:2] == [{"uniq": UM, "fraco": 0, "forte": 255},
                                             {"uniq": UM, "fraco": 0, "forte": 0}]
 
@@ -136,14 +137,14 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("eventos.assinar") == [{"topicos": [  # (noqa-acento)
         "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas", "botoes",  # (noqa-acento)
-        "movimento"]}]  # (noqa-acento)
+        "movimento", "jogo.som", "microfone.nivel", "jogo.identidade"]}]  # (noqa-acento)
     diario = capsys.readouterr().err
     if arquivo:
         assert "foi recusada e não vale" in diario
         assert "linha 7: sentidos.rumble.taxa_hz: campo desconhecido" in diario
     else:
         assert "foi recusada" not in diario
-    assert "a porta não entrega jogo.som, jogo.tela, microfone.nivel" in diario
+    assert "a porta não entrega" not in diario
 
 
 def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diario(

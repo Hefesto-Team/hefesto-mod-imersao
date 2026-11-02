@@ -10,7 +10,8 @@ moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, o
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
 ``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale. Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
-do controle (``jogo.identidade`` entra quando a porta o entregar). O
+do controle e a máscara do lançamento (``jogo.identidade``); o ``jogo.tela`` só se assina com o
+sentido «Tela» ligado na janela, porque assiná-lo abre o portal de captura do sistema. O
 :class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
@@ -63,8 +64,10 @@ OPCAO_DA_RECEITA = "receita"
 RELE_AS_OPCOES_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
-    "botoes", "movimento",
+    "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
+    "jogo.memoria",
 )
+CHAVE_DO_TOPICO = {"jogo.tela": ("sentido_tela", False)}
 TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
 BOTAO_DA_MARCA = "ps"
 RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
@@ -180,10 +183,17 @@ def topicos_da_receita(receita: Receita) -> list[str]:
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
-def topicos_assinados(receita: Receita) -> list[str]:
+def topico_ligado(topico: str, opcoes: dict[str, Any] | None = None) -> bool:
+    """O tópico com chave na janela só se assina com ela ligada: a tela abre o portal do sistema."""
+    chave, padrao = CHAVE_DO_TOPICO.get(topico, ("", True))
+    valor = (opcoes or {}).get(chave, padrao)
+    return valor if isinstance(valor, bool) else padrao
+
+
+def topicos_assinados(receita: Receita, opcoes: dict[str, Any] | None = None) -> list[str]:
     """Os tópicos da receita e sempre o ``perfil.jogo``: é ele que diz qual receita vale."""
     pedidos = set(topicos_da_receita(receita)) | {"perfil.jogo"}
-    return [t for t in TOPICOS_DA_PORTA if t in pedidos]
+    return [t for t in TOPICOS_DA_PORTA if t in pedidos and topico_ligado(t, opcoes)]
 
 
 def ler_as_opcoes(dados: Path | None) -> dict[str, Any]:
@@ -245,6 +255,7 @@ class Extensao:
         self.motor = Motor(self.receita, self.opcoes)
         self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
         self.assinados: set[str] = set()
+        self.do_estudio: set[str] = set()
         self.estados_publicados: list[str] = []
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
         self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
@@ -264,11 +275,18 @@ class Extensao:
         return valor if isinstance(valor, str) else PELO_JOGO
 
     async def assinar(self) -> None:
-        """Assina o que a receita de agora lê e ainda não estava assinado."""
-        faltam = [t for t in topicos_assinados(self.receita) if t not in self.assinados]
+        """Assina o que a receita de agora lê e ainda não estava assinado, e solta o tópico cuja
+        chave a janela desligou."""
+        faltam = [t for t in topicos_assinados(self.receita, self.opcoes)
+                  if t not in self.assinados]
         if faltam:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
+        sobram = sorted(t for t in self.assinados - self.do_estudio
+                        if not topico_ligado(t, self.opcoes))
+        if sobram:
+            await self.porta.pedir("eventos.desassinar", {"topicos": sobram})
+            self.assinados -= set(sobram)
 
     async def assinar_o_estudio(self, topicos: tuple[str, ...] = TOPICOS_DO_ESTUDIO) -> None:
         """O Estúdio ouve o som do jogo e o botão do meio enquanto caça, e o que grava."""
@@ -278,6 +296,7 @@ class Extensao:
             with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
                 await self.porta.pedir("eventos.assinar", {"topicos": [topico]})
                 self.assinados.add(topico)
+                self.do_estudio.add(topico)
 
     async def responder_ao_estudio(self, resposta: dict[str, Any] | None,
                                    pedido: Any = None) -> None:
@@ -430,6 +449,8 @@ class Extensao:
         self.opcoes = ler_as_opcoes(self.dados)
         self.motor.ajustar(self.opcoes)
         await self.escolher()
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.assinar()
 
     async def atualizar_os_controles(self) -> None:
         resposta = await self.porta.pedir("controles.lista", {})

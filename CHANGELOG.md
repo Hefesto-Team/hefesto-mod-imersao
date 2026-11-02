@@ -1,5 +1,12 @@
 # Mudanças
 
+## Próxima
+
+- O manifesto pede as permissões que o Hefesto já aceita: o som do jogo, o nível do microfone, a
+  tela do jogo, a identidade do jogo, a memória do jogo, a vibração fina, o alto-falante e as luzes
+  de jogador. Na atualização, o Hefesto desliga a extensão até o novo aceite. Com elas, o coração,
+  o susto e o lado do universal voltam a tocar. A tela do jogo só se lê com o sentido «Tela» ligado.
+
 ## 0.4.8 (02/11/2026)
 
 - A receita da comunidade que sai do índice assinado sai do disco; sem internet, a baixada fica, e

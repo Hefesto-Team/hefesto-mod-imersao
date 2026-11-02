@@ -244,7 +244,8 @@ def test_o_servidor_assina_o_que_o_jogo_escreve_nos_canais_da_receita() -> None:
     assert servidor.topicos_do_caminho(_receita("motor")) == {"jogo.vibracao", "jogo.identidade"}
     assert servidor.topicos_do_caminho(_receita("coracao")) == {  # (noqa-acento)
         "jogo.vibracao", "jogo.haptica", "jogo.identidade"}
-    assert servidor.topicos_da_receita(_receita("gatilho", "luz")) == ["conexao", "jogo.gatilho"]  # (noqa-acento)
+    assert servidor.topicos_da_receita(_receita("gatilho", "luz")) == [  # (noqa-acento)
+        "conexao", "jogo.gatilho", "jogo.identidade"]  # (noqa-acento)
     assert "caminho" not in json.dumps(_receita("motor").dados)
 
 
