@@ -189,7 +189,7 @@ def test_a_receita_que_le_a_memoria_diz_no_agora_que_espera_a_chave() -> None:
     asyncio.run(corpo())
     fora, sem_chave, com_chave = porta.estados()
     assert _linha(fora, "Memória") is None
-    assert _linha(sem_chave, "Memória") == servidor.ESPERA_A_MEMORIA
+    assert _linha(sem_chave, "Memória") == servidor.ESPERA_A_MEMORIA == "Desligada"
     assert _linha(sem_chave, "Lendo") == "Vibração"
     assert _linha(com_chave, "Memória") is None
     assert _linha(com_chave, "Lendo") == "Vibração, memória"

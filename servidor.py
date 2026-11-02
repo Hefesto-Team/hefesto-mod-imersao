@@ -105,7 +105,7 @@ ROTULOS_DOS_CANAIS = {
     "haptica": "Vibração fina", "motor": "Motores", "gatilho": "Gatilhos", "luz": "Barra de luz",
     "leds": "Luzes de jogador", "som": "Alto-falante", "mira": "Peso da mira",
 }
-ESPERA_A_MEMORIA = "Ligue «Memória neste jogo»"
+ESPERA_A_MEMORIA = "Desligada"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
