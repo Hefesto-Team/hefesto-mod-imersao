@@ -8,9 +8,10 @@ nenhuma, o universal (``receitas/universal.json``); a recusa vai ao diário com 
 A troca vale no tique seguinte, e o que a receita velha escrevia volta ao jogo. As opções da janela
 moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, ou o universal
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
-``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale e o clima da
-cena no nível; cada controle conectado é um cartão na aba Geral, e o desligado não recebe efeito
-(``controles.json``). Além do que a
+``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale, o clima da
+cena no nível e, nas linhas, os sentidos lendo e o último efeito tocado; os ``presentes`` (as
+entradas e os canais da receita que vale) escondem a linha do efeito que ela não tem. Cada controle
+conectado é um cartão na aba Geral, e o desligado não recebe efeito (``controles.json``). Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem; o ``jogo.tela`` nasce
@@ -20,8 +21,8 @@ ensina pela tela uma receita que o lê. O
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
-aba Geral da janela (``extensao.acao``); a leitura da
-memória da receita da comunidade só chega ao motor com a chave «Memória» dela ligada.
+aba Geral da janela (``extensao.acao``). O ``jogo.memoria`` só chega ao motor com a chave «Memória
+neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
 """
 from __future__ import annotations
 
@@ -50,6 +51,7 @@ from estudio.blocos import TIPOS_DO_MONTADOR, Montador  # noqa: E402
 from estudio.cacador import Estudio  # noqa: E402
 from estudio.grafo import TIPOS_DO_EDITOR, Editor  # noqa: E402
 from estudio.linha_do_tempo import TIPOS_DO_GRAVADOR, Gravador  # noqa: E402
+from motor.arbitragem import Pedido, Vaga  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
@@ -60,6 +62,7 @@ from receita.biblioteca import (  # noqa: E402
     Biblioteca,
     Escolhida,
 )
+from receita.formato import CANAIS as CANAIS_DA_RECEITA  # noqa: E402
 from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia  # noqa: E402
 
 ARQUIVO_DA_RECEITA = ARQUIVO_DE_ANTES
@@ -80,6 +83,29 @@ BOTAO_DA_MARCA = "ps"
 RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
 FALHAS_DO_ESTUDIO = (RuntimeError, OSError, ValueError, asyncio.TimeoutError)
 FRASE_DA_FALHA = "não deu agora"
+TETO_DAS_LINHAS = 6
+TETO_DO_ROTULO = 20
+TETO_DO_VALOR = 40
+TETO_DOS_PRESENTES = 32
+PREFIXO_DO_CANAL = "canal."
+NOMES_DOS_SENTIDOS = (
+    (("sentido.som", "jogo.som"), "som"),
+    (("sentido.rumble", "jogo.vibracao"), "vibração"),
+    (("jogo.haptica",), "vibração fina"),
+    (("sentido.microfone", "microfone.nivel"), "microfone"),
+    (("sentido.quietude",), "parado"),
+    (("movimento",), "movimento"),
+    (("sentido.tela", "jogo.tela"), "tela"),
+    (("sentido.golpe",), "golpe"),
+    (("entradas", "botoes"), "botões"),
+    (("jogo.gatilho",), "gatilhos"),
+    (("jogo.memoria",), "memória"),
+)
+ROTULOS_DOS_CANAIS = {
+    "haptica": "Vibração fina", "motor": "Motores", "gatilho": "Gatilhos", "luz": "Barra de luz",
+    "leds": "Luzes de jogador", "som": "Alto-falante", "mira": "Peso da mira",
+}
+ESPERA_A_MEMORIA = "Ligue «Memória neste jogo»"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -196,6 +222,52 @@ def topicos_assinados(receita: Receita, opcoes: dict[str, Any] | None = None) ->
     return [t for t in TOPICOS_DA_PORTA if t in pedidos and ajustes.topico_ligado(t, opcoes)]
 
 
+def presentes_da_receita(receita: Receita) -> list[str]:
+    """O que a receita tem, para o ``@presente`` da janela: as entradas dela e os canais em que
+    escreve (``canal.<nome>``), até o teto da porta."""
+    canais = {e["canal"] for e in receita.secao("efeitos").values()}
+    nomes = [*receita.secao("entradas"),
+             *(f"{PREFIXO_DO_CANAL}{c}" for c in CANAIS_DA_RECEITA if c in canais)]
+    return [n for n in dict.fromkeys(nomes) if n.strip() and len(n) <= 40][:TETO_DOS_PRESENTES]
+
+
+def nome_do_sentido(de: str) -> str | None:
+    return next((nome for topicos, nome in NOMES_DOS_SENTIDOS if de in topicos), None)
+
+
+def lista_curta(nomes: list[str], teto: int = TETO_DO_VALOR) -> str:
+    """Os nomes numa linha de até ``teto`` letras; o que não cabe vira ``+N`` no fim."""
+    for cabem in range(len(nomes), -1, -1):
+        resto = len(nomes) - cabem
+        texto = ", ".join([*nomes[:cabem], *([f"+{resto}"] if resto else [])])
+        if len(texto) <= teto:
+            return texto[:1].upper() + texto[1:]
+    return f"+{len(nomes)}"
+
+
+def nome_do_efeito(receita: Receita, efeito: str) -> str:
+    """O rótulo da entrada de mesmo nome do efeito; sem ela, o do canal em que ele escreve."""
+    entrada = receita.secao("entradas").get(efeito, {})
+    rotulo = entrada.get("rotulo") if isinstance(entrada, dict) else None
+    if isinstance(rotulo, str) and rotulo.strip():
+        return rotulo.strip()
+    canal = receita.secao("efeitos").get(efeito, {}).get("canal")
+    return ROTULOS_DOS_CANAIS.get(str(canal), efeito)
+
+
+class SaidaQueAnota(Saida):
+    """A :class:`~motor.saida.Saida` que conta à extensão o que vence em cada tique."""
+
+    def __init__(self, *args: Any, anotar: Callable[[dict[Vaga, Pedido]], None],
+                 **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._anotar = anotar
+
+    async def aplicar(self, t_ms: float, vencedores: dict[Vaga, Pedido]) -> None:
+        self._anotar(vencedores)
+        await super().aplicar(t_ms, vencedores)
+
+
 def ler_as_opcoes(dados: Path | None) -> dict[str, Any]:
     """O ``opcoes.json`` que a janela grava, ``{id: valor}``; vazio quando falta ou não se lê."""
     if dados is None:
@@ -253,7 +325,8 @@ class Extensao:
         self.jogo: str | None = None
         self.opcoes = ler_as_opcoes(dados)
         self.motor = Motor(self.receita, self.opcoes)
-        self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
+        self.saida = SaidaQueAnota(porta.pedir, diario, self.motor.recusado,
+                                   self.motor.pelo_motor, anotar=self.anotar)
         self.assinados: set[str] = set()
         self.do_estudio: set[str] = set()
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
@@ -266,7 +339,10 @@ class Extensao:
         self.parar_de_tocar = asyncio.Event()
         self.comunidade = comunidade
         self.procurando: asyncio.Task[dict[str, Any]] | None = None
-        self.memoria_vale = True
+        self.memoria_vale = False
+        self.relogio: Callable[[], float] = time.time
+        self.ultimo_efeito: tuple[str, float] | None = None
+        self._inicio_do_ultimo = float("-inf")
         self.controles: list[dict[str, Any]] = []
         self.calados = ajustes.controles_calados(dados)
         self.ultimo_estado: dict[str, Any] | None = None
@@ -399,6 +475,8 @@ class Extensao:
                    f"{resultado.get('detalhe') or resultado.get('frase')}")
         await self.escolher()
         resultado.pop("detalhe", None)
+        if resultado.get("memoria"):
+            resultado["memoria_ligada"] = self.memoria_vale
         return {**resultado, "origem": self.escolhida.rotulo}
 
     def procurar_em_fundo(self, agora: bool = False) -> None:
@@ -406,23 +484,56 @@ class Extensao:
             self.procurando = asyncio.create_task(self.procurar(agora))
 
     async def ao_comunidade(self, tipo: str, pedido: dict[str, Any]) -> dict[str, Any]:
-        """«Procurar receitas» e a chave «Memória» da receita da comunidade."""
-        if tipo == "procurar":
-            return await self.procurar(agora=True)
-        if self.comunidade is None:
-            return {"tipo": "erro", "frase": "sem a pasta de dados da extensão"}
-        resposta = self.comunidade.ligar_a_memoria(self.jogo, pedido.get("ligar") is True,
-                                                   pedido.get("confirmado") is True)
-        self.memoria_vale = self._memoria_vale()
-        return resposta
+        """«Procurar receitas» da página."""
+        return await self.procurar(agora=True)
 
-    def _memoria_vale(self) -> bool:
-        return self.escolhida.origem != "comunidade" or (
-            self.comunidade is not None and self.comunidade.memoria_ligada(self.jogo))
+    def anotar(self, vencedores: dict[Vaga, Pedido]) -> None:
+        """O último efeito que começou a tocar, com a hora em que começou."""
+        tocando = [p for p in vencedores.values() if p.forca > 0]
+        if not tocando:
+            return
+        novo = max(tocando, key=lambda p: p.inicio_ms)
+        if novo.inicio_ms > self._inicio_do_ultimo:
+            self._inicio_do_ultimo = novo.inicio_ms
+            self.ultimo_efeito = (nome_do_efeito(self.receita, novo.efeito), self.relogio())
+
+    def _le_a_memoria(self) -> bool:
+        return any(s["de"] == "jogo.memoria" for s in self.receita.secao("sentidos").values())
+
+    def sentidos_lendo(self) -> list[str]:
+        """Os sentidos da receita que valem agora: a chave ligada, o tópico assinado e, na
+        memória, a chave «Memória neste jogo» ligada."""
+        calados = ajustes.topicos_calados(self.opcoes)
+        lendo: set[str] = set()
+        for sentido in self.receita.secao("sentidos").values():
+            de = sentido["de"]
+            nome = nome_do_sentido(de)
+            if (nome is None or de in calados
+                    or not universais.origens([de]) & self.assinados
+                    or (de == "jogo.memoria" and not self.memoria_vale)):
+                continue
+            lendo.add(nome)
+        return [nome for _, nome in NOMES_DOS_SENTIDOS if nome in lendo]
+
+    def linhas(self) -> list[dict[str, str]]:
+        """As linhas do «Agora»: os sentidos lendo, a memória que espera a chave e o último
+        efeito tocado, com a hora."""
+        linhas: list[dict[str, str]] = []
+        if lendo := self.sentidos_lendo():
+            linhas.append({"rotulo": "Lendo", "valor": lista_curta(lendo)})
+        if self.jogo is not None and self._le_a_memoria() and not self.memoria_vale:
+            linhas.append({"rotulo": "Memória", "valor": ESPERA_A_MEMORIA})
+        if self.ultimo_efeito is not None:
+            nome, quando = self.ultimo_efeito
+            hora = time.strftime("%H:%M:%S", time.localtime(quando))
+            linhas.append({"rotulo": "Último efeito",
+                           "valor": f"{nome[:TETO_DO_VALOR - len(hora) - 2]}, {hora}"})
+        return linhas[:TETO_DAS_LINHAS]
 
     def _estado(self) -> dict[str, Any]:
         return {"ligado": True, "nivel": self.motor.clima(), "perfil": self.escolhida.rotulo,
-                "aparelhos": self.aparelhos(), "conexoes": []}  # (noqa-acento)
+                "aparelhos": self.aparelhos(), "conexoes": [],  # (noqa-acento)
+                "linhas": self.linhas(), "presentes": presentes_da_receita(self.receita)}
 
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no
@@ -471,10 +582,8 @@ class Extensao:
             return
         nova = self.biblioteca.para(self.jogo, self.escolha)
         if nova.marca == self.escolhida.marca and nova.receita.dados == self.receita.dados:
-            self.memoria_vale = self._memoria_vale()
             return
         self.escolhida, self.receita = nova, nova.receita
-        self.memoria_vale = self._memoria_vale()
         self.motor.trocar(nova.receita)
         diario(f"vale a receita {nova.arquivo or 'universal'} ({nova.rotulo})")
         if fora := topicos_fora_da_porta(nova.receita):
@@ -490,6 +599,7 @@ class Extensao:
         await self.escolher()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.assinar()
+        await self.publicar_se_mudou()
 
     async def atualizar_os_controles(self) -> None:
         resposta = await self.porta.pedir("controles.lista", {})
@@ -516,8 +626,10 @@ class Extensao:
             jogo = dados.get("jogo")
             self.jogo = jogo if isinstance(jogo, str) and jogo else None
             self.estudio.jogo = self.jogo
-            self.estudio.memoria_ligada = dados.get("memoria") is True
+            self.memoria_vale = dados.get("memoria") is True
+            self.estudio.memoria_ligada = self.memoria_vale
             await self.escolher()
+            await self.publicar_se_mudou()
             if self.jogo is not None:
                 self.procurar_em_fundo()
         elif topico == "extensao.opcao" and isinstance(dados, dict):

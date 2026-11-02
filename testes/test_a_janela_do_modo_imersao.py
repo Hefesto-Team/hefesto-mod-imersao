@@ -53,6 +53,10 @@ def _opcoes() -> dict[str, dict[str, Any]]:
     return {o["id"]: o for o in _manifesto()["opcoes"]}  # (noqa-acento)
 
 
+def _padroes() -> dict[str, Any]:
+    return {o["id"]: o["padrao"] for o in _manifesto()["opcoes"] if "padrao" in o}  # (noqa-acento)
+
+
 def _escrito(opcoes: dict[str, Any], linha: list[Any], ate_ms: int,
              controles: list[dict[str, Any]] | None = None) -> EscritasDeMentira:
     porta = EscritasDeMentira(com_haptica=True, com_som=True)
@@ -100,7 +104,7 @@ def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> N
 
 
 def test_a_janela_no_padrao_escreve_o_mesmo_que_sem_opcao_nenhuma() -> None:
-    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    padroes = _padroes()
     for linha, ate in ((SUSTO, 19_000), (GOLPE, 600), ([(200, som("esquerdo", 0.4, 0.2))], 600)):
         assert _escrito(padroes, linha, ate).escritas == _escrito({}, linha, ate).escritas
 
@@ -211,7 +215,7 @@ def _no_dungeons(opcoes: dict[str, Any], linha: list[Any], ate_ms: int) -> Escri
 
 
 def test_no_dungeons_a_janela_no_padrao_escreve_o_mesmo_e_cada_efeito_muda_o_que_sai() -> None:
-    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    padroes = _padroes()
     susto = _batimento(0, 9000) + [(7000, som("direito", 0.45, 70.0))]
     estalo = [(200, som("esquerdo", 0.4, 0.2))]
     for linha, ate in ((susto, 9000), (LINHA_DO_GATILHO, 5000), (estalo, 600)):
@@ -356,7 +360,7 @@ def test_a_cor_do_dano_e_o_intervalo_do_susto_no_padrao_escrevem_o_mesmo_que_os_
     assert '"cor": "$cor_do_dano"' in texto and '"espera_ms": "$intervalo_do_susto * 1000"' in texto
     fixa = texto.replace('"$cor_do_dano"', '"#ff0000"').replace(
         '"$intervalo_do_susto * 1000"', "5000")
-    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    padroes = _padroes()
     for linha, ate, controles in _linhas(arquivo):
         antes = _da_receita(fixa, {}, linha, ate, controles)
         assert antes.de("luz.set") or antes.de("som.tocar")
@@ -405,7 +409,7 @@ def test_as_opcoes_da_cor_e_do_intervalo_moram_nos_efeitos_com_o_padrao_de_antes
     opcoes = _opcoes()
     cor, intervalo = opcoes["cor_do_dano"], opcoes["intervalo_do_susto"]
     assert (cor["tipo"], cor["padrao"], cor["grupo"]) == ("cor", "#ff0000", "Efeitos")  # (noqa-acento)
-    assert cor["aparece_com"] == {"luz_do_dano": True}
+    assert cor["aparece_com"] == {"luz_do_dano": True, "@presente": "cor_do_dano"}
     assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Efeitos")  # (noqa-acento)
 
 
@@ -500,7 +504,7 @@ def test_o_motor_nao_escreve_no_controle_calado_e_segue_nos_outros() -> None:
 
 def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
         tmp_path: Path) -> None:
-    assert _manifesto()["agora"] == ["perfil", "nivel"]
+    assert _manifesto()["agora"] == ["perfil", "nivel", "linhas"]
     climas = []
     for ate in (0, 10_000, 20_000):
         motor = _universal(None, {})

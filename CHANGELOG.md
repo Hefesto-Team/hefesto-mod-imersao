@@ -2,6 +2,14 @@
 
 ## 0.4.9 (02/11/2026)
 
+- A memória do jogo tem uma chave só, a «Memória neste jogo» do Hefesto, na aba Geral: o
+  `jogo.memoria` chega ao motor só com ela ligada, em toda receita. A chave «Memória» própria da
+  receita da comunidade e o `memoria.json` saem; a receita da comunidade que lê a memória diz isso
+  na página e espera a chave.
+- A coluna «Agora» ganha linhas: os sentidos lendo agora, a memória que espera a chave e o último
+  efeito tocado, com a hora.
+- Na aba Efeitos, cada linha só aparece quando a receita que vale tem o efeito dela: no Minecraft
+  Dungeons II, o «Alívio» some. A «Cor do dano» segue pedindo a «Luz do dano» ligada.
 - O manifesto pede as permissões que o Hefesto já aceita: o som do jogo, o nível do microfone, a
   tela do jogo, a identidade do jogo, a memória do jogo, a vibração fina, o alto-falante e as luzes
   de jogador. Na atualização, o Hefesto desliga a extensão até o novo aceite. Com elas, o coração,

@@ -79,6 +79,13 @@
       "dica": "O dano e o impacto no gatilho vão só ao controle que levou, ou a todos"
     },
     {
+      "id": "memoria",
+      "rotulo": "Memória neste jogo",
+      "tipo": "memoria",
+      "grupo": "Geral",
+      "dica": "A receita que pede lê da memória do jogo os valores dela; vale ao abrir o jogo de novo"
+    },
+    {
       "id": "sentido_som",
       "rotulo": "Som do jogo",
       "tipo": "ligado",
@@ -136,8 +143,11 @@
       "padrao": 100,
       "unidade": "%",
       "grupo": "Efeitos",
-      "dica": "O batimento na vibração fina quando a cena fica tensa",
-      "zero": "Desligado"
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "coracao"
+      },
+      "dica": "O batimento na vibração fina quando a cena fica tensa"
     },
     {
       "id": "alivio",
@@ -149,8 +159,11 @@
       "padrao": 100,
       "unidade": "%",
       "grupo": "Efeitos",
-      "dica": "O batimento lento quando a tensão passa",
-      "zero": "Desligado"
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "alivio"
+      },
+      "dica": "O batimento lento quando a tensão passa"
     },
     {
       "id": "golpe_com_lado",
@@ -162,8 +175,11 @@
       "padrao": 70,
       "unidade": "%",
       "grupo": "Efeitos",
-      "dica": "O motor do lado do estalo forte",
-      "zero": "Desligado"
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "golpe_com_lado"
+      },
+      "dica": "O motor do lado do estalo forte"
     },
     {
       "id": "lado_na_luz",
@@ -171,6 +187,9 @@
       "tipo": "ligado",
       "padrao": false,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "lado_na_luz"
+      },
       "dica": "As luzes de jogador acendem do lado do golpe por um instante"
     },
     {
@@ -179,6 +198,9 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "luz_do_dano"
+      },
       "dica": "A barra de luz fica vermelha no dano"
     },
     {
@@ -188,7 +210,8 @@
       "padrao": "#ff0000",
       "grupo": "Efeitos",
       "aparece_com": {
-        "luz_do_dano": true
+        "luz_do_dano": true,
+        "@presente": "cor_do_dano"
       },
       "dica": "A cor da barra de luz no dano"
     },
@@ -198,6 +221,9 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "susto_no_alto_falante"
+      },
       "dica": "O estalo do jogo no alto-falante, no susto com a cena tensa"
     },
     {
@@ -206,6 +232,9 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "susto_no_tato"
+      },
       "dica": "Um tranco na vibração fina, no susto com a cena tensa"
     },
     {
@@ -218,6 +247,9 @@
       "padrao": 5,
       "unidade": "s",
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "intervalo_do_susto"
+      },
       "dica": "O tempo mínimo entre um susto e o próximo"
     },
     {
@@ -226,6 +258,9 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "impacto_nos_gatilhos"
+      },
       "dica": "O gatilho treme no golpe dado com ele"
     },
     {
@@ -238,6 +273,9 @@
       "padrao": 35,
       "unidade": "%",
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "clima"
+      },
       "dica": "Quanto menor, mais cedo a cena fica tensa e o coração bate"
     },
     {
@@ -246,6 +284,9 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "canal.mira"
+      },
       "dica": "O perigo deixa a mira do giroscópio mais pesada por instantes"
     },
     {
@@ -299,7 +340,8 @@
   ],
   "agora": [
     "perfil",
-    "nivel"
+    "nivel",
+    "linhas"
   ],
   "modos_de_aba": [
     {

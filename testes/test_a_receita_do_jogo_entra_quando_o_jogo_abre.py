@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Iterator
+from itertools import groupby
 from pathlib import Path
 from typing import Any
 
@@ -113,7 +114,7 @@ def test_o_jogo_com_receita_estudada_troca_para_ela_e_o_fechado_volta_ao_univers
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("acessorios.estado")[0]["perfil"] == "Universal"
-    assert [e["perfil"] for e in porta.de("acessorios.estado")] == [
+    assert [k for k, _ in groupby(e["perfil"] for e in porta.de("acessorios.estado"))] == [
         "Universal", "Receita estudada", "Universal"]
 
 

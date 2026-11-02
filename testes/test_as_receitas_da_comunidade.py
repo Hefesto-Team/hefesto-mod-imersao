@@ -1,9 +1,9 @@
-"""As receitas da comunidade só entram com o índice assinado, e a memória chega desligada.
+"""As receitas da comunidade só entram com o índice assinado, e a memória espera a chave do Hefesto.
 
 O índice com a assinatura errada se recusa e nada mais se baixa; a receita trocada depois do CI se
-recusa pela soma; a receita que lê a memória chega com a chave «Memória» desligada, e no jogo com
-anticheat ligá-la passa pelo aviso. A sua e a estudada vencem a da comunidade, e a tela diz de onde
-veio a que vale.
+recusa pela soma; a receita que lê a memória diz isso à página e espera a chave «Memória neste
+jogo» do Hefesto, sem chave própria. A sua e a estudada vencem a da comunidade, e a tela diz de
+onde veio a que vale.
 """
 from __future__ import annotations
 
@@ -218,25 +218,15 @@ def test_o_indice_guardado_se_confere_de_novo_a_cada_leitura(tmp_path: Path) -> 
         ler_o_indice(guardado.read_bytes(), repositorio.arquivos["indice.json.minisig"], PUBLICA)
 
 
-def test_a_memoria_chega_desligada_e_o_anticheat_passa_pelo_aviso(tmp_path: Path) -> None:
+def test_a_receita_que_le_a_memoria_nao_traz_chave_propria(tmp_path: Path) -> None:
     repositorio = Repositorio({ARQUIVO: _receita(memoria=True)}, anticheat=(JOGO,))
     aqui = _comunidade(tmp_path, repositorio)
     resultado = aqui.procurar(JOGO, agora=True)
-    assert resultado["memoria"] and resultado["anticheat"] and not resultado["memoria_ligada"]
-    assert not aqui.memoria_ligada(JOGO)
-    aviso = aqui.ligar_a_memoria(JOGO, True)
-    assert aviso["tipo"] == "aviso" and "anticheat" in aviso["frase"]
-    assert not aqui.memoria_ligada(JOGO)
-    assert aqui.ligar_a_memoria(JOGO, True, confirmado=True) == {"tipo": "memoria", "ligada": True}
-    assert aqui.memoria_ligada(JOGO)
-    assert aqui.ligar_a_memoria(JOGO, False) == {"tipo": "memoria", "ligada": False}
-    assert not aqui.memoria_ligada(JOGO)
-
-
-def test_sem_anticheat_a_memoria_liga_sem_aviso(tmp_path: Path) -> None:
-    aqui = _comunidade(tmp_path, Repositorio({ARQUIVO: _receita(memoria=True)}))
-    aqui.procurar(JOGO, agora=True)
-    assert aqui.ligar_a_memoria(JOGO, True)["tipo"] == "memoria"
+    assert resultado["memoria"] is True
+    assert not {"memoria_ligada", "anticheat"} & set(resultado)
+    assert comunidade.TIPOS_DA_COMUNIDADE == ("procurar",)
+    assert not hasattr(aqui, "ligar_a_memoria")
+    assert not list(tmp_path.rglob("memoria.json"))
 
 
 class _Porta:
@@ -253,7 +243,7 @@ def _evento(topico: str, dados: dict[str, Any]) -> dict[str, Any]:
                                            "dados": dados}}
 
 
-def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_ligada(
+def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_com_a_chave_do_hefesto(
         tmp_path: Path) -> None:
     porta = _Porta()
     repositorio = Repositorio({ARQUIVO: _receita(memoria=True)}, anticheat=(JOGO,))
@@ -263,7 +253,7 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_ligada(
                                 servidor.carregar_o_universal)
         extensao = servidor.Extensao(porta, servidor.carregar_o_universal(),  # type: ignore[arg-type]
                                      biblioteca, tmp_path, _comunidade(tmp_path, repositorio))
-        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO}))
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": False}))
         assert extensao.procurando is not None
         await asyncio.wait_for(extensao.procurando, 5)
         origens = [extensao.escolhida.origem]
@@ -271,24 +261,24 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_ligada(
         extensao.motor.evento = lambda *a: vistos.append(a)  # type: ignore[method-assign]
         await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 10}))
         await extensao.ao_evento(_evento("extensao.mensagem", {
-            "id": 1, "dados": {"tipo": "memoria", "ligar": True}}))
+            "id": 1, "dados": {"tipo": "procurar"}}))
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": True}))
         await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 11}))
         await extensao.ao_evento(_evento("extensao.mensagem", {
-            "id": 2, "dados": {"tipo": "memoria", "ligar": True, "confirmado": True}}))
-        await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 12}))
-        await extensao.ao_evento(_evento("extensao.mensagem", {
-            "id": 3, "dados": {"tipo": "procurar"}}))
+            "id": 2, "dados": {"tipo": "procurar"}}))
         origens.append(extensao.escolhida.origem)
         return origens, vistos
 
     origens, vistos = asyncio.run(corpo())
     assert origens == ["comunidade", "comunidade"]
-    assert [v[3] for v in vistos if v[0] == "jogo.memoria"] == [{"vida_lida": 12}]
+    assert [v[3] for v in vistos if v[0] == "jogo.memoria"] == [{"vida_lida": 11}]
     respostas = [p["dados"] for m, p in porta.pedidos if m == "extensao.resposta"]
-    assert [r["tipo"] for r in respostas] == ["aviso", "memoria", "procurado"]
-    assert respostas[2]["origem"] == "Receita da comunidade"
+    assert [(r["tipo"], r["memoria"], r["memoria_ligada"]) for r in respostas] == [
+        ("procurado", True, False), ("procurado", True, True)]
+    assert respostas[0]["origem"] == "Receita da comunidade"
     estados = [p["perfil"] for m, p in porta.pedidos if m == "acessorios.estado"]
     assert estados[-1] == "Receita da comunidade"
+    assert not list(tmp_path.rglob("memoria.json"))
 
 
 def test_a_receita_que_sai_do_indice_assinado_sai_do_disco_e_volta_a_estudada_ou_o_universal(

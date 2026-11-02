@@ -28,15 +28,20 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   vale.
 - As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
   e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
-- A janela tem seis abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita e «O
-  golpe vai para» (quem levou, ou todos os controles). Sentidos e Canais: cada um se desliga, e o
-  sentido desligado desassina o tópico dele (a Tela nasce desligada). Efeitos: as entradas do
-  universal, com a cor do dano e o intervalo do susto. «Procurar receitas» fica na Geral. «Ensinar
+- A janela tem seis abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita, «O
+  golpe vai para» (quem levou, ou todos os controles) e, com um jogo em cena, a «Memória neste
+  jogo» do Hefesto. Sentidos e Canais: cada um se desliga, e o sentido desligado desassina o tópico
+  dele (a Tela nasce desligada). Efeitos: as entradas do universal, com a cor do dano e o intervalo
+  do susto; cada linha só aparece quando a receita que vale tem o efeito dela (o `@presente` pelos
+  `presentes` do estado). «Procurar receitas» fica na Geral. «Ensinar
   este jogo»: a página do Estúdio. Os ajustes de Geral, Sentidos e Canais moram em `opcoes.py` e
   valem em toda receita.
 - Na Geral, cada controle conectado é um cartão com a chave «Sente os efeitos»: o desligado não
   recebe nada da extensão, e a escolha fica em `controles.json`, pelo número do jogador. A coluna
-  «Agora» mostra o clima da cena (o derivado `tensao`, de 0 a 10) no «Nível».
+  «Agora» mostra o clima da cena (o derivado `tensao`, de 0 a 10) no «Nível» e, nas linhas, os
+  sentidos lendo agora, a memória que espera a chave e o último efeito tocado, com a hora.
+- O `jogo.memoria` só chega ao motor com a «Memória neste jogo» ligada (o `memoria` do
+  `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
   (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
   porta ainda não entrega vai ao diário, e o sentido dele fica parado.
@@ -118,7 +123,7 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
 ## O Estúdio
 
 O botão «Ensinar este jogo» (página em `estudio/pagina/`) guia com frases curtas, e o botão do meio
-do controle marca o gesto. O caçador do valor (só com a chave «Memória» do jogo ligada), o do som e
+do controle marca o gesto. O caçador do valor (só com a «Memória neste jogo» ligada), o do som e
 o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele; o achado vira um
 `estado` na sua receita, com o nome que você der. «Blocos» mostra a receita como QUANDO e FAÇA, e
 «Gravar» e «Tocar» repetem cinco minutos de jogo com a receita de agora, sem abrir o jogo.
@@ -131,7 +136,7 @@ Moram no repositório `hefesto-receitas-imersao` (as receitas são CC0). A exten
 uma vez por dia, ou no «Procurar receitas», e só o aceita com a assinatura que fecha com a chave
 pública dela; depois baixa só a receita do jogo aberto, que tem de bater com a soma do índice e
 passar no validador. Vale a sua, depois a estudada, depois a da comunidade. A receita que lê a
-memória chega com a chave «Memória» desligada; no jogo com anticheat, ligá-la passa por um aviso.
+memória diz isso na página e no «Agora», e espera a «Memória neste jogo» da aba Geral.
 
 ## Instalar
 

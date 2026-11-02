@@ -1,4 +1,4 @@
-"""As receitas da comunidade: o índice assinado, a receita do jogo aberto e a chave da memória.
+"""As receitas da comunidade: o índice assinado e a receita do jogo aberto.
 
 O repositório ``hefesto-receitas-imersao`` guarda uma receita por arquivo em
 ``steam/<chave>/<nome>.json`` e publica o ``indice.json`` com a assinatura ao lado
@@ -6,8 +6,8 @@ O repositório ``hefesto-receitas-imersao`` guarda uma receita por arquivo em
 comentário de confiança assinado junto). A :class:`Comunidade` baixa o índice uma vez por dia (ou
 no «Procurar receitas»), confere a assinatura com a :data:`CHAVE_PUBLICA` que vem na extensão, e
 só depois baixa a receita do jogo aberto, que tem de bater com o tamanho e a soma SHA-256 do
-índice e passar de novo pelo validador. A receita que lê a memória chega com a chave «Memória»
-dela desligada; no jogo que o índice marca com anticheat, ligá-la passa pelo aviso.
+índice e passar de novo pelo validador. A receita que lê a memória espera a chave «Memória neste
+jogo» do Hefesto, a mesma das outras receitas, com o aviso de anticheat dele.
 
 A conferência do Ed25519 é a da RFC 8032, em Python puro (só ``hashlib``), e o ``assinar`` é o do
 fecho do repositório.
@@ -35,14 +35,11 @@ CHAVE_PUBLICA = "RWRsvpXda7nQaYoylSuh7T/EnLZkT+oVI+Snnok9KNqlRsrhojRS+rOF"
 ARQUIVO_DO_INDICE = "indice.json"
 ARQUIVO_DA_ASSINATURA = "indice.json.minisig"
 PASTA_DO_INDICE = "indice-da-comunidade"
-ARQUIVO_DA_MEMORIA = "memoria.json"
 TETO_DO_INDICE = 1024 * 1024
 TETO_DA_ASSINATURA = 1024
 UM_DIA_S = 24 * 60 * 60
 CAMINHO_DA_RECEITA = re.compile(r"^steam/(steam_app_[0-9]{1,12})/([a-z0-9][a-z0-9-]{0,47})\.json$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-AVISO_DO_ANTICHEAT = ("Este jogo tem anticheat: ler a memória dele pode render banimento da "
-                      "conta. Ligar mesmo assim?")
 
 _P = 2**255 - 19
 _L = 2**252 + 27742317777372353535851937790883648493
@@ -270,8 +267,8 @@ def _gravar(arquivo: Path, bruto: bytes) -> None:
 class Comunidade:
     """O índice e as receitas da comunidade em ``$HEFESTO_MOD_DADOS``.
 
-    O índice conferido mora em ``indice-da-comunidade/``, ao lado da chave «Memória» de cada
-    jogo (``memoria.json``); a receita do jogo, em ``comunidade/<chave>.json``, onde a
+    O índice conferido mora em ``indice-da-comunidade/``; a receita do jogo, em
+    ``comunidade/<chave>.json``, onde a
     :class:`~receita.biblioteca.Biblioteca` a acha depois da sua e da estudada.
     """
 
@@ -364,33 +361,7 @@ class Comunidade:
             return {"tipo": "erro", "frase": "as receitas da comunidade não vieram",
                     "detalhe": str(exc)}
         return {"tipo": "procurado", "achou": True, "nova": nova, "nome": entrada.nome,
-                "memoria": entrada.memoria, "memoria_ligada": self.memoria_ligada(chave),
-                "anticheat": entrada.anticheat}
-
-    def _chaves(self) -> dict[str, bool]:
-        with contextlib.suppress(OSError, ValueError):
-            lidas = json.loads((self.pasta_do_indice / ARQUIVO_DA_MEMORIA).read_text("utf-8"))
-            if isinstance(lidas, dict):
-                return {k: v for k, v in lidas.items() if isinstance(v, bool)}
-        return {}
-
-    def memoria_ligada(self, chave: str | None) -> bool:
-        """A chave «Memória» da receita da comunidade do jogo: nasce desligada."""
-        return chave is not None and self._chaves().get(chave, False)
-
-    def ligar_a_memoria(self, chave: str | None, ligar: bool,
-                        confirmado: bool = False) -> dict[str, Any]:
-        """Liga ou desliga a chave; no jogo com anticheat, ligar sem ``confirmado`` devolve o aviso."""
-        if chave is None:
-            return {"tipo": "erro", "frase": "abra o jogo primeiro"}
-        entrada = self.entrada_do_jogo(chave)
-        if ligar and entrada is not None and entrada.anticheat and not confirmado:
-            return {"tipo": "aviso", "frase": AVISO_DO_ANTICHEAT}
-        chaves = self._chaves()
-        chaves[chave] = ligar
-        _gravar(self.pasta_do_indice / ARQUIVO_DA_MEMORIA,
-                json.dumps(chaves, ensure_ascii=False, sort_keys=True).encode("utf-8"))
-        return {"tipo": "memoria", "ligada": ligar}
+                "memoria": entrada.memoria}
 
 
-TIPOS_DA_COMUNIDADE = ("procurar", "memoria")
+TIPOS_DA_COMUNIDADE = ("procurar",)

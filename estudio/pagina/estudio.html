@@ -63,14 +63,7 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
 </section>
 <section id="comunidade" hidden>
   <div id="origem"></div>
-  <label id="chave-da-memoria" hidden><input type="checkbox" id="memoria" data-gesto="memoria"> Memória</label>
-  <div id="aviso" hidden>
-    <div id="frase-do-aviso"></div>
-    <div class="linha">
-      <button id="ligar-mesmo-assim" class="principal" data-gesto="ligar-mesmo-assim">Ligar</button>
-      <button id="nao-ligar" data-gesto="nao-ligar">Cancelar</button>
-    </div>
-  </div>
+  <div id="espera-a-memoria" class="apagado" hidden>Esta receita lê a memória: ligue «Memória neste jogo» na aba Geral</div>
 </section>
 <section id="texto" hidden>
   <textarea id="receita-em-texto" spellcheck="false" rows="18"></textarea>
@@ -175,19 +168,10 @@ function receber(resposta) {
   el("recado").textContent = "";
   if (resposta.tipo === "procurado") {
     el("origem").textContent = "Vale: " + resposta.origem;
-    el("chave-da-memoria").hidden = !resposta.memoria;
-    el("memoria").checked = resposta.memoria_ligada === true;
-    el("aviso").hidden = true;
+    el("espera-a-memoria").hidden = !resposta.memoria || resposta.memoria_ligada === true;
     mostrar("comunidade");
   } else if (resposta.tipo === "recusado" || resposta.tipo === "erro") {
     el("recado").textContent = frase(resposta.frase);
-  } else if (resposta.tipo === "aviso") {
-    el("frase-do-aviso").textContent = frase(resposta.frase);
-    el("memoria").checked = false;
-    el("aviso").hidden = false;
-  } else if (resposta.tipo === "memoria") {
-    el("memoria").checked = resposta.ligada;
-    el("aviso").hidden = true;
   } else if (resposta.tipo === "grafo") {
     desenharGrafo(resposta);
   } else if (resposta.tipo === "exportado") {
@@ -238,9 +222,6 @@ el("exportar").addEventListener("click", () => navigator.clipboard && navigator.
 el("receita-em-texto").addEventListener("input", () => mandar({ tipo: "validar", texto: el("receita-em-texto").value }));
 el("importar").addEventListener("click", () => mandar({ tipo: "importar", texto: el("receita-em-texto").value }));
 el("procurar").addEventListener("click", () => mandar({ tipo: "procurar" }));
-el("memoria").addEventListener("change", () => mandar({ tipo: "memoria", ligar: el("memoria").checked }));
-el("ligar-mesmo-assim").addEventListener("click", () => mandar({ tipo: "memoria", ligar: true, confirmado: true }));
-el("nao-ligar").addEventListener("click", () => { el("aviso").hidden = true; });
 el("montar").addEventListener("click", () => vista && mandar({ tipo: "montar", vista }));
 for (const tipo of ["gravar", "parar", "tocar"]) el(tipo).addEventListener("click", () => mandar({ tipo }));
 el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));
