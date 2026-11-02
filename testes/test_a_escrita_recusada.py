@@ -34,8 +34,8 @@ class PortaQueRecusa(EscritasDeMentira):
         return await super().pedir(metodo, params)
 
 
-def _pedido(uniq: str, canal: str, lado: str, **params: Any) -> Vencedores:
-    pedido = Pedido(uniq, canal, lado, "efeito", 1.0, 0, 0.0, 0, params)
+def _pedido(uniq: str, canal: str, lado: str, efeito: str = "efeito", **params: Any) -> Vencedores:
+    pedido = Pedido(uniq, canal, lado, efeito, 1.0, 0, 0.0, 0, params)
     return {pedido.vaga: pedido}
 
 
@@ -43,12 +43,12 @@ def _gatilho(uniq: str, nome: str, valores: list[int]) -> Vencedores:
     return _pedido(uniq, "gatilho", "direito", trigger=(nome, valores))
 
 
-def _motor(uniq: str, forca: float) -> Vencedores:
-    return _pedido(uniq, "motor", "esquerdo", forca=forca)
+def _motor(uniq: str, forca: float, efeito: str = "efeito") -> Vencedores:
+    return _pedido(uniq, "motor", "esquerdo", efeito, forca=forca)
 
 
-def _haptica(uniq: str, forca: float) -> Vencedores:
-    return _pedido(uniq, "haptica", "esquerdo", padrao="estalo", forca=forca, bpm=72.0,
+def _haptica(uniq: str, forca: float, efeito: str = "efeito") -> Vencedores:
+    return _pedido(uniq, "haptica", "esquerdo", efeito, padrao="estalo", forca=forca, bpm=72.0,
                    inicio_ms=0.0)
 
 
@@ -71,11 +71,11 @@ CANAIS = {
                 lambda u: _escrita_do_gatilho(u, "Rigid", [0, 255]),
                 lambda u: {"uniq": u, "lado": "direito", "modo": "Off", "params": []}),
     "motor": ("vibracao.set",
-              lambda u: _motor(u, 0.4), lambda u: _motor(u, 0.8),
+              lambda u: _motor(u, 0.4), lambda u: _motor(u, 0.8, "mais_forte"),
               lambda u: _escrita_do_motor(u, 0.8),
               lambda u: {"uniq": u, "fraco": 0, "forte": 0}),
     "haptica": ("haptica.tocar",
-                lambda u: _haptica(u, 0.4), lambda u: _haptica(u, 0.8),
+                lambda u: _haptica(u, 0.4), lambda u: _haptica(u, 0.8, "mais_forte"),
                 lambda u: _escrita_da_haptica(u, 0.8),
                 lambda u: {**_escrita_da_haptica(u, 0.4), "forca": 0.0, "ate_ms": 0}),
 }

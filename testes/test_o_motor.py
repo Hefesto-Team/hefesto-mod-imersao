@@ -15,6 +15,7 @@ import pytest
 from apoio import DOIS, QUATRO_CONTROLES, UM, EscritasDeMentira, vibracao_do_jogo
 
 from motor import efeitos
+from motor import saida as saida_do_motor
 from motor.arbitragem import Pedido, decidir
 from motor.laco import Motor, rodar
 from motor.saida import TETO_POR_CONTROLE, TETO_TOTAL, Saida
@@ -135,7 +136,9 @@ def test_forca_igual_desempata_pela_prioridade_e_depois_pelo_mais_recente() -> N
     assert decidir(reversed(pedidos))[(UM, "luz", "-")].efeito == "novo"
 
 
-def test_o_teto_do_tato_vivo_segura_cada_controle_e_o_total() -> None:
+def test_o_teto_do_tato_vivo_segura_cada_controle_e_o_total(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(saida_do_motor, "DEGRAUS", {})
     motor, saida, escritas = _motor({
         "permissoes": ["ler:entradas"],  # (noqa-acento)
         "sentidos": {"l2": {"de": "entradas", "especie": "nivel", "campo": "l2",

@@ -12,6 +12,11 @@ conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala. A escrita que a po
 ``-32011`` (mais fraca que o pedido vivo no canal) não ficou escrita: ela vai a quem a pediu, o
 mesmo valor não se repete enquanto continuar pedido, e a conta volta ao que a porta aceitou antes,
 que segue no controle e recebe o zero quando o canal se solta ou a extensão sai.
+
+Um pedido vivo que só anda nos parâmetros contínuos (força, batimento, brilho) só se reescreve
+quando a mudança se sente: um degrau de :data:`DEGRAUS` desde o que está no controle, no máximo uma
+vez por :data:`INTERVALO_DO_DEGRAU_MS` em cada canal e controle, e só com :data:`VAGA_DO_EVENTO`
+escritas ainda livres no teto. O efeito novo, o zero e a passagem por zero saem no tique deles.
 """
 from __future__ import annotations
 
@@ -30,6 +35,9 @@ RENOVA_MS = 2500.0
 ATE_MS_DA_HAPTICA = 3000
 METODO_DESCONHECIDO = -32601
 MAIS_FRACO = -32011
+DEGRAUS = {"forca": 0.05, "bpm": 4.0, "brilho": 0.05}
+INTERVALO_DO_DEGRAU_MS = 250.0
+VAGA_DO_EVENTO = 4
 
 Pedir = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 Chave = tuple[str, str, str]
@@ -54,12 +62,37 @@ class Saida:
         self.sem_som = False
         self.sem_leds = False
         self._tocados: set[tuple[str, str, float]] = set()
+        self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
+        self._degrau_em: dict[tuple[str, str], float] = {}
 
-    def _cabe(self, t_ms: float, uniq: str) -> bool:
+    def _cabe(self, t_ms: float, uniq: str, reserva: int = 0) -> bool:
         while self.janela and t_ms - self.janela[0][0] >= JANELA_MS:
             self.janela.popleft()
         no_controle = sum(1 for _, u in self.janela if u == uniq)
-        return len(self.janela) < TETO_TOTAL and no_controle < TETO_POR_CONTROLE
+        return (len(self.janela) < TETO_TOTAL - reserva
+                and no_controle < TETO_POR_CONTROLE - reserva)
+
+    @staticmethod
+    def _sente(nome: str, antes: float, agora: float) -> bool:
+        return (antes == 0) != (agora == 0) or abs(agora - antes) >= DEGRAUS[nome] - 1e-9
+
+    def _no_degrau(self, t_ms: float, vaga: Vaga, pedido: Pedido) -> dict[str, Any]:
+        identidade = (pedido.efeito, pedido.inicio_ms, pedido.regra)
+        novos = {k: float(pedido.params[k]) for k in DEGRAUS if k in pedido.params}
+        vivo = self._vivos.get(vaga)
+        if vivo is not None and vivo[0] == identidade:
+            aceitos = vivo[1]
+            if not any(self._sente(k, aceitos[k], v) for k, v in novos.items()):
+                return {**pedido.params, **aceitos}
+            uniq, canal, _ = vaga
+            ultimo = self._degrau_em.get((uniq, canal))
+            passagem = any((aceitos[k] == 0) != (v == 0) for k, v in novos.items())
+            cedo = ultimo is not None and ultimo != t_ms and t_ms - ultimo < INTERVALO_DO_DEGRAU_MS
+            if not passagem and (cedo or not self._cabe(t_ms, uniq, VAGA_DO_EVENTO)):
+                return {**pedido.params, **aceitos}
+        self._degrau_em[(vaga[0], vaga[1])] = t_ms
+        self._vivos[vaga] = (identidade, novos)
+        return pedido.params
 
     async def _escrever(self, t_ms: float, chave: Chave, metodo: str,
                         params: dict[str, Any], zero: bool = False) -> bool:
@@ -104,8 +137,9 @@ class Saida:
                   ) -> dict[Chave, tuple[str, dict[str, Any], bool]]:
         desejo: dict[Chave, tuple[str, dict[str, Any], bool]] = {}
         motores: dict[str, dict[str, float]] = {}
+        self._vivos = {vaga: vivo for vaga, vivo in self._vivos.items() if vaga in vencedores}
         for (uniq, canal, lado), pedido in sorted(vencedores.items()):
-            p = pedido.params
+            p = self._no_degrau(t_ms, (uniq, canal, lado), pedido)
             if canal == "motor" or (canal == "haptica" and self.sem_haptica):
                 forca = p["forca"]
                 if canal == "haptica":
