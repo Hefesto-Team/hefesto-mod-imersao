@@ -14,6 +14,9 @@
 - A receita do Minecraft Dungeons II lê a aba Efeitos como o universal: o coração, o golpe com
   lado, a luz do dano, os dois sustos, o impacto nos gatilhos e o clima tenso mudam o que ela
   escreve; no padrão, ela escreve o mesmo de antes.
+- A receita ensinada pela tela no Estúdio liga o sentido «Tela» e passa a ler a tela do jogo na
+  hora; a receita ensinada pelo som liga o sentido «Som do jogo». Desligar a chave depois cala a
+  receita, como antes.
 
 ## 0.4.8 (02/11/2026)
 
