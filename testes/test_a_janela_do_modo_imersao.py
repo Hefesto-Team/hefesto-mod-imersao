@@ -326,3 +326,190 @@ def test_o_achado_recusado_nao_liga_sentido_nenhum(tmp_path: Path) -> None:
     resposta = asyncio.run(estudio.mensagem({"tipo": "guardar", "nome": ""}, 0.0))
     assert resposta["tipo"] == "erro"
     assert not (tmp_path / "opcoes.json").exists()
+
+
+SUSTOS = [*TENSO, *((t, som("direito", 0.45, 1234.5)) for t in (12_000, 14_000, 18_000))]
+SUSTOS_NO_DUNGEONS = [*_batimento(0, 15_000),
+                      *((t, som("direito", 0.45, 70.0)) for t in (7000, 9000, 13_000))]
+VERMELHO, VERDE = [255, 0, 0], [0, 255, 0]
+
+
+def _da_receita(texto: str, opcoes: dict[str, Any], linha: list[Any], ate_ms: int,
+                controles: list[dict[str, Any]]) -> EscritasDeMentira:
+    motor = Motor(ler_receita(texto), opcoes)
+    motor.controles(controles)
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    _correr(motor, porta, ate_ms, linha)
+    return porta
+
+
+def _linhas(arquivo: Path) -> list[tuple[list[Any], int, list[dict[str, Any]]]]:
+    sustos = SUSTOS if arquivo.stem == "universal" else SUSTOS_NO_DUNGEONS
+    return [(RAJADA, 2000, QUATRO_CONTROLES), (sustos, 19_000, [{"uniq": UM, "jogador": 1}])]
+
+
+@pytest.mark.parametrize("arquivo", RECEITAS_DE_FABRICA, ids=lambda a: a.stem)
+def test_a_cor_do_dano_e_o_intervalo_do_susto_no_padrao_escrevem_o_mesmo_que_os_valores_fixos(
+        arquivo: Path) -> None:
+    texto = arquivo.read_text(encoding="utf-8")
+    assert '"cor": "$cor_do_dano"' in texto and '"espera_ms": "$intervalo_do_susto * 1000"' in texto
+    fixa = texto.replace('"$cor_do_dano"', '"#ff0000"').replace(
+        '"$intervalo_do_susto * 1000"', "5000")
+    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    for linha, ate, controles in _linhas(arquivo):
+        antes = _da_receita(fixa, {}, linha, ate, controles)
+        assert antes.de("luz.set") or antes.de("som.tocar")
+        for opcoes in ({}, padroes):
+            assert _da_receita(texto, opcoes, linha, ate, controles).escritas == antes.escritas
+
+
+@pytest.mark.parametrize("arquivo", RECEITAS_DE_FABRICA, ids=lambda a: a.stem)
+def test_a_cor_do_dano_e_o_intervalo_do_susto_mudam_o_que_sai(arquivo: Path) -> None:
+    texto = arquivo.read_text(encoding="utf-8")
+    rajada, sustos = _linhas(arquivo)
+
+    def cores(opcoes: dict[str, Any]) -> list[list[int]]:
+        return [p["rgb"] for _, p in _da_receita(texto, opcoes, *rajada).de("luz.set")]
+
+    def tocados(opcoes: dict[str, Any]) -> int:
+        return len(_da_receita(texto, opcoes, *sustos).de("som.tocar"))
+
+    assert cores({}) and {tuple(c) for c in cores({})} == {tuple(VERMELHO)}
+    assert {tuple(c) for c in cores({"cor_do_dano": "#00ff00"})} == {tuple(VERDE)}
+    assert {tuple(c) for c in cores({"cor_do_dano": "verde"})} == {tuple(VERMELHO)}
+    assert (tocados({"intervalo_do_susto": 1}), tocados({}),
+            tocados({"intervalo_do_susto": 10})) == (3, 2, 1)
+
+
+@pytest.mark.parametrize(("onde", "valor", "frase"), [
+    (("efeitos", "vermelho", "cor"), "$clima", "não é uma entrada de cor"),
+    (("efeitos", "vermelho", "cor"), "vermelho", "pede uma cor"),
+    (("regras", 7, "espera_ms"), "$cor_do_dano * 1000", "é uma cor e não entra em conta"),
+    (("regras", 7, "espera_ms"), "$sem_entrada * 1000", "que não existe"),
+    (("entradas", "cor_do_dano", "padrao"), "vermelho", "pede um número"),  # (noqa-acento)
+], ids=["cor-que-nao-e-cor", "cor-fora-da-forma", "cor-na-conta", "entrada-que-falta",
+        "padrao-da-cor-fora-da-forma"])
+def test_a_receita_recusa_a_cor_e_o_intervalo_fora_da_forma(onde: tuple[Any, ...], valor: Any,
+                                                             frase: str) -> None:
+    bruto = json.loads((RAIZ / "receitas" / "universal.json").read_text(encoding="utf-8"))
+    alvo = bruto
+    for parte in onde[:-1]:
+        alvo = alvo[parte]
+    alvo[onde[-1]] = valor
+    with pytest.raises(servidor.ReceitaRecusada, match=frase):
+        ler_receita(json.dumps(bruto))
+
+
+def test_as_opcoes_da_cor_e_do_intervalo_moram_nos_efeitos_com_o_padrao_de_antes() -> None:
+    opcoes = _opcoes()
+    cor, intervalo = opcoes["cor_do_dano"], opcoes["intervalo_do_susto"]
+    assert (cor["tipo"], cor["padrao"], cor["grupo"]) == ("cor", "#ff0000", "Efeitos")  # (noqa-acento)
+    assert cor["aparece_com"] == {"luz_do_dano": True}
+    assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Efeitos")  # (noqa-acento)
+
+
+class _PortaDosControles(_Porta):
+    def __init__(self, controles: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self.controles = controles
+
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.pedidos.append((metodo, params))
+        return {"controles": self.controles} if metodo == "controles.lista" else {}
+
+    def estados(self) -> list[dict[str, Any]]:
+        return [p for m, p in self.pedidos if m == "acessorios.estado"]
+
+
+TRES_CONECTADOS: list[dict[str, Any]] = [
+    {"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}, {"uniq": TRES, "jogador": None}]
+
+
+def _ligar(alvo: str, valor: bool) -> dict[str, Any]:
+    return {"method": "evento", "params": {
+        "topico": "extensao.acao", "nome": "extensao.acao", "uniq": None,
+        "dados": {"mod": "imersao", "acao": "ligar", "alvo": alvo, "valor": valor}}}  # (noqa-acento)
+
+
+def _com_os_controles(dados: Path, *eventos: dict[str, Any]
+                      ) -> tuple[servidor.Extensao, _PortaDosControles]:
+    porta = _PortaDosControles(TRES_CONECTADOS)
+    extensao = servidor.Extensao(porta, servidor.carregar_o_universal(), dados=dados)  # type: ignore[arg-type]
+
+    async def corpo() -> None:
+        await extensao.atualizar_os_controles()
+        await extensao.publicar_o_estado()
+        for evento in eventos:
+            await extensao.ao_evento(evento)
+
+    asyncio.run(corpo())
+    return extensao, porta
+
+
+def test_cada_controle_conectado_e_um_cartao_da_aba_geral_com_a_chave_e_sem_o_uniq(
+        tmp_path: Path) -> None:
+    manifesto = _manifesto()
+    assert manifesto["aparelhos_acoes"] == {"grupo": "Geral", "acoes": [  # (noqa-acento)
+        {"id": "ligar", "rotulo": "Sente os efeitos", "icone": "ligar"}]}
+    extensao, porta = _com_os_controles(tmp_path)
+    assert porta.estados()[-1]["aparelhos"] == [
+        {"id": "jogador-1", "nome": "Jogador 1", "ligado": True},
+        {"id": "jogador-2", "nome": "Jogador 2", "ligado": True},
+        {"id": "controle-3", "nome": "Jogador 3", "ligado": True}]
+    assert not any(u in json.dumps(porta.estados()) for u in (UM, DOIS, TRES))
+    assert extensao.motor.calados == frozenset()
+    porta_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.porta")
+    aceito = porta_do_hefesto.estado_dos_acessorios(
+        "imersao", porta.estados()[-1], acoes_dos_aparelhos=frozenset({"ligar"}))
+    assert [a["id"] for a in aceito["aparelhos"]] == ["jogador-1", "jogador-2", "controle-3"]
+
+
+def test_o_controle_desligado_na_janela_nao_recebe_nada_e_a_escolha_sobrevive_ao_reinicio(
+        tmp_path: Path) -> None:
+    extensao, porta = _com_os_controles(tmp_path, _ligar("jogador-2", False))
+    assert extensao.motor.calados == {DOIS}
+    assert [a["ligado"] for a in porta.estados()[-1]["aparelhos"]] == [True, False, True]
+    assert json.loads((tmp_path / "controles.json").read_text(encoding="utf-8")) == {
+        "calados": ["jogador-2"]}
+    assert (tmp_path / "controles.json").stat().st_mode & 0o777 == 0o600
+
+    renascida, _ = _com_os_controles(tmp_path)
+    assert renascida.motor.calados == {DOIS}
+
+    devolvida, porta = _com_os_controles(tmp_path, _ligar("jogador-2", True),
+                                         _ligar(UM, False))
+    assert devolvida.motor.calados == frozenset()
+    assert [a["ligado"] for a in porta.estados()[-1]["aparelhos"]] == [True, True, True]
+
+
+def test_o_motor_nao_escreve_no_controle_calado_e_segue_nos_outros() -> None:
+    for calados, sentem in (({DOIS}, {UM, TRES, QUATRO}), (set(), {UM, DOIS, TRES, QUATRO})):
+        motor = _universal(QUATRO_CONTROLES, {ajustes.PARA_QUEM: ajustes.TODOS})
+        motor.calar(calados)
+        porta = EscritasDeMentira(com_haptica=True, com_som=True)
+        _correr(motor, porta, 2000, RAJADA)
+        assert {p["uniq"] for _, p in porta.de("luz.set")} == sentem
+        assert not [e for e in porta.escritas if e[2].get("uniq") in calados]
+    sozinho = _universal(None, {})
+    sozinho.calar({UM})
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    _correr(sozinho, porta, 19_000, [*GOLPE, *SUSTO])
+    assert porta.escritas == []
+
+
+def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
+        tmp_path: Path) -> None:
+    assert _manifesto()["agora"] == ["perfil", "nivel"]
+    climas = []
+    for ate in (0, 10_000, 20_000):
+        motor = _universal(None, {})
+        _correr(motor, EscritasDeMentira(com_haptica=True, com_som=True), ate, TENSO)
+        climas.append(motor.clima())
+    assert climas[0] == 0 and climas[-1] >= 3
+
+    extensao, janela = _com_os_controles(tmp_path)
+    assert janela.estados()[-1]["nivel"] == 0
+    extensao.motor.valores["tensao"] = 0.62
+    asyncio.run(extensao.publicar_se_mudou())
+    asyncio.run(extensao.publicar_se_mudou())
+    assert [e["nivel"] for e in janela.estados()] == [0, 6]

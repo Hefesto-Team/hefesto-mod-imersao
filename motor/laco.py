@@ -27,10 +27,11 @@ from motor.estados import Acumulador, Estado, continua_com_histerese
 from motor.saida import Saida
 from receita import expressao
 from receita import impressao as impressoes
-from receita.formato import Receita
+from receita.formato import COR, Receita
 
 HZ = 60
 DURACAO_MINIMA_MS = 250.0
+DERIVADO_DO_CLIMA = "tensao"
 _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
 
@@ -99,6 +100,7 @@ class Motor:
     def __init__(self, receita: Receita, opcoes: dict[str, Any] | None = None) -> None:
         self.opcoes = dict(opcoes or {})
         self.jogadores: dict[str, int] = {}
+        self.calados: frozenset[str] = frozenset()
         self._fila: list[_Evento] = []
         self.caminho = Caminho()
         self.vencedores: dict[Vaga, Pedido] = {}
@@ -133,6 +135,10 @@ class Motor:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
         self.jogadores = {c["uniq"]: int(c.get("jogador") or 0) for c in lista
                           if isinstance(c.get("uniq"), str)}
+
+    def calar(self, uniqs: set[str] | frozenset[str]) -> None:
+        """Os controles que a janela desmarcou: nenhum efeito chega a eles."""
+        self.calados = frozenset(uniqs)
 
     def evento(self, topico: str, nome: str, uniq: str | None, dados: dict[str, Any]) -> None:
         self._fila.append(_Evento(topico, nome, uniq, dados if isinstance(dados, dict) else {}))
@@ -297,7 +303,8 @@ class Motor:
             viva = self.regras[indice]
             vale = self._avaliar(("regras", indice, "quando")) != 0.0
             if vale and not viva.valia:
-                espera = float(regra.get("espera_ms", 0))
+                espera = self._numero(regra.get("espera_ms", 0), ("regras", indice, "espera_ms"),
+                                      0.0, 600_000.0, 0.0)
                 viva.aceita = viva.disparou_em is None or t_ms - viva.disparou_em >= espera
                 if viva.aceita:
                     viva.disparou_em = t_ms
@@ -317,6 +324,13 @@ class Motor:
         elif not isinstance(valor, (int, float)):
             valor = padrao
         return min(maximo, max(minimo, float(valor)))
+
+    def _cor(self, cor: str) -> str:
+        if not cor.startswith("$"):
+            return cor
+        padrao = str(self.receita.secao("entradas").get(cor[1:], {}).get("padrao", "#000000"))  # (noqa-acento)
+        valor = self.opcoes.get(cor[1:])
+        return valor if isinstance(valor, str) and COR.match(valor) else padrao
 
     def _pedidos(self, ativa: Ativacao) -> list[Pedido]:
         efeito = self.receita.secao("efeitos")[ativa.efeito]
@@ -346,8 +360,9 @@ class Motor:
                 "esquerdo" if efeito["lado"] == "l2" else "direito"]
         elif canal == "luz":
             brilho = float(efeito.get("brilho", 1.0)) * escala
-            forca = catalogo.forca_da_luz(efeito["cor"], brilho)
-            params.update(rgb=catalogo.rgb(efeito["cor"]), brilho=brilho)
+            cor = self._cor(efeito["cor"])
+            forca = catalogo.forca_da_luz(cor, brilho)
+            params.update(rgb=catalogo.rgb(cor), brilho=brilho)
             lados = ["-"]
         elif canal == "leds":
             forca = 1.0
@@ -366,7 +381,12 @@ class Motor:
         prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
         return [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade, ativa.inicio_ms,
                        ativa.regra, params)
-                for uniq in ativa.alvos if uniq in self.jogadores for lado in lados]
+                for uniq in ativa.alvos if uniq in self.jogadores and uniq not in self.calados
+                for lado in lados]
+
+    def clima(self) -> int:
+        """A tensão da cena agora, de 0 a 10: o derivado ``tensao`` da receita, ou 0 sem ele."""
+        return round(10 * min(1.0, max(0.0, self.valores.get(DERIVADO_DO_CLIMA, 0.0))))
 
     def passo(self, t_ms: float) -> dict[Vaga, Pedido]:
         """Um tique: lê os eventos, calcula a cena, roda as regras e decide cada vaga."""

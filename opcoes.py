@@ -1,16 +1,20 @@
 """Os ajustes que são da extensão, não da receita: a Força, para quem vai o golpe, os sentidos e
-os canais. Valem para toda receita (a sua, a estudada, a da comunidade e o universal), no tique
+os canais, e os controles que sentem. Valem para toda receita (a sua, a estudada, a da comunidade e o universal), no tique
 seguinte, lidos do mesmo ``opcoes.json`` que a janela grava."""
 from __future__ import annotations
 
 import contextlib
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
 
 ARQUIVO_DAS_OPCOES = "opcoes.json"
+ARQUIVO_DOS_CONTROLES = "controles.json"
+ACAO_DE_LIGAR = "ligar"
+ID_DO_CONTROLE = re.compile(r"^(?:jogador|controle)-[1-9][0-9]?$")
 FORCA = "forca_geral"
 FORCA_PADRAO = 100.0
 PARA_QUEM = "para_quem"
@@ -83,17 +87,67 @@ def consentir(dados: Path, topico: str) -> bool:
     ident, padrao = TOPICOS_DA_PORTA_COM_CHAVE.get(topico, ("", True))
     if not ident:
         return False
-    arquivo = dados / ARQUIVO_DAS_OPCOES
-    try:
-        lidas = json.loads(arquivo.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        lidas = {}
-    valores: dict[str, Any] = lidas if isinstance(lidas, dict) else {}
+    valores = _ler(dados / ARQUIVO_DAS_OPCOES)
     if ligado(valores, ident, padrao):
         return False
     valores[ident] = True
+    _gravar(dados, ARQUIVO_DAS_OPCOES, valores)
+    return True
+
+
+def id_do_controle(jogador: Any, posicao: int) -> str:
+    """O ``id`` do controle na janela: o número do jogador, ou a posição na lista sem ele. Nunca
+    o ``uniq``, que diria qual controle é."""
+    if isinstance(jogador, int) and not isinstance(jogador, bool) and jogador >= 1:
+        return f"jogador-{jogador}"
+    return f"controle-{posicao}"
+
+
+def nome_do_controle(controle: dict[str, Any], posicao: int) -> str:
+    """A cor do plástico quando a porta a diz; sem ela, o jogador."""
+    cor = controle.get("cor")
+    if isinstance(cor, str) and cor.strip():
+        return cor.strip()[:60]
+    jogador = controle.get("jogador")
+    numero = jogador if isinstance(jogador, int) and not isinstance(jogador, bool) else posicao
+    return f"Jogador {numero}"
+
+
+def controles_calados(dados: Path | None) -> frozenset[str]:
+    """Os controles que a janela desmarcou, pelo ``id``; um controle nasce sentindo."""
+    if dados is None:
+        return frozenset()
+    calados = _ler(dados / ARQUIVO_DOS_CONTROLES).get("calados")
+    return frozenset(c for c in calados if isinstance(c, str) and ID_DO_CONTROLE.match(c)
+                     ) if isinstance(calados, list) else frozenset()
+
+
+def sentir(calados: frozenset[str], ident: str, sente: bool) -> frozenset[str]:
+    """A chave do controle na janela: ``sente`` falso o cala, verdadeiro o devolve."""
+    if not ID_DO_CONTROLE.match(ident):
+        return calados
+    return calados - {ident} if sente else calados | {ident}
+
+
+def guardar_os_controles(dados: Path, calados: frozenset[str]) -> None:
+    """No ``controles.json``, à parte do ``opcoes.json``, que o Hefesto reescreve só com as
+    opções declaradas."""
+    _gravar(dados, ARQUIVO_DOS_CONTROLES, {"calados": sorted(calados)})
+
+
+def _ler(arquivo: Path) -> dict[str, Any]:
+    try:
+        lidas = json.loads(arquivo.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return lidas if isinstance(lidas, dict) else {}
+
+
+def _gravar(dados: Path, nome_do_arquivo: str, valores: dict[str, Any]) -> None:
+    """Arquivo novo e ``rename``, em ``0600``."""
+    arquivo = dados / nome_do_arquivo
     dados.mkdir(parents=True, exist_ok=True)
-    fd, nome = tempfile.mkstemp(prefix=".opcoes-", suffix=".json", dir=dados)
+    fd, nome = tempfile.mkstemp(prefix=f".{arquivo.stem}-", suffix=".json", dir=dados)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as saida:
             json.dump(valores, saida, ensure_ascii=False, indent=2)
@@ -104,4 +158,3 @@ def consentir(dados: Path, topico: str) -> bool:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(nome)
         raise
-    return True

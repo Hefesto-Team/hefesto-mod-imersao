@@ -8,7 +8,9 @@ nenhuma, o universal (``receitas/universal.json``); a recusa vai ao diário com 
 A troca vale no tique seguinte, e o que a receita velha escrevia volta ao jogo. As opções da janela
 moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, ou o universal
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
-``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale. Além do que a
+``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale e o clima da
+cena no nível; cada controle conectado é um cartão na aba Geral, e o desligado não recebe efeito
+(``controles.json``). Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem; o ``jogo.tela`` nasce
@@ -67,6 +69,7 @@ ARQUIVO_DAS_OPCOES = ajustes.ARQUIVO_DAS_OPCOES
 OPCAO_DA_RECEITA = "receita"
 ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
+PUBLICA_O_CLIMA_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
@@ -265,6 +268,9 @@ class Extensao:
         self.comunidade = comunidade
         self.procurando: asyncio.Task[dict[str, Any]] | None = None
         self.memoria_vale = True
+        self.controles: list[dict[str, Any]] = []
+        self.calados = ajustes.controles_calados(dados)
+        self.ultimo_estado: dict[str, Any] | None = None
 
     @property
     def escolha(self) -> str:
@@ -415,13 +421,51 @@ class Extensao:
         return self.escolhida.origem != "comunidade" or (
             self.comunidade is not None and self.comunidade.memoria_ligada(self.jogo))
 
+    def _estado(self) -> dict[str, Any]:
+        return {"ligado": True, "nivel": self.motor.clima(), "perfil": self.escolhida.rotulo,
+                "aparelhos": self.aparelhos(), "conexoes": []}  # (noqa-acento)
+
     async def publicar_o_estado(self) -> None:
-        """A coluna «Agora» da janela: de onde veio a receita que vale."""
+        """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no
+        nível; os controles conectados vão como aparelhos, cada um com a chave «Ligar» na aba
+        Geral."""
+        estado = self._estado()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
-            await self.porta.pedir("acessorios.estado", {
-                "ligado": True, "nivel": 0, "perfil": self.escolhida.rotulo,
-                "aparelhos": [], "conexoes": []})  # (noqa-acento)
+            await self.porta.pedir("acessorios.estado", estado)
             self.estados_publicados.append(self.escolhida.rotulo)
+            self.ultimo_estado = estado
+
+    async def publicar_se_mudou(self) -> None:
+        """O clima ou os controles mudaram depois do último estado publicado."""
+        if self.ultimo_estado is not None and self._estado() != self.ultimo_estado:
+            await self.publicar_o_estado()
+
+    def _por_id(self) -> list[tuple[str, dict[str, Any]]]:
+        return [(ajustes.id_do_controle(c.get("jogador"), n), c)
+                for n, c in enumerate(self.controles, 1)]
+
+    def aparelhos(self) -> list[dict[str, Any]]:
+        """Um cartão por controle conectado, com a chave de sentir; o ``id`` nunca é o
+        ``uniq``."""
+        return [{"id": ident, "nome": ajustes.nome_do_controle(c, n),
+                 "ligado": ident not in self.calados}
+                for n, (ident, c) in enumerate(self._por_id(), 1)]
+
+    def _calar(self) -> None:
+        self.motor.calar({c["uniq"] for ident, c in self._por_id() if ident in self.calados})
+
+    async def sentir(self, alvo: Any, valor: Any) -> None:
+        """A chave de um controle na aba Geral: desligada, nenhum efeito chega a ele."""
+        if not isinstance(alvo, str) or not isinstance(valor, bool):
+            return
+        calados = ajustes.sentir(self.calados, alvo, valor)
+        if calados != self.calados:
+            self.calados = calados
+            if self.dados is not None:
+                with contextlib.suppress(OSError):
+                    ajustes.guardar_os_controles(self.dados, calados)
+            self._calar()
+        await self.publicar_se_mudou()
 
     async def escolher(self) -> None:
         """A receita do jogo de agora; quando muda, o motor a troca no tique seguinte."""
@@ -452,7 +496,11 @@ class Extensao:
     async def atualizar_os_controles(self) -> None:
         resposta = await self.porta.pedir("controles.lista", {})
         lista = resposta.get("controles", [])
-        self.motor.controles(lista if isinstance(lista, list) else [])
+        self.controles = [c for c in (lista if isinstance(lista, list) else [])
+                          if isinstance(c, dict) and isinstance(c.get("uniq"), str)]
+        self.motor.controles(self.controles)
+        self._calar()
+        await self.publicar_se_mudou()
 
     async def ao_evento(self, mensagem: dict[str, Any]) -> bool:
         """Leva o evento ao motor; ``False`` quando a porta fechou."""
@@ -481,6 +529,9 @@ class Extensao:
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ACAO_DE_PROCURAR):  # (noqa-acento)
             self.procurar_em_fundo(agora=True)
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") == ajustes.ACAO_DE_LIGAR):  # (noqa-acento)
+            await self.sentir(dados.get("alvo"), dados.get("valor"))
         if isinstance(topico, str) and isinstance(dados, dict):
             await self.ao_estudio(topico, nome, dados, params.get("uniq"))
         if topico == "jogo.memoria" and not self.memoria_vale:
@@ -537,8 +588,14 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
                 marca = agora
                 await extensao.reler_as_opcoes()
 
+    async def acompanhar_o_clima() -> None:
+        while True:
+            await asyncio.sleep(PUBLICA_O_CLIMA_S)
+            await extensao.publicar_se_mudou()
+
     ouvir = asyncio.create_task(ouvir_a_porta())
     vigiar = asyncio.create_task(vigiar_as_opcoes())
+    clima = asyncio.create_task(acompanhar_o_clima())
     motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim))
     try:
         await fim.wait()
@@ -546,7 +603,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
             await asyncio.wait_for(motor, 2.0)
     finally:
         extensao.parar_de_tocar.set()
-        tarefas = [ouvir, vigiar, motor, *([extensao.tocando] if extensao.tocando else []),
+        tarefas = [ouvir, vigiar, clima, motor, *([extensao.tocando] if extensao.tocando else []),
                    *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()

@@ -30,6 +30,7 @@ BUILD = re.compile(r"^[0-9]{1,12}$")
 CAMPO_DO_EVENTO = re.compile(r"^[a-z_][a-z0-9_]*(?:\.[a-z0-9_]+){0,3}$")
 NOME_DO_EVENTO = re.compile(r"^[a-z][a-z0-9_.]{0,39}$")
 COR = re.compile(r"^#[0-9a-fA-F]{6}$")
+COR_DA_ENTRADA = re.compile(r"^\$[a-z][a-z0-9_]*$")
 HEXA = re.compile(r"^0x[0-9a-fA-F]{1,16}$")
 BASE64 = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
 TETO_DA_IMPRESSAO = 4096
@@ -139,10 +140,30 @@ class RealOuExpressao(Esquema):
 
 
 @dataclass(frozen=True)
-class RealOuLogico(Esquema):
+class InteiroOuExpressao(Esquema):
+    minimo: int
+    maximo: int
+
     def conferir(self, valor: Any, caminho: Caminho, erros: Erros) -> None:
-        if not _numero(valor) and not isinstance(valor, bool):
-            erros.append((caminho, "pede um número ou verdadeiro/falso"))
+        if isinstance(valor, str):
+            Texto(expressao.TAMANHO_MAXIMO).conferir(valor, caminho, erros)
+        else:
+            Inteiro(self.minimo, self.maximo).conferir(valor, caminho, erros)
+
+
+@dataclass(frozen=True)
+class PadraoDaEntrada(Esquema):
+    def conferir(self, valor: Any, caminho: Caminho, erros: Erros) -> None:
+        if not _numero(valor) and not isinstance(valor, bool) and not (
+                isinstance(valor, str) and COR.match(valor)):
+            erros.append((caminho, "pede um número, verdadeiro/falso ou uma cor #rrggbb"))
+
+
+@dataclass(frozen=True)
+class CorOuEntrada(Esquema):
+    def conferir(self, valor: Any, caminho: Caminho, erros: Erros) -> None:
+        if not isinstance(valor, str) or not (COR.match(valor) or COR_DA_ENTRADA.match(valor)):
+            erros.append((caminho, "pede uma cor #rrggbb ou a entrada de cor ($nome)"))
 
 
 @dataclass(frozen=True)
@@ -343,10 +364,10 @@ _ESTADO = estrito(
 _ENTRADA = estrito(
     ("rotulo", "tipo", "padrao"),  # (noqa-acento)
     rotulo=Texto(40),
-    tipo=Texto(escolhas=("deslizante", "ligado")),
+    tipo=Texto(escolhas=("deslizante", "ligado", "cor")),
     minimo=Real(-1e9, 1e9),
     maximo=Real(-1e9, 1e9),
-    padrao=RealOuLogico(),
+    padrao=PadraoDaEntrada(),
 )
 
 _DURA = Inteiro(1, 600_000)
@@ -405,7 +426,7 @@ _EFEITO = Discriminado("canal", {
     "motor": estrito(("canal", "forca"), canal=Texto(escolhas=CANAIS),
                      forca=RealOuExpressao(0.0, 1.0), lado=Texto(escolhas=LADOS), dura_ms=_DURA),
     "gatilho": EfeitoDeGatilho(),
-    "luz": estrito(("canal", "cor"), canal=Texto(escolhas=CANAIS), cor=Texto(7, COR),
+    "luz": estrito(("canal", "cor"), canal=Texto(escolhas=CANAIS), cor=CorOuEntrada(),
                    brilho=Real(0.0, 1.0), dura_ms=_DURA),
     "som": estrito(("canal", "som"), canal=Texto(escolhas=CANAIS), som=Texto(escolhas=SONS),
                    volume=Real(0.0, 1.0)),
@@ -433,7 +454,7 @@ _REGRA = estrito(
     entao=TextoOuLista(_EFEITO_ID, 8),
     senao=TextoOuLista(_EFEITO_ID, 8),
     prioridade=Inteiro(0, 100),
-    espera_ms=Inteiro(0, 600_000),
+    espera_ms=InteiroOuExpressao(0, 600_000),
     para=Para(),
 )
 
@@ -597,6 +618,13 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
 
     for ident, entrada in entradas.items():
         caminho: Caminho = ("entradas", ident)
+        if entrada["tipo"] == "cor":
+            if not isinstance(entrada["padrao"], str) or not COR.match(entrada["padrao"]):  # (noqa-acento)
+                erros.append(((*caminho, "padrao"), "a entrada de cor tem padrão #rrggbb"))  # (noqa-acento)
+            for campo in ("minimo", "maximo"):  # (noqa-acento)
+                if campo in entrada:
+                    erros.append(((*caminho, campo), "a entrada de cor não tem faixa"))
+            continue
         if entrada["tipo"] == "ligado":
             if not isinstance(entrada["padrao"], bool):  # (noqa-acento)
                 erros.append(((*caminho, "padrao"), "a entrada ligado tem padrão verdadeiro/falso"))  # (noqa-acento)
@@ -610,7 +638,7 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
         if entrada["minimo"] >= entrada["maximo"]:  # (noqa-acento)
             erros.append(((*caminho, "maximo"), "o máximo tem de passar do mínimo"))  # (noqa-acento)
         padrao = entrada["padrao"]  # (noqa-acento)
-        if isinstance(padrao, bool) or not entrada["minimo"] <= padrao <= entrada["maximo"]:  # (noqa-acento)
+        if not _numero(padrao) or not entrada["minimo"] <= padrao <= entrada["maximo"]:  # (noqa-acento)
             erros.append(((*caminho, "padrao"), "o padrão fica fora da faixa do deslizante"))  # (noqa-acento)
 
     for ident, sentido in sentidos.items():
@@ -646,6 +674,8 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
         for nome in sorted(expressao.entradas(no)):
             if nome not in entradas:
                 erros.append((caminho, f"a expressão lê a entrada «${nome}», que não existe"))
+            elif entradas[nome]["tipo"] == "cor":
+                erros.append((caminho, f"a entrada «${nome}» é uma cor e não entra em conta"))
 
     grafo: dict[str, set[str]] = {}
     caminho_do_no: dict[str, Caminho] = {}
@@ -688,12 +718,20 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
                 no = _expressao(efeito[campo], (*caminho, campo), erros, analisadas)
                 if no is not None:
                     conferir_nomes(no, (*caminho, campo))
+        cor = efeito.get("cor")
+        if (isinstance(cor, str) and COR_DA_ENTRADA.match(cor)
+                and entradas.get(cor[1:], {}).get("tipo") != "cor"):
+            erros.append(((*caminho, "cor"), f"«{cor}» não é uma entrada de cor da receita"))
 
     for i, regra in enumerate(dados.get("regras", [])):
         caminho = ("regras", i)
         no = _expressao(regra["quando"], (*caminho, "quando"), erros, analisadas)
         if no is not None:
             conferir_nomes(no, (*caminho, "quando"))
+        if isinstance(regra.get("espera_ms"), str):
+            espera = _expressao(regra["espera_ms"], (*caminho, "espera_ms"), erros, analisadas)
+            if espera is not None:
+                conferir_nomes(espera, (*caminho, "espera_ms"))
         for parte in ("entao", "senao"):
             alvos = regra.get(parte, [])
             for j, alvo in enumerate([alvos] if isinstance(alvos, str) else alvos):
