@@ -1,5 +1,8 @@
 # Mudanças
 
+## 0.4.7 (02/11/2026)
+
+
 ## 0.4.6 (02/11/2026)
 
 - As receitas da comunidade (`comunidade.py`) moram no repositório `hefesto-receitas-imersao`, em
