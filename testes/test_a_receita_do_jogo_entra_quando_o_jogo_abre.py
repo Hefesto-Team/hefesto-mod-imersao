@@ -7,6 +7,8 @@ import asyncio
 import json
 import shutil
 import tempfile
+import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -212,3 +214,27 @@ def test_toda_entrada_das_receitas_da_extensao_e_uma_opcao_da_janela() -> None:
             if entrada["tipo"] == "deslizante":
                 assert (opcao["minimo"], opcao["maximo"]) == (entrada["minimo"],  # (noqa-acento)
                                                               entrada["maximo"])  # (noqa-acento)
+
+
+def test_a_saida_nao_espera_a_procura_da_comunidade_na_rede_lenta(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    porta = PortaDeMentira()
+    _subir(pasta_curta, monkeypatch)
+    solta = threading.Event()
+
+    def lenta(endereco: str, teto: int) -> bytes:
+        solta.wait(10)
+        raise OSError(f"a rede não respondeu: {endereco}")
+
+    monkeypatch.setattr(comunidade, "baixar_da_internet", lenta)
+
+    async def corpo(extensao: servidor.Extensao) -> None:
+        await _abrir(porta, JOGO)
+        await ate(lambda: extensao.procurando is not None)
+
+    inicio = time.monotonic()
+    try:
+        assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
+        assert time.monotonic() - inicio < 3
+    finally:
+        solta.set()

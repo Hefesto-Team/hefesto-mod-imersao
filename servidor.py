@@ -25,6 +25,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import replace
@@ -67,6 +68,8 @@ TOPICOS_DA_PORTA = (
 TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
 BOTAO_DA_MARCA = "ps"
 RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
+FALHAS_DO_ESTUDIO = (RuntimeError, OSError, ValueError, asyncio.TimeoutError)
+FRASE_DA_FALHA = "não deu agora"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -199,6 +202,32 @@ def topicos_fora_da_porta(receita: Receita) -> list[str]:
     return sorted(_lidos(receita) - set(TOPICOS_DA_PORTA))
 
 
+async def em_fio_solto(funcao: Callable[..., Any], *args: Any) -> Any:
+    """``funcao`` num fio daemon: a rede lenta não segura a saída do processo."""
+    laco = asyncio.get_running_loop()
+    feito: asyncio.Future[Any] = laco.create_future()
+
+    def entregar(resultado: Any, erro: BaseException | None) -> None:
+        if feito.done():
+            return
+        if erro is None:
+            feito.set_result(resultado)
+        else:
+            feito.set_exception(erro)
+
+    def correr() -> None:
+        resultado: Any = None
+        erro: BaseException | None = RuntimeError(f"{funcao.__name__} caiu")
+        try:
+            resultado, erro = funcao(*args), None
+        finally:
+            with contextlib.suppress(RuntimeError):
+                laco.call_soon_threadsafe(entregar, resultado, erro)
+
+    threading.Thread(target=correr, name="imersao-rede", daemon=True).start()
+    return await feito
+
+
 class Extensao:
     """A porta, o motor da receita e a saída, juntos."""
 
@@ -263,8 +292,18 @@ class Extensao:
 
     async def ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any],
                          uniq: Any = None) -> None:
-        """Os eventos que o Estúdio usa: a mensagem da página, o som e o botão da marca."""
-        agora_ms = time.monotonic() * 1000.0
+        """Os eventos que o Estúdio usa; a falha de um pedido para a caça e responde à página,
+        sem calar a porta para o resto da extensão."""
+        try:
+            await self._ao_estudio(topico, nome, dados, uniq, time.monotonic() * 1000.0)
+        except FALHAS_DO_ESTUDIO as exc:
+            diario(f"o Estúdio parou: {exc}")
+            self.estudio.cancelar()
+            pedido = dados.get("id") if topico == "extensao.mensagem" else None
+            await self.responder_ao_estudio({"tipo": "erro", "frase": FRASE_DA_FALHA}, pedido)
+
+    async def _ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any],
+                          uniq: Any, agora_ms: float) -> None:
         if topico == "extensao.mensagem":
             pedido = dados.get("dados", dados)
             if isinstance(pedido, dict):
@@ -333,7 +372,7 @@ class Extensao:
         """A receita da comunidade do jogo aberto; a nova vale no tique seguinte."""
         if self.comunidade is None:
             return {"tipo": "erro", "frase": "sem a pasta de dados da extensão"}
-        resultado = await asyncio.to_thread(self.comunidade.procurar, self.jogo, agora)
+        resultado = await em_fio_solto(self.comunidade.procurar, self.jogo, agora)
         if resultado.get("tipo") != "procurado":
             diario(f"as receitas da comunidade não vieram: "
                    f"{resultado.get('detalhe') or resultado.get('frase')}")

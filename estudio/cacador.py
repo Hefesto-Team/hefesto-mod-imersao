@@ -472,7 +472,7 @@ class Estudio:
         return {"tipo": "passo", "cacador": self.cacador, "passo": self._passo + 1,
                 "de": len(roteiro), "frase": FRASES[roteiro[self._passo]]}
 
-    def _cancelar(self) -> None:
+    def cancelar(self) -> None:
         self.cacador, self._valor, self._som, self._tela = None, None, None, None
         self._passo, self.achado = 0, None
 
@@ -486,7 +486,7 @@ class Estudio:
             return {"tipo": "estudio", "jogo": self.jogo, "cacadores": self.cacadores(),
                     "ativo": self.cacador}
         if tipo == "cancelar":
-            self._cancelar()
+            self.cancelar()
             return {"tipo": "cancelado"}
         if tipo == "comecar":
             return await self._comecar(pedido.get("cacador"))
@@ -502,7 +502,7 @@ class Estudio:
         if cacador not in self.cacadores():
             return {"tipo": "erro", "frase": "ligue a chave «Memória» do jogo para achar o valor"
                     if cacador == "valor" else "caçador desconhecido"}
-        self._cancelar()
+        self.cancelar()
         self.cacador = str(cacador)
         if cacador == "valor":
             self._valor = CacadorDeValor(VarredorDaPorta(self._pedir), self.memoria_ligada)
@@ -531,7 +531,7 @@ class Estudio:
                  else self._tela.achar() if self._tela else None)
         if achou is None:
             cacador = self.cacador
-            self._cancelar()
+            self.cancelar()
             return {"tipo": "nada", "cacador": cacador, "frase": FRASES["nada"]}
         self.achado = achou
         return {"tipo": "achou", "cacador": self.cacador, "frase": FRASES["achou"]}
@@ -559,5 +559,5 @@ class Estudio:
         temporario.write_bytes(bruto)
         os.replace(temporario, arquivo)
         estado = ident_do_nome(nome)
-        self._cancelar()
+        self.cancelar()
         return {"tipo": "guardado", "estado": estado, "arquivo": arquivo.name}

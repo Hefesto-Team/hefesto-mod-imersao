@@ -362,3 +362,47 @@ def test_o_endereco_unico_cedo_so_vale_com_dois_perder_e_um_parado(
 
     achado = asyncio.run(cacar()).achado()
     assert (achado is not None) is acha
+
+
+class _PortaQueRecusa:
+    def __init__(self) -> None:
+        self.pedidos: list[tuple[str, dict[str, Any]]] = []
+
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.pedidos.append((metodo, params))
+        if metodo in ("tela.retrato", "memoria.varrer"):
+            raise servidor.RecusaDaPorta(f"método desconhecido: {metodo}", -32601)
+        return {"status": "ok"}
+
+
+def test_a_porta_que_recusa_a_caca_para_a_caca_e_a_extensao_segue_ouvindo(
+        tmp_path: Path) -> None:
+    porta = _PortaQueRecusa()
+    vistos: list[tuple[Any, ...]] = []
+
+    async def corpo() -> servidor.Extensao:
+        extensao = servidor.Extensao(porta, servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                     None, tmp_path)
+        extensao.motor.evento = lambda *a: vistos.append(a)  # type: ignore[method-assign]
+        await extensao.ao_evento(_evento("perfil.jogo", "perfil.trocou",
+                                         {"jogo": JOGO, "memoria": True}))
+        await extensao.ao_evento(_evento("extensao.mensagem", "extensao.mensagem",
+                                         {"id": 1, "dados": {"tipo": "comecar",
+                                                             "cacador": "tela"}}))
+        await extensao.ao_evento(_evento("botoes", "button.down",
+                                         {"button": "ps", "botao": "ps", "pressed": True,
+                                          "uniq": UM, "jogador": 1}, UM))
+        assert not extensao.estudio.ativo
+        await extensao.ao_evento(_evento("extensao.mensagem", "extensao.mensagem",
+                                         {"id": 2, "dados": {"tipo": "comecar",
+                                                             "cacador": "valor"}}))
+        assert not extensao.estudio.ativo
+        await extensao.ao_evento(_evento("jogo.vibracao", "jogo.vibracao",
+                                         {"uniq": UM, "pedido": [0, 200]}, UM))
+        return extensao
+
+    asyncio.run(corpo())
+    respostas = [p for m, p in porta.pedidos if m == "extensao.resposta"]
+    assert [r["dados"]["tipo"] for r in respostas] == ["passo", "erro", "erro"]
+    assert respostas[2] == {"id": 2, "dados": {"tipo": "erro", "frase": servidor.FRASE_DA_FALHA}}
+    assert [v[0] for v in vistos][-1] == "jogo.vibracao"
