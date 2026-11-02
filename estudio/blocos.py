@@ -4,7 +4,7 @@ A receita é a fonte; os blocos são a vista. Cada bloco é uma ``regra``: ``qua
 sobre um estado ou sentido), ``faca`` (os efeitos da biblioteca da receita, o ``entao``), ``senao``,
 ``prioridade``, ``espera_ms`` e ``para`` (quem recebe). :func:`blocos_da_receita` monta a vista,
 com a lista do QUANDO (estados, derivados e sentidos) e a do FAÇA (os efeitos, com a frase de cada
-um como dica); :func:`receita_dos_blocos` devolve a receita, que sai igual byte a byte depois de
+um como dica, e o ``$nome`` de uma entrada dito pelo rótulo e pelo valor dela); :func:`receita_dos_blocos` devolve a receita, que sai igual byte a byte depois de
 :func:`normalizar`.
 """
 from __future__ import annotations
@@ -15,6 +15,8 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from receita.formato import COR
 
 CAMPOS_SOLTOS = ("prioridade", "espera_ms", "para")
 LISTAS = (("entao", "faca"), ("senao", "senao"))
@@ -63,8 +65,29 @@ def regra_do_bloco(bloco: dict[str, Any]) -> dict[str, Any]:
     return regra
 
 
-def frase_do_efeito(efeito: dict[str, Any]) -> str:
-    """A dica do efeito no FAÇA, em poucas palavras."""
+def _da_entrada(nome: str, entradas: dict[str, Any], valores: dict[str, Any]) -> str:
+    """O ``$nome`` como quem usa o vê: o rótulo da entrada e o valor de agora, ou o padrão."""
+    entrada = entradas.get(nome)
+    entrada = entrada if isinstance(entrada, dict) else {}
+    padrao = entrada.get("padrao")  # (noqa-acento)
+    valor = valores.get(nome, padrao)
+    if entrada.get("tipo") == "cor" and not (isinstance(valor, str) and COR.match(valor)):
+        valor = padrao
+    rotulo = f"«{entrada.get('rotulo') or nome.replace('_', ' ')}»"
+    return rotulo if valor is None else f"{rotulo} ({valor})"
+
+
+def _resolvido(efeito: dict[str, Any], entradas: dict[str, Any],
+               valores: dict[str, Any]) -> dict[str, Any]:
+    return {campo: _da_entrada(bruto[1:], entradas, valores)
+            if isinstance(bruto, str) and bruto.startswith("$") else bruto
+            for campo, bruto in efeito.items()}
+
+
+def frase_do_efeito(efeito: dict[str, Any], entradas: dict[str, Any] | None = None,
+                    valores: dict[str, Any] | None = None) -> str:
+    """A dica do efeito no FAÇA, em poucas palavras, com cada ``$nome`` pela entrada dele."""
+    efeito = _resolvido(efeito, entradas or {}, valores or {})
     canal = efeito.get("canal")
     lado = LADOS.get(str(efeito.get("lado", "ambos")), "")
     forca = efeito.get("forca")
@@ -81,6 +104,10 @@ def frase_do_efeito(efeito: dict[str, Any]) -> str:
         return f"toca o som «{efeito.get('som')}»"
     if canal == "leds":
         return f"acende as luzes de jogador {lado}".strip()
+    if canal == "mira":
+        ganho = efeito.get("ganho")
+        ate = f" até {round(ganho * 100)}%" if isinstance(ganho, (int, float)) else ""
+        return f"pesa a mira do giroscópio{ate}"
     return str(canal)
 
 
@@ -91,18 +118,24 @@ def opcoes_do_quando(dados: dict[str, Any]) -> list[dict[str, str]]:
             for nome in dados.get(secao, {})]
 
 
-def opcoes_do_faca(dados: dict[str, Any]) -> list[dict[str, str]]:
+def opcoes_do_faca(dados: dict[str, Any],
+                   valores: dict[str, Any] | None = None) -> list[dict[str, str]]:
     """O que o FAÇA lista: os efeitos da receita, com a frase de cada um."""
-    return [{"nome": nome, "dica": frase_do_efeito(efeito)}
+    entradas = dados.get("entradas", {})
+    return [{"nome": nome, "dica": frase_do_efeito(efeito, entradas, valores)}
             for nome, efeito in dados.get("efeitos", {}).items()]
 
 
-def blocos_da_receita(dados: dict[str, Any]) -> dict[str, Any]:
-    """A vista: a receita sem as regras, os blocos e as listas do QUANDO e do FAÇA."""
+def blocos_da_receita(dados: dict[str, Any],
+                      valores: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A vista: a receita sem as regras, os blocos e as listas do QUANDO e do FAÇA.
+
+    ``valores`` são as opções salvas de quem usa, que dizem o valor de agora de cada entrada.
+    """
     return {"receita": {k: v for k, v in dados.items() if k != "regras"},
             "com_regras": "regras" in dados,
             "blocos": [bloco_da_regra(r) for r in dados.get("regras", [])],
-            "quando": opcoes_do_quando(dados), "faca": opcoes_do_faca(dados)}
+            "quando": opcoes_do_quando(dados), "faca": opcoes_do_faca(dados, valores)}
 
 
 def receita_dos_blocos(vista: dict[str, Any]) -> dict[str, Any]:
@@ -125,15 +158,17 @@ class Montador:
     """
 
     def __init__(self, receitas: Path | None, validar: Callable[[bytes], object],
-                 atual: Callable[[], tuple[str | None, dict[str, Any]]]) -> None:
+                 atual: Callable[[], tuple[str | None, dict[str, Any]]],
+                 valores: Callable[[], dict[str, Any]] | None = None) -> None:
         self.receitas = receitas
         self._validar = validar
         self._atual = atual
+        self._valores = valores or dict
 
     def mensagem(self, pedido: dict[str, Any]) -> dict[str, Any]:
         jogo, dados = self._atual()
         if pedido.get("tipo") == "blocos":
-            return {"tipo": "blocos", "jogo": jogo, **blocos_da_receita(dados)}
+            return {"tipo": "blocos", "jogo": jogo, **blocos_da_receita(dados, self._valores())}
         vista = pedido.get("vista")
         if jogo is None or self.receitas is None:
             return {"tipo": "erro", "frase": "abra o jogo primeiro"}
