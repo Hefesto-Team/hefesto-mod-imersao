@@ -1,6 +1,7 @@
 """O FAÇA do Estúdio diz a entrada pelo rótulo e pelo valor dela, nunca pelo ``$nome`` cru."""
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 import pytest
 from apoio import RAIZ
 
+import servidor
 from estudio.blocos import Montador, blocos_da_receita, frase_do_efeito
 from receita.formato import ler_receita
 
@@ -54,3 +56,37 @@ def test_o_montador_mostra_a_cor_das_opcoes_de_agora(tmp_path: Path) -> None:
     vista = montador.mensagem({"tipo": "blocos"})
     assert _dica(vista, "vermelho") == "pinta a luz de «Cor do dano» (#0000ff)"
     assert vista["receita"]["efeitos"]["vermelho"]["cor"] == "$cor_do_dano"
+
+
+class _Porta:
+    def __init__(self) -> None:
+        self.pedidos: list[tuple[str, dict[str, Any]]] = []
+
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.pedidos.append((metodo, params))
+        return {"status": "ok"}
+
+
+def _evento(topico: str, dados: dict[str, Any]) -> dict[str, Any]:
+    return {"method": "evento", "params": {"topico": topico, "nome": topico, "uniq": None,
+                                           "dados": dados}}
+
+
+def test_a_extensao_mostra_no_faca_a_cor_que_o_motor_pinta(tmp_path: Path) -> None:
+    porta = _Porta()
+
+    async def corpo() -> list[str]:
+        extensao = servidor.Extensao(porta, servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                     None, tmp_path)
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": "steam_app_1"}))
+        (tmp_path / servidor.ARQUIVO_DAS_OPCOES).write_text(
+            json.dumps({"cor_do_dano": "#00ff00"}), encoding="utf-8")
+        await extensao.reler_as_opcoes()
+        await extensao.ao_evento(_evento("extensao.mensagem", {"id": 1, "dados": {"tipo": "blocos"}}))
+        await extensao.ao_evento(_evento("extensao.opcao", {"id": "cor_do_dano", "valor": "#0000ff"}))
+        await extensao.ao_evento(_evento("extensao.mensagem", {"id": 2, "dados": {"tipo": "blocos"}}))
+        return [_dica(p["dados"], "vermelho") for m, p in porta.pedidos
+                if m == "extensao.resposta" and p["dados"].get("tipo") == "blocos"]
+
+    assert asyncio.run(corpo()) == ["pinta a luz de «Cor do dano» (#00ff00)",
+                                    "pinta a luz de «Cor do dano» (#0000ff)"]

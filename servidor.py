@@ -258,7 +258,7 @@ class Extensao:
         self.do_estudio: set[str] = set()
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
         self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
-                                 lambda: (self.jogo, self.receita.dados), lambda: self.opcoes)
+                                 lambda: (self.jogo, self.receita.dados), lambda: self.motor.opcoes)
         self.editor = Editor(dados / "receitas" if dados else None,
                              lambda: (self.jogo, self.receita.dados))
         self.gravador = Gravador()
