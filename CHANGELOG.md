@@ -1,6 +1,6 @@
 # Mudanças
 
-## Próxima
+## 0.4.9 (02/11/2026)
 
 - O manifesto pede as permissões que o Hefesto já aceita: o som do jogo, o nível do microfone, a
   tela do jogo, a identidade do jogo, a memória do jogo, a vibração fina, o alto-falante e as luzes
