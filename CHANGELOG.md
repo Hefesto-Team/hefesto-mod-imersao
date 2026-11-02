@@ -6,11 +6,11 @@
   tela do jogo, a identidade do jogo, a memória do jogo, a vibração fina, o alto-falante e as luzes
   de jogador. Na atualização, o Hefesto desliga a extensão até o novo aceite. Com elas, o coração,
   o susto e o lado do universal voltam a tocar. A tela do jogo só se lê com o sentido «Tela» ligado.
-- A janela tem as abas do desenho: Geral (Força, Receita, O golpe vai para), Sentidos, Efeitos
-  (coração, alívio, golpe com lado, lado na luz, luz do dano, susto no alto-falante e no tato,
-  impacto nos gatilhos, clima tenso e peso da mira), Canais, Receitas (o botão «Procurar
-  receitas») e «Ensinar este jogo», a página do Estúdio. Cada ajuste vale no tique seguinte, em
-  toda receita; no padrão, a extensão escreve o mesmo de antes.
+- A janela tem as abas do desenho: Geral (Procurar receitas, Força, Receita, O golpe vai para),
+  Sentidos, Efeitos (coração, alívio, golpe com lado, lado na luz, luz do dano, susto no
+  alto-falante e no tato, impacto nos gatilhos, clima tenso e peso da mira), Canais e «Ensinar
+  este jogo», a página do Estúdio. Cada ajuste vale no tique seguinte, em toda receita; no padrão,
+  a extensão escreve o mesmo de antes.
 
 ## 0.4.8 (02/11/2026)
 

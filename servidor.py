@@ -17,7 +17,7 @@ desligado, porque assiná-lo abre o portal de captura do sistema. O
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
-aba «Receitas» da janela (``extensao.acao``); a leitura da
+aba Geral da janela (``extensao.acao``); a leitura da
 memória da receita da comunidade só chega ao motor com a chave «Memória» dela ligada.
 """
 from __future__ import annotations

@@ -294,7 +294,7 @@
     {
       "id": "procurar",
       "rotulo": "Procurar receitas",
-      "grupo": "Receitas",
+      "grupo": "Geral",
       "icone": "procurar"
     }
   ],

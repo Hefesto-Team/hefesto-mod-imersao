@@ -22,7 +22,7 @@ from test_o_universal import (
 import opcoes as ajustes
 import servidor
 
-ABAS = ["Geral", "Sentidos", "Efeitos", "Canais", "Receitas"]
+ABAS = ["Geral", "Sentidos", "Efeitos", "Canais"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -61,9 +61,8 @@ def _coracoes(porta: EscritasDeMentira) -> list[float]:
 
 def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None:
     manifesto = _manifesto()
-    grupos = list(dict.fromkeys(o["grupo"] for o in manifesto["opcoes"]))  # (noqa-acento)
-    grupos += [a["grupo"] for a in manifesto["acoes"] if a["grupo"] not in grupos]  # (noqa-acento)
-    assert grupos == ABAS
+    grupos = [a["grupo"] for a in manifesto["acoes"]] + [o["grupo"] for o in manifesto["opcoes"]]  # (noqa-acento)
+    assert list(dict.fromkeys(grupos)) == ABAS
     assert manifesto["pagina"]["rotulo"] == "Ensinar este jogo"  # (noqa-acento)
     assert (RAIZ / manifesto["pagina"]["arquivo"]).is_file()  # (noqa-acento)
     assert all(o.get("dica") for o in manifesto["opcoes"])  # (noqa-acento)
