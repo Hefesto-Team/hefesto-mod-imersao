@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.4.1 (02/11/2026)
+
+- O pedido vivo (o coração, a luz, a vibração contínua) só se reescreve quando o degrau muda (força de 0,05 em
+  0,05, batimento de 4 em 4 bpm), com intervalo mínimo por canal e controle e sempre com vaga no teto para o
+  evento: o coração do universal cai de 12 para 2 escritas por segundo, e o estalo e o susto saem no tique deles.
+
 ## 0.4.0 (02/11/2026)
 
 - A receita se escolhe pelo jogo aberto (`perfil.jogo`), pela `jogo.chave` de cada arquivo: vale a
