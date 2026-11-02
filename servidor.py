@@ -33,7 +33,10 @@ if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
 import sentidos as universais  # noqa: E402
+from estudio import linha_do_tempo  # noqa: E402
+from estudio.blocos import TIPOS_DO_MONTADOR, Montador  # noqa: E402
 from estudio.cacador import Estudio  # noqa: E402
+from estudio.linha_do_tempo import TIPOS_DO_GRAVADOR, Gravador  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
@@ -208,6 +211,11 @@ class Extensao:
         self.assinados: set[str] = set()
         self.estados_publicados: list[str] = []
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
+        self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
+                                 lambda: (self.jogo, self.receita.dados))
+        self.gravador = Gravador()
+        self.tocando: asyncio.Task[None] | None = None
+        self.parar_de_tocar = asyncio.Event()
 
     @property
     def escolha(self) -> str:
@@ -221,9 +229,9 @@ class Extensao:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
 
-    async def assinar_o_estudio(self) -> None:
-        """O Estúdio ouve o som do jogo e o botão do meio enquanto caça."""
-        for topico in TOPICOS_DO_ESTUDIO:
+    async def assinar_o_estudio(self, topicos: tuple[str, ...] = TOPICOS_DO_ESTUDIO) -> None:
+        """O Estúdio ouve o som do jogo e o botão do meio enquanto caça, e o que grava."""
+        for topico in topicos:
             if topico in self.assinados:
                 continue
             with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
@@ -241,21 +249,60 @@ class Extensao:
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.porta.pedir("extensao.resposta", params)
 
-    async def ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any]) -> None:
+    async def ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any],
+                         uniq: Any = None) -> None:
         """Os eventos que o Estúdio usa: a mensagem da página, o som e o botão da marca."""
         agora_ms = time.monotonic() * 1000.0
         if topico == "extensao.mensagem":
             pedido = dados.get("dados", dados)
             if isinstance(pedido, dict):
-                if pedido.get("tipo") == "comecar":
-                    await self.assinar_o_estudio()
-                await self.responder_ao_estudio(await self.estudio.mensagem(pedido, agora_ms),
-                                                dados.get("id"))
-        elif topico == "jogo.som":
+                tipo = pedido.get("tipo")
+                if tipo in TIPOS_DO_MONTADOR:
+                    resposta = self.montador.mensagem(pedido)
+                elif tipo in TIPOS_DO_GRAVADOR:
+                    resposta = await self.ao_gravador(str(tipo), agora_ms)
+                else:
+                    if tipo == "comecar":
+                        await self.assinar_o_estudio()
+                    resposta = await self.estudio.mensagem(pedido, agora_ms)
+                await self.responder_ao_estudio(resposta, dados.get("id"))
+        if self.gravador.gravando and isinstance(nome, str):
+            self.gravador.ouvir(topico, nome, uniq if isinstance(uniq, str) else None, dados,
+                                agora_ms)
+        if topico == "jogo.som":
             self.estudio.ouvir(dados, agora_ms)
         elif (topico == "botoes" and nome == "button.down" and self.estudio.ativo
               and BOTAO_DA_MARCA in (dados.get("botao"), dados.get("button"))):
             await self.responder_ao_estudio(await self.estudio.marca(agora_ms))
+
+    async def ao_gravador(self, tipo: str, agora_ms: float) -> dict[str, Any]:
+        """«Gravar», «Parar» e «Tocar» da linha do tempo."""
+        if tipo == "gravar":
+            await self.assinar_o_estudio(linha_do_tempo.TOPICOS_GRAVADOS)
+            self.gravador.gravar(agora_ms)
+            return {"tipo": "gravando", "segundos": linha_do_tempo.DURACAO_MS / 1000}
+        if tipo == "parar":
+            self.parar_de_tocar.set()
+            if not self.gravador.gravando:
+                return {"tipo": "parado"}
+            gravada = self.gravador.parar()
+            if self.dados is not None and self.jogo is not None:
+                with contextlib.suppress(OSError):
+                    linha_do_tempo.gravar_no_disco(self.dados, self.jogo, gravada)
+            return {"tipo": "gravado", "marcos": len(gravada.marcos),
+                    "segundos": round(gravada.duracao_ms / 1000, 1)}
+        linha = self.gravador.linha if self.gravador.linha.marcos else (
+            linha_do_tempo.ler_do_disco(self.dados, self.jogo)
+            if self.dados is not None and self.jogo is not None else None)
+        if linha is None or not linha.marcos:
+            return {"tipo": "erro", "frase": "grave antes de tocar"}
+        if self.tocando is not None and not self.tocando.done():
+            self.parar_de_tocar.set()
+            await asyncio.gather(self.tocando, return_exceptions=True)
+        self.parar_de_tocar = asyncio.Event()
+        self.tocando = asyncio.create_task(
+            linha_do_tempo.tocar(linha, self.motor.evento, self.parar_de_tocar))
+        return {"tipo": "tocando", "segundos": round(linha.duracao_ms / 1000, 1)}
 
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale."""
@@ -315,7 +362,7 @@ class Extensao:
             if isinstance(ident, str) and isinstance(valor, (int, float)):
                 self.motor.opcoes[ident] = valor
         if isinstance(topico, str) and isinstance(dados, dict):
-            await self.ao_estudio(topico, nome, dados)
+            await self.ao_estudio(topico, nome, dados, params.get("uniq"))
         if isinstance(topico, str) and isinstance(nome, str):
             uniq = params.get("uniq")
             dados = params.get("dados")
@@ -375,9 +422,11 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
         with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
             await asyncio.wait_for(motor, 2.0)
     finally:
-        for tarefa in (ouvir, vigiar, motor):
+        extensao.parar_de_tocar.set()
+        tarefas = [ouvir, vigiar, motor, *([extensao.tocando] if extensao.tocando else [])]
+        for tarefa in tarefas:
             tarefa.cancel()
-        await asyncio.gather(ouvir, vigiar, motor, return_exceptions=True)
+        await asyncio.gather(*tarefas, return_exceptions=True)
         for sinal in (signal.SIGTERM, signal.SIGINT):
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 laco.remove_signal_handler(sinal)

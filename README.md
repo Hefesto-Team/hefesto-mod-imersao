@@ -101,7 +101,8 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
 O botão «Ensinar este jogo» (página em `estudio/pagina/`) guia com frases curtas, e o botão do meio
 do controle marca o gesto. O caçador do valor (só com a chave «Memória» do jogo ligada), o do som e
 o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele; o achado vira um
-`estado` na sua receita, com o nome que você der.
+`estado` na sua receita, com o nome que você der. «Blocos» mostra a receita como QUANDO e FAÇA, e
+«Gravar» e «Tocar» repetem cinco minutos de jogo com a receita de agora, sem abrir o jogo.
 
 ## Instalar
 

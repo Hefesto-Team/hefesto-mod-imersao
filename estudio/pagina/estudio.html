@@ -10,13 +10,20 @@ button { background: var(--borda); color: var(--texto); border: 1px solid var(--
 button.principal { background: var(--acento); color: #0b0c10; border-color: var(--acento); }
 button[hidden], section[hidden] { display: none; }
 #frase { font-size: 28px; font-weight: 600; margin: 16px 0 4px; }
-#vez { color: var(--apagado); }
+#vez, .apagado { color: var(--apagado); }
 .linha { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-input { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; font: inherit; }
+select, input { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; font: inherit; }
 </style>
 </head>
 <body>
-<button id="ensinar" class="principal" data-gesto="ensinar">Ensinar este jogo</button>
+<div class="linha">
+  <button id="ensinar" class="principal" data-gesto="ensinar">Ensinar este jogo</button>
+  <button id="ver-blocos" data-gesto="blocos">Blocos</button>
+  <button id="gravar" data-gesto="gravar">Gravar</button>
+  <button id="parar" data-gesto="parar">Parar</button>
+  <button id="tocar" data-gesto="tocar">Tocar</button>
+</div>
+<div id="linha-do-tempo" class="apagado"></div>
 <section id="escolha" hidden>
   <div class="linha" id="cacadores"></div>
 </section>
@@ -35,17 +42,71 @@ input { background: var(--borda); color: var(--texto); border: 1px solid var(--b
     <button id="guardar" class="principal" data-gesto="guardar">Guardar</button>
   </div>
 </section>
+<section id="blocos" hidden>
+  <datalist id="nomes-do-quando"></datalist>
+  <div id="lista-de-blocos"></div>
+  <div class="linha">
+    <button id="montar" class="principal" data-gesto="montar">Montar</button>
+  </div>
+</section>
 <script>
 "use strict";
 const ROTULOS = { valor: "Valor", som: "Som", tela: "Canto da tela" };
 const el = (id) => document.getElementById(id);
 const mandar = (pedido) => window.parent.postMessage(pedido, "*");
 const mostrar = (qual) => {
-  for (const id of ["escolha", "caca", "nomear"]) el(id).hidden = id !== qual;
+  for (const id of ["escolha", "caca", "nomear", "blocos"]) el(id).hidden = id !== qual;
 };
+let vista = null;
+const PARA = { todos: "Todos", quem_levou: "Quem levou" };
+function campo(rotulo, filho) {
+  const caixa = document.createElement("label");
+  caixa.textContent = rotulo + " ";
+  caixa.append(filho);
+  return caixa;
+}
+function desenharBlocos() {
+  const nomes = el("nomes-do-quando");
+  nomes.replaceChildren(...vista.quando.map((q) => Object.assign(document.createElement("option"), { value: q.nome })));
+  const lista = el("lista-de-blocos");
+  lista.replaceChildren();
+  vista.blocos.forEach((bloco, i) => {
+    const linha = document.createElement("div");
+    linha.className = "linha";
+    const quando = Object.assign(document.createElement("input"), { value: bloco.quando });
+    quando.setAttribute("list", "nomes-do-quando");
+    quando.dataset.gesto = "quando-" + i;
+    quando.addEventListener("change", () => { bloco.quando = quando.value; });
+    const faca = document.createElement("select");
+    faca.dataset.gesto = "faca-" + i;
+    for (const efeito of vista.faca) {
+      const opcao = Object.assign(document.createElement("option"), { value: efeito.nome, textContent: efeito.nome, title: efeito.dica });
+      opcao.selected = (bloco.faca || [])[0] === efeito.nome;
+      faca.append(opcao);
+    }
+    faca.addEventListener("change", () => { bloco.faca = [faca.value, ...(bloco.faca || []).slice(1)]; });
+    const prioridade = Object.assign(document.createElement("input"), { type: "number", min: 0, max: 100, value: bloco.prioridade ?? "" });
+    prioridade.addEventListener("change", () => {
+      if (prioridade.value === "") delete bloco.prioridade; else bloco.prioridade = Number(prioridade.value);
+    });
+    const para = document.createElement("select");
+    for (const [valor, rotulo] of Object.entries(PARA)) {
+      para.append(Object.assign(document.createElement("option"), { value: valor, textContent: rotulo, selected: bloco.para === valor }));
+    }
+    para.addEventListener("change", () => { bloco.para = para.value; });
+    linha.append(campo("Quando", quando), campo("Faça", faca), campo("Prioridade", prioridade), campo("Para", para));
+    lista.append(linha);
+  });
+  mostrar("blocos");
+}
 function receber(resposta) {
   if (!resposta || typeof resposta !== "object") return;
-  if (resposta.tipo === "estudio") {
+  if (resposta.tipo === "blocos") {
+    vista = resposta;
+    desenharBlocos();
+  } else if (["gravando", "gravado", "tocando", "parado", "montado"].includes(resposta.tipo)) {
+    el("linha-do-tempo").textContent = { gravando: "Gravando", gravado: "Gravado: " + resposta.segundos + " s", tocando: "Tocando", parado: "", montado: "Montado" }[resposta.tipo];
+  } else if (resposta.tipo === "estudio") {
     const lista = el("cacadores");
     lista.replaceChildren();
     for (const cacador of resposta.cacadores || []) {
@@ -73,6 +134,9 @@ function receber(resposta) {
 }
 window.addEventListener("message", (evento) => receber(evento.data && evento.data.dados ? evento.data.dados : evento.data));
 el("ensinar").addEventListener("click", () => mandar({ tipo: "abrir" }));
+el("ver-blocos").addEventListener("click", () => mandar({ tipo: "blocos" }));
+el("montar").addEventListener("click", () => vista && mandar({ tipo: "montar", vista }));
+for (const tipo of ["gravar", "parar", "tocar"]) el(tipo).addEventListener("click", () => mandar({ tipo }));
 el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));
 el("cancelar").addEventListener("click", () => mandar({ tipo: "cancelar" }));
 el("guardar").addEventListener("click", () => mandar({ tipo: "guardar", nome: el("nome").value }));
