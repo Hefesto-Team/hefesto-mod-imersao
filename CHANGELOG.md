@@ -1,5 +1,16 @@
 # Mudanças
 
+## 0.4.6 (02/11/2026)
+
+- As receitas da comunidade (`comunidade.py`) moram no repositório `hefesto-receitas-imersao`, em
+  `steam/<chave>/<nome>.json`, com um `indice.json` assinado (Ed25519 no formato do minisign; a
+  chave pública vem na extensão, e a conferência é Python puro). O índice se baixa uma vez por dia,
+  ou no «Procurar receitas» da página, e só vale com a assinatura certa; a receita do jogo aberto
+  se baixa depois, tem de bater com a soma SHA-256 do índice e passa de novo pelo validador. A
+  receita que lê a memória chega com a chave «Memória» dela desligada, e no jogo com anticheat
+  ligá-la passa pelo aviso. A sua e a estudada vencem a da comunidade, e a página diz de onde
+  veio a que vale. O manifesto passa de `rede:nenhuma` a `rede:internet`.
+
 ## 0.4.5 (02/11/2026)
 
 
