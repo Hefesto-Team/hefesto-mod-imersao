@@ -28,6 +28,11 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   vale.
 - As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
   e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
+- A janela tem seis abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita e «O
+  golpe vai para» (quem levou, ou todos os controles). Sentidos e Canais: cada um se desliga, e o
+  sentido desligado desassina o tópico dele (a Tela nasce desligada). Efeitos: as entradas do
+  universal. Receitas: «Procurar receitas». «Ensinar este jogo»: a página do Estúdio. Os ajustes de
+  Geral, Sentidos e Canais moram em `opcoes.py` e valem em toda receita.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
   (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
   porta ainda não entrega vai ao diário, e o sentido dele fica parado.

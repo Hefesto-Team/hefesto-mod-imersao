@@ -10,12 +10,14 @@ moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, o
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
 ``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale. Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
-do controle e a máscara do lançamento (``jogo.identidade``); o ``jogo.tela`` só se assina com o
-sentido «Tela» ligado na janela, porque assiná-lo abre o portal de captura do sistema. O
+do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
+janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem; o ``jogo.tela`` nasce
+desligado, porque assiná-lo abre o portal de captura do sistema. O
 :class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
-que abre (o índice se baixa uma vez por dia) e no «Procurar receitas» da página; a leitura da
+que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
+aba «Receitas» da janela (``extensao.acao``); a leitura da
 memória da receita da comunidade só chega ao motor com a chave «Memória» dela ligada.
 """
 from __future__ import annotations
@@ -37,6 +39,7 @@ AQUI = Path(__file__).resolve().parent
 if str(AQUI) not in sys.path:
     sys.path.insert(0, str(AQUI))
 
+import opcoes as ajustes  # noqa: E402
 import sentidos as universais  # noqa: E402
 from comunidade import TIPOS_DA_COMUNIDADE, Comunidade  # noqa: E402
 from estudio import linha_do_tempo  # noqa: E402
@@ -61,13 +64,13 @@ ARQUIVO_DO_UNIVERSAL = AQUI / "receitas" / "universal.json"
 PASTA_DAS_ESTUDADAS = AQUI / "receitas" / "estudadas"
 ARQUIVO_DAS_OPCOES = "opcoes.json"
 OPCAO_DA_RECEITA = "receita"
+ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
     "jogo.memoria",
 )
-CHAVE_DO_TOPICO = {"jogo.tela": ("sentido_tela", False)}
 TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
 BOTAO_DA_MARCA = "ps"
 RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
@@ -183,17 +186,10 @@ def topicos_da_receita(receita: Receita) -> list[str]:
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
-def topico_ligado(topico: str, opcoes: dict[str, Any] | None = None) -> bool:
-    """O tópico com chave na janela só se assina com ela ligada: a tela abre o portal do sistema."""
-    chave, padrao = CHAVE_DO_TOPICO.get(topico, ("", True))
-    valor = (opcoes or {}).get(chave, padrao)
-    return valor if isinstance(valor, bool) else padrao
-
-
 def topicos_assinados(receita: Receita, opcoes: dict[str, Any] | None = None) -> list[str]:
     """Os tópicos da receita e sempre o ``perfil.jogo``: é ele que diz qual receita vale."""
     pedidos = set(topicos_da_receita(receita)) | {"perfil.jogo"}
-    return [t for t in TOPICOS_DA_PORTA if t in pedidos and topico_ligado(t, opcoes)]
+    return [t for t in TOPICOS_DA_PORTA if t in pedidos and ajustes.topico_ligado(t, opcoes)]
 
 
 def ler_as_opcoes(dados: Path | None) -> dict[str, Any]:
@@ -283,7 +279,7 @@ class Extensao:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
         sobram = sorted(t for t in self.assinados - self.do_estudio
-                        if not topico_ligado(t, self.opcoes))
+                        if not ajustes.topico_ligado(t, self.opcoes))
         if sobram:
             await self.porta.pedir("eventos.desassinar", {"topicos": sobram})
             self.assinados -= set(sobram)
@@ -399,9 +395,9 @@ class Extensao:
         resultado.pop("detalhe", None)
         return {**resultado, "origem": self.escolhida.rotulo}
 
-    def procurar_em_fundo(self) -> None:
+    def procurar_em_fundo(self, agora: bool = False) -> None:
         if self.comunidade is not None and (self.procurando is None or self.procurando.done()):
-            self.procurando = asyncio.create_task(self.procurar())
+            self.procurando = asyncio.create_task(self.procurar(agora))
 
     async def ao_comunidade(self, tipo: str, pedido: dict[str, Any]) -> dict[str, Any]:
         """«Procurar receitas» e a chave «Memória» da receita da comunidade."""
@@ -479,8 +475,11 @@ class Extensao:
                 self.procurar_em_fundo()
         elif topico == "extensao.opcao" and isinstance(dados, dict):
             ident, valor = dados.get("id"), dados.get("valor")
-            if isinstance(ident, str) and isinstance(valor, (int, float)):
+            if isinstance(ident, str) and isinstance(valor, (bool, int, float, str)):
                 self.motor.opcoes[ident] = valor
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") == ACAO_DE_PROCURAR):  # (noqa-acento)
+            self.procurar_em_fundo(agora=True)
         if isinstance(topico, str) and isinstance(dados, dict):
             await self.ao_estudio(topico, nome, dados, params.get("uniq"))
         if topico == "jogo.memoria" and not self.memoria_vale:

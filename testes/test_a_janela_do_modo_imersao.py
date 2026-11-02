@@ -1,0 +1,171 @@
+"""A janela do Modo imersão: cada ajuste das abas muda o que a extensão escreve no controle."""
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import Any
+
+import pytest
+from apoio import DOIS, QUATRO, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
+from test_o_universal import (
+    _correr,
+    _motores,
+    _universal,
+    entradas,
+    microfone,
+    na_mao,
+    rumble,
+    som,
+    tela,
+)
+
+import opcoes as ajustes
+import servidor
+
+ABAS = ["Geral", "Sentidos", "Efeitos", "Canais", "Receitas"]
+TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
+SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
+GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
+RAJADA = [(t, rumble(TRES, 230)) for t in (1000, 1100, 1200, 1300, 1400)] + [(1500, rumble(TRES, 0))]
+
+
+def _manifesto() -> dict[str, Any]:
+    dado: dict[str, Any] = json.loads((RAIZ / "hefesto-mod.json").read_text(encoding="utf-8"))
+    return dado
+
+
+def _opcoes() -> dict[str, dict[str, Any]]:
+    return {o["id"]: o for o in _manifesto()["opcoes"]}  # (noqa-acento)
+
+
+def _escrito(opcoes: dict[str, Any], linha: list[Any], ate_ms: int,
+             controles: list[dict[str, Any]] | None = None) -> EscritasDeMentira:
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    _correr(_universal(controles, opcoes), porta, ate_ms, linha)
+    return porta
+
+
+def _primeiro_estalo(porta: EscritasDeMentira) -> int:
+    return next(f for t, f, _ in _motores(porta) if 200 <= t < 400 and f)
+
+
+def _sustos(porta: EscritasDeMentira) -> tuple[bool, bool]:
+    return (bool(porta.de("som.tocar")),
+            any(p["id"] == "susto" for _, p in porta.de("haptica.tocar")))  # (noqa-acento)
+
+
+def _coracoes(porta: EscritasDeMentira) -> list[float]:
+    return [t for t, p in porta.de("haptica.tocar")
+            if p["id"] == "coracao" and p["forca"] > 0]  # (noqa-acento)
+
+
+def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None:
+    manifesto = _manifesto()
+    grupos = list(dict.fromkeys(o["grupo"] for o in manifesto["opcoes"]))  # (noqa-acento)
+    grupos += [a["grupo"] for a in manifesto["acoes"] if a["grupo"] not in grupos]  # (noqa-acento)
+    assert grupos == ABAS
+    assert manifesto["pagina"]["rotulo"] == "Ensinar este jogo"  # (noqa-acento)
+    assert (RAIZ / manifesto["pagina"]["arquivo"]).is_file()  # (noqa-acento)
+    assert all(o.get("dica") for o in manifesto["opcoes"])  # (noqa-acento)
+    do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto")
+    lido = do_hefesto.ler_manifesto(RAIZ)
+    assert [o.id for o in lido.opcoes] == [o["id"] for o in manifesto["opcoes"]]  # (noqa-acento)
+    assert [a.id for a in lido.acoes] == [servidor.ACAO_DE_PROCURAR]
+
+
+def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> None:
+    opcoes = _opcoes()
+    assert opcoes[ajustes.FORCA]["padrao"] == ajustes.FORCA_PADRAO  # (noqa-acento)
+    assert opcoes[ajustes.PARA_QUEM]["escolhas"] == list(ajustes.ESCOLHAS_DE_PARA_QUEM)
+    assert opcoes[ajustes.PARA_QUEM]["padrao"] == ajustes.QUEM_LEVOU  # (noqa-acento)
+    for ident, (_, padrao) in ajustes.SENTIDOS.items():
+        assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Sentidos", padrao)  # (noqa-acento)
+    for ident in ajustes.CANAIS:
+        assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Canais", True)  # (noqa-acento)
+    assert opcoes["peso_da_mira"]["grupo"] == "Efeitos"
+
+
+def test_a_janela_no_padrao_escreve_o_mesmo_que_sem_opcao_nenhuma() -> None:
+    padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"]}  # (noqa-acento)
+    for linha, ate in ((SUSTO, 19_000), (GOLPE, 600), ([(200, som("esquerdo", 0.4, 0.2))], 600)):
+        assert _escrito(padroes, linha, ate).escritas == _escrito({}, linha, ate).escritas
+
+
+def test_a_forca_pela_metade_escreve_a_metade_e_em_zero_nada_sai() -> None:
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    assert _primeiro_estalo(_escrito({}, estalo, 600)) == round(0.7 * 255)
+    assert _primeiro_estalo(_escrito({ajustes.FORCA: 50}, estalo, 600)) == round(0.35 * 255)
+    for linha, ate in ((SUSTO, 19_000), (GOLPE, 600), (estalo, 600)):
+        assert _escrito({ajustes.FORCA: 0}, linha, ate).escritas == []
+
+
+def test_cada_canal_desligado_cala_so_o_que_ele_escreve() -> None:
+    assert _sustos(_escrito({"canal_som": False}, SUSTO, 19_000)) == (False, True)
+    assert _sustos(_escrito({"canal_haptica": False}, SUSTO, 19_000)) == (True, False)
+    assert not _escrito({"canal_gatilho": False}, GOLPE, 600).de("gatilho.set")
+    assert _escrito({}, GOLPE, 600).de("gatilho.set")
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    assert not [m for m in _motores(_escrito({"canal_motor": False}, estalo, 600)) if m[1]]
+    assert not _escrito({"canal_leds": False, "lado_na_luz": True}, estalo, 600).de("leds.set")
+    assert not _escrito({"canal_luz": False}, RAJADA, 2000, QUATRO_CONTROLES).de("luz.set")
+
+
+def test_cada_sentido_desligado_para_o_que_vem_dele() -> None:
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    assert not [m for m in _motores(_escrito({"sentido_som": False}, estalo, 600)) if m[1]]
+    assert not _escrito({"sentido_vibracao": False}, RAJADA, 2000, QUATRO_CONTROLES).de("luz.set")
+    assert not _coracoes(_escrito({"sentido_microfone": False}, TENSO, 20_000))
+    assert not _escrito({"sentido_golpe": False}, GOLPE, 600).de("gatilho.set")
+    dano = [(1000, tela(0.8, 1.0))]
+    assert not _escrito({}, dano, 1500).de("luz.set")
+    assert _escrito({"sentido_tela": True}, dano, 1500).de("luz.set")
+
+
+def test_cada_efeito_da_aba_efeitos_muda_o_que_sai() -> None:
+    estalo = [(200, som("esquerdo", 0.4, 0.2))]
+    assert _primeiro_estalo(_escrito({"golpe_com_lado": 40}, estalo, 600)) == round(0.4 * 255)
+    assert _sustos(_escrito({"susto_no_alto_falante": False}, SUSTO, 19_000)) == (False, True)
+    assert _sustos(_escrito({"susto_no_tato": False}, SUSTO, 19_000)) == (True, False)
+    assert not _escrito({"impacto_nos_gatilhos": False}, GOLPE, 600).de("gatilho.set")
+    assert not _escrito({"luz_do_dano": False}, RAJADA, 2000, QUATRO_CONTROLES).de("luz.set")
+    assert not _coracoes(_escrito({"coracao": 0}, TENSO, 20_000))  # (noqa-acento)
+    forte, fraco = (max(p["forca"] for t, p in _escrito({"coracao": c}, TENSO, 20_000).de(  # (noqa-acento)
+        "haptica.tocar") if p["id"] == "coracao") for c in (100, 50))  # (noqa-acento)
+    assert fraco == pytest.approx(forte / 2, rel=0.05)
+
+
+def test_o_clima_tenso_mais_baixo_liga_o_coracao_mais_cedo() -> None:
+    cedo, padrao = (_coracoes(_escrito({"clima": c}, TENSO, 20_000)) for c in (10, 35))
+    assert cedo and padrao and cedo[0] < padrao[0]
+    assert not _coracoes(_escrito({"clima": 90}, TENSO, 20_000))
+
+
+def test_o_golpe_vai_para_todos_os_controles_quando_a_janela_pede() -> None:
+    so_quem, todos = (_escrito({ajustes.PARA_QUEM: p}, RAJADA, 2000, QUATRO_CONTROLES)
+                      for p in ajustes.ESCOLHAS_DE_PARA_QUEM)
+    assert {p["uniq"] for _, p in so_quem.de("luz.set")} == {TRES}
+    assert {p["uniq"] for _, p in todos.de("luz.set")} == {UM, DOIS, TRES, QUATRO}
+
+
+class _Porta:
+    def __init__(self) -> None:
+        self.pedidos: list[tuple[str, dict[str, Any]]] = []
+
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.pedidos.append((metodo, params))
+        return {}
+
+
+def test_o_botao_procurar_receitas_da_aba_receitas_procura_na_hora() -> None:
+    extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal())  # type: ignore[arg-type]
+    pedidos: list[bool] = []
+    extensao.procurar_em_fundo = lambda agora=False: pedidos.append(agora)  # type: ignore[method-assign]
+
+    async def corpo() -> None:
+        for acao in ("outra", servidor.ACAO_DE_PROCURAR):
+            await extensao.ao_evento({"method": "evento", "params": {
+                "topico": "extensao.acao", "nome": "extensao.acao", "uniq": None,
+                "dados": {"mod": "modo-imersao", "acao": acao, "alvo": None}}})  # (noqa-acento)
+
+    asyncio.run(corpo())
+    assert pedidos == [True]

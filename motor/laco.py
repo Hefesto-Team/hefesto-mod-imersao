@@ -17,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import opcoes as ajustes
 import sentidos as universais
 from efeitos import luzes
 from motor import efeitos as catalogo
@@ -257,7 +258,7 @@ class Motor:
 
     def _alvos(self, regra: dict[str, Any], indice: int) -> tuple[str, ...]:
         para = regra.get("para", "todos")
-        if para == "todos":
+        if para == "todos" or (para == "quem_levou" and ajustes.para_todos(self.opcoes)):
             return tuple(sorted(self.jogadores))
         if para == "quem_levou":
             no = self.receita.expressoes[("regras", indice, "quando")]
@@ -320,10 +321,16 @@ class Motor:
     def _pedidos(self, ativa: Ativacao) -> list[Pedido]:
         efeito = self.receita.secao("efeitos")[ativa.efeito]
         canal = efeito["canal"]
+        escala = ajustes.forca(self.opcoes)
+        if escala <= 0 or canal in ajustes.canais_calados(self.opcoes):
+            return []
         caminho = ("efeitos", ativa.efeito)
         params: dict[str, Any] = {"inicio_ms": ativa.inicio_ms}
         if canal in ("motor", "haptica"):
-            forca = self._numero(efeito.get("forca", 1.0), (*caminho, "forca"), 0.0, 1.0, 1.0)
+            forca = self._numero(efeito.get("forca", 1.0), (*caminho, "forca"), 0.0, 1.0,
+                                 1.0) * escala
+            if forca <= 0:
+                return []
             params["forca"] = forca
             if canal == "haptica":
                 params["padrao"] = efeito["padrao"]  # (noqa-acento)
@@ -332,12 +339,13 @@ class Motor:
             lado = efeito.get("lado", "ambos")
             lados = ["esquerdo", "direito"] if lado == "ambos" else [lado]
         elif canal == "gatilho":
+            efeito = catalogo.gatilho_na_escala(efeito, escala)
             forca = catalogo.forca_do_gatilho(efeito)
             params["trigger"] = catalogo.para_o_trigger_set(efeito)
             lados = ["esquerdo", "direito"] if efeito["lado"] == "ambos" else [
                 "esquerdo" if efeito["lado"] == "l2" else "direito"]
         elif canal == "luz":
-            brilho = float(efeito.get("brilho", 1.0))
+            brilho = float(efeito.get("brilho", 1.0)) * escala
             forca = catalogo.forca_da_luz(efeito["cor"], brilho)
             params.update(rgb=catalogo.rgb(efeito["cor"]), brilho=brilho)
             lados = ["-"]
@@ -348,7 +356,7 @@ class Motor:
                           ate_ms=luzes.prazo(fim - ativa.inicio_ms))
             lados = ["-"]
         else:
-            forca = float(efeito.get("volume", 1.0))
+            forca = float(efeito.get("volume", 1.0)) * escala
             params.update(som=efeito["som"], volume=forca)
             if efeito["som"] == "recorte":
                 if ativa.t_do_jogo is None:
@@ -369,6 +377,11 @@ class Motor:
         for leitura in self.leituras.values():
             leitura.disparou = False
         fila, self._fila = self._fila, []
+        calados = ajustes.topicos_calados(self.opcoes)
+        fila = [e for e in fila if e.topico not in calados]
+        for ident, sentido in self.sentidos.items():
+            if sentido["de"] in calados:
+                self.leituras[ident].valor = 0.0
         derivados: list[universais.Derivado] = []
         for sentido in self.universais:
             derivados += sentido.tique(t_ms, self.jogadores, self.vibrando(t_ms))
@@ -378,7 +391,8 @@ class Motor:
                 if evento.topico in sentido.origens:
                     derivados += sentido.ler(evento.topico, evento.nome, evento.uniq,
                                              evento.dados, t_ms)
-        fila += [_Evento(d.topico, d.nome, d.uniq, d.dados) for d in derivados]
+        fila += [_Evento(d.topico, d.nome, d.uniq, d.dados) for d in derivados
+                 if d.topico not in calados]
         for evento in fila:
             self._ler_evento(evento)
         self._calcular(t_ms)

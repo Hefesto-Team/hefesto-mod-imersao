@@ -129,3 +129,22 @@ def rgb(cor: str) -> list[int]:
 def forca_da_luz(cor: str, brilho: float) -> float:
     """O canal mais aceso vezes o brilho, de 0 a 1."""
     return max(rgb(cor)) / 255 * brilho
+
+
+_FORCAS_DO_GATILHO = ("forca", "amplitude", "forca_inicio", "forca_fim")
+_ZONAS_DO_GATILHO = ("forcas", "amplitudes")
+
+
+def gatilho_na_escala(efeito: dict[str, Any], escala: float) -> dict[str, Any]:
+    """O efeito de gatilho com as forças vezes ``escala`` (a Força da janela); a força que o modo
+    exige fica em 1 no mínimo, e a zona vazia segue vazia."""
+    if escala >= 1.0:
+        return efeito
+    novo = dict(efeito)
+    for campo in _FORCAS_DO_GATILHO:
+        if campo in novo:
+            novo[campo] = max(1, round(novo[campo] * escala))
+    for campo in _ZONAS_DO_GATILHO:
+        if campo in novo:
+            novo[campo] = [round(v * escala) for v in novo[campo]]
+    return novo

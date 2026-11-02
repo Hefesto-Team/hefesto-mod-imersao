@@ -218,7 +218,7 @@ def tela(dano: float, t_s: float) -> Evento:
 
 
 def test_o_dano_na_tela_pinta_de_vermelho_todos_os_controles_e_o_fraco_nao() -> None:
-    motor, porta = _universal(QUATRO_CONTROLES), EscritasDeMentira()
+    motor, porta = _universal(QUATRO_CONTROLES, {"sentido_tela": True}), EscritasDeMentira()
     _correr(motor, porta, 3000, [(500, tela(0.3, 0.5)), (1000, tela(0.8, 1.0)),
                                  (1100, tela(0.9, 1.1)), (2000, tela(0.1, 2.0))])
     vermelhos = [(round(t), p["uniq"]) for t, p in porta.de("luz.set") if p["rgb"] == [255, 0, 0]]

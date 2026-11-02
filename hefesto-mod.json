@@ -41,6 +41,19 @@
   ],
   "opcoes": [
     {
+      "id": "forca_geral",
+      "rotulo": "Força",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Geral",
+      "dica": "Tudo o que a extensão escreve no controle; em 0, nada",
+      "zero": "Nada"
+    },
+    {
       "id": "receita",
       "rotulo": "Receita",
       "tipo": "escolha",
@@ -49,14 +62,215 @@
         "Universal"
       ],
       "padrao": "Pelo jogo",
+      "grupo": "Geral",
       "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+    },
+    {
+      "id": "para_quem",
+      "rotulo": "O golpe vai para",
+      "tipo": "escolha",
+      "escolhas": [
+        "Quem levou",
+        "Todos os controles"
+      ],
+      "padrao": "Quem levou",
+      "grupo": "Geral",
+      "dica": "O dano e o impacto no gatilho vão só ao controle que levou, ou a todos"
+    },
+    {
+      "id": "sentido_som",
+      "rotulo": "Som do jogo",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "Os estalos do som do jogo, com o lado, sem receber o áudio"
+    },
+    {
+      "id": "sentido_vibracao",
+      "rotulo": "Vibração do jogo",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O batimento, a rajada e o dano que o jogo pede ao motor"
+    },
+    {
+      "id": "sentido_microfone",
+      "rotulo": "Microfone",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "Só o nível do microfone do controle, nunca a voz"
+    },
+    {
+      "id": "sentido_parado",
+      "rotulo": "Controle parado",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O controle imóvel na mão soma ao clima tenso"
+    },
+    {
+      "id": "sentido_tela",
+      "rotulo": "Tela",
+      "tipo": "ligado",
+      "padrao": false,
+      "grupo": "Sentidos",
+      "dica": "O dano e o clarão na tela, pelo portal; o sistema pergunta na primeira vez"
+    },
+    {
+      "id": "sentido_golpe",
+      "rotulo": "Golpe no gatilho",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O gatilho apertado no instante do pulso do jogo"
+    },
+    {
+      "id": "coracao",
+      "rotulo": "Coração",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "dica": "O batimento na vibração fina quando a cena fica tensa",
+      "zero": "Desligado"
+    },
+    {
+      "id": "alivio",
+      "rotulo": "Alívio",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "dica": "O batimento lento quando a tensão passa",
+      "zero": "Desligado"
+    },
+    {
+      "id": "golpe_com_lado",
+      "rotulo": "Golpe com lado",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 70,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "dica": "O motor do lado do estalo forte",
+      "zero": "Desligado"
     },
     {
       "id": "lado_na_luz",
       "rotulo": "Lado na luz",
       "tipo": "ligado",
       "padrao": false,
+      "grupo": "Efeitos",
       "dica": "As luzes de jogador acendem do lado do golpe por um instante"
+    },
+    {
+      "id": "luz_do_dano",
+      "rotulo": "Luz do dano",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "A barra de luz fica vermelha no dano"
+    },
+    {
+      "id": "susto_no_alto_falante",
+      "rotulo": "Susto no alto-falante",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O estalo do jogo no alto-falante, no susto com a cena tensa"
+    },
+    {
+      "id": "susto_no_tato",
+      "rotulo": "Susto no tato",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "Um tranco na vibração fina, no susto com a cena tensa"
+    },
+    {
+      "id": "impacto_nos_gatilhos",
+      "rotulo": "Impacto nos gatilhos",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O gatilho treme no golpe dado com ele"
+    },
+    {
+      "id": "clima",
+      "rotulo": "Clima tenso a partir de",
+      "tipo": "deslizante",
+      "minimo": 10,
+      "maximo": 90,
+      "passo": 5,
+      "padrao": 35,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "dica": "Quanto menor, mais cedo a cena fica tensa e o coração bate"
+    },
+    {
+      "id": "peso_da_mira",
+      "rotulo": "Peso da mira",
+      "tipo": "ligado",
+      "padrao": false,
+      "grupo": "Efeitos",
+      "dica": "O perigo deixa a mira do giroscópio mais pesada por instantes"
+    },
+    {
+      "id": "canal_haptica",
+      "rotulo": "Vibração fina",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "O coração, o alívio e o susto no tato"
+    },
+    {
+      "id": "canal_motor",
+      "rotulo": "Motores",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "O golpe com lado"
+    },
+    {
+      "id": "canal_gatilho",
+      "rotulo": "Gatilhos",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "O impacto nos gatilhos"
+    },
+    {
+      "id": "canal_luz",
+      "rotulo": "Barra de luz",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "A luz do dano"
+    },
+    {
+      "id": "canal_leds",
+      "rotulo": "Luzes de jogador",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "O lado na luz"
+    },
+    {
+      "id": "canal_som",
+      "rotulo": "Alto-falante",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Canais",
+      "dica": "O susto no alto-falante"
     }
   ],
   "agora": [
@@ -75,5 +289,18 @@
         "10"
       ]
     }
-  ]
+  ],
+  "acoes": [
+    {
+      "id": "procurar",
+      "rotulo": "Procurar receitas",
+      "grupo": "Receitas",
+      "icone": "procurar"
+    }
+  ],
+  "pagina": {
+    "arquivo": "estudio/pagina/estudio.html",
+    "rotulo": "Ensinar este jogo",
+    "altura_max": 420
+  }
 }
