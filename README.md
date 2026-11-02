@@ -58,6 +58,12 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   A receita nunca declara o caminho.
 - A saída escreve só o que mudou, sob o teto do tato vivo (12 escritas por segundo por controle,
   40 no total); o zero que solta passa sempre.
+- O peso da mira sai pelo `mira.peso`, fora do teto do tato vivo: o pedido vale 800 ms e se
+  renova a cada 500 ms enquanto o efeito vale; com o ganho em 1, nada se pede, e o Hefesto
+  devolve a mira no prazo. O «Peso da mira» da aba Efeitos (nasce ligado), a Força, «O golpe vai
+  para» e o controle calado valem para ele como para os outros canais. A recusa `-32013` (o jogo
+  com anticheat, ou o controle fora do modo da extensão) cala a mira daquele controle até o jogo
+  trocar, sem repetir o pedido; a porta sem o método cala o canal, com uma linha no diário.
 
 ## A receita (formato 1)
 
@@ -73,7 +79,7 @@ gramática recusam, sempre com a linha.
 | `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar` |
 | `derivados` | uma expressão, ou um acumulador (`sobe_com`, `passo`, `meia_vida_ms`) |
 | `estados` | `quando`, `histerese`, `minimo_ms` |
-| `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo), `leds` (as luzes de jogador do lado, até 600 ms) |
+| `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo), `leds` (as luzes de jogador do lado, até 600 ms), `mira` (o `ganho` do giroscópio, de 0,3 a 1, pelo `mira.peso`) |
 | `regras` | `quando`, `entao`, `senao`, `prioridade`, `espera_ms` (número ou expressão), `para` (`todos`, `quem_levou` ou `p1`..`p4`) |
 | `confere` | a faixa esperada de um sentido, ou a concordância entre dois |
 
@@ -96,7 +102,8 @@ daquele lado (e as luzes de jogador do lado, com «Lado na luz», que nasce desl
 rumble pinta a barra de vermelho no controle que levou; o golpe dado pede o impacto no gatilho que
 atacou; a tensão (o batimento do rumble, o dano recente, o silêncio longo e o controle parado na
 mão, juntos) toca o coração de 60 a 140 bpm, e o barulho súbito no microfone o acalma; o estalo
-forte com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante.
+forte com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante. O perigo
+(a tensão e o dano recente) pesa a mira de 1 a 0,6, e o alívio a devolve.
 
 ## As receitas estudadas
 
@@ -104,7 +111,8 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
 
 - `minecraft-dungeons-ii.json` (Steam 1912410): o jogo manda nos gatilhos; a receita soma o coração
   pelo batimento do rumble, o susto, o lado pelo som, a barra vermelha na rajada e o impacto do
-  golpe, que só troca o gatilho do jogo quando é mais forte. Sem memória.
+  golpe, que só troca o gatilho do jogo quando é mais forte, e pesa a mira de 1 a 0,6 no perigo.
+  Sem memória.
 
 ## O Estúdio
 

@@ -19,7 +19,7 @@ from typing import Any
 
 import opcoes as ajustes
 import sentidos as universais
-from efeitos import luzes
+from efeitos import luzes, peso_da_mira
 from motor import efeitos as catalogo
 from motor.arbitragem import Pedido, Vaga, decidir
 from motor.caminho import Caminho
@@ -101,6 +101,8 @@ class Motor:
         self.opcoes = dict(opcoes or {})
         self.jogadores: dict[str, int] = {}
         self.calados: frozenset[str] = frozenset()
+        self.jogo: str | None = None
+        self.mira_recusada: frozenset[str] = frozenset()
         self._fila: list[_Evento] = []
         self.caminho = Caminho()
         self.vencedores: dict[Vaga, Pedido] = {}
@@ -144,8 +146,13 @@ class Motor:
         self._fila.append(_Evento(topico, nome, uniq, dados if isinstance(dados, dict) else {}))
 
     def recusado(self, chave: Vaga, params: dict[str, Any], dados: Any) -> None:
-        """A porta recusou com ``-32011`` a escrita da :class:`~motor.saida.Saida` em ``chave``."""
+        """A porta recusou a escrita da :class:`~motor.saida.Saida` em ``chave``: com ``-32011``,
+        mais fraca que o jogo; no ``mira.peso``, com ``-32013``, e a mira desse controle se cala até
+        o jogo mudar."""
         uniq, canal, _ = chave
+        if canal == "mira":
+            self.mira_recusada |= {uniq}
+            return
         if canal == "vibracao":
             for lado_do_motor, nome in (("esquerdo", "forte"), ("direito", "fraco")):
                 forca = params.get(nome, 0) / 255
@@ -364,6 +371,16 @@ class Motor:
             forca = catalogo.forca_da_luz(cor, brilho)
             params.update(rgb=catalogo.rgb(cor), brilho=brilho)
             lados = ["-"]
+        elif canal == "mira":
+            if not ajustes.ligado(self.opcoes, peso_da_mira.OPCAO, peso_da_mira.PADRAO):
+                return []
+            ganho = peso_da_mira.ganho(self._numero(
+                efeito["ganho"], (*caminho, "ganho"), peso_da_mira.GANHO_MINIMO, 1.0, 1.0), escala)
+            if not peso_da_mira.pesa(ganho):
+                return []
+            forca = 1.0 - ganho
+            params["ganho"] = ganho
+            lados = ["-"]
         elif canal == "leds":
             forca = 1.0
             fim = ativa.fim_ms if ativa.fim_ms is not None else ativa.inicio_ms
@@ -381,8 +398,12 @@ class Motor:
         prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
         return [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade, ativa.inicio_ms,
                        ativa.regra, params)
-                for uniq in ativa.alvos if uniq in self.jogadores and uniq not in self.calados
-                for lado in lados]
+                for uniq in ativa.alvos if self._sente(uniq, canal) for lado in lados]
+
+    def _sente(self, uniq: str, canal: str) -> bool:
+        """O controle conectado, que a janela não calou e, na mira, que a porta não recusou."""
+        return (uniq in self.jogadores and uniq not in self.calados
+                and not (canal == "mira" and uniq in self.mira_recusada))
 
     def clima(self) -> int:
         """A tensão da cena agora, de 0 a 10: o derivado do clima da receita, ou 0 sem ele."""
@@ -397,6 +418,11 @@ class Motor:
         for leitura in self.leituras.values():
             leitura.disparou = False
         fila, self._fila = self._fila, []
+        for evento in fila:
+            jogo = evento.dados.get("jogo") if evento.topico == "perfil.jogo" else self.jogo
+            if jogo != self.jogo:
+                self.jogo = jogo if isinstance(jogo, str) else None
+                self.mira_recusada = frozenset()
         calados = ajustes.topicos_calados(self.opcoes)
         fila = [e for e in fila if e.topico not in calados]
         for ident, sentido in self.sentidos.items():

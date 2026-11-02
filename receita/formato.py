@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import sentidos as universais
-from efeitos import luzes
+from efeitos import luzes, peso_da_mira
 from receita import expressao
 from receita.json_com_linhas import Caminho, JsonRecusado, ler, linha_de
 
@@ -45,7 +45,7 @@ TOPICOS_GLOBAIS = ("perfil.jogo", "jogo.som", "jogo.tela", "jogo.memoria", "jogo
 TOPICOS = TOPICOS_POR_CONTROLE + TOPICOS_GLOBAIS
 PERMISSOES = tuple(f"ler:{t}" for t in TOPICOS)
 TOPICOS_DOS_SENTIDOS = universais.TOPICOS
-CANAIS = ("haptica", "motor", "gatilho", "luz", "som", "leds")
+CANAIS = ("haptica", "motor", "gatilho", "luz", "som", "leds", "mira")
 PADROES_PCM = ("coracao", "susto", "estalo")  # (noqa-acento)
 SONS = ("susto", "estalo", "recorte")
 LADOS = ("esquerdo", "direito", "ambos")
@@ -432,6 +432,8 @@ _EFEITO = Discriminado("canal", {
                    volume=Real(0.0, 1.0)),
     "leds": estrito(("canal", "lado"), canal=Texto(escolhas=CANAIS), lado=Texto(escolhas=LADOS),
                     dura_ms=Inteiro(1, luzes.PRAZO_MAXIMO_MS)),
+    "mira": estrito(("canal", "ganho"), canal=Texto(escolhas=CANAIS),
+                    ganho=RealOuExpressao(peso_da_mira.GANHO_MINIMO, 1.0), dura_ms=_DURA),
 })
 
 _EFEITO_ID = Texto(32, ID)
@@ -713,7 +715,7 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
 
     for ident, efeito in efeitos.items():
         caminho = ("efeitos", ident)
-        for campo in ("forca", "bpm"):
+        for campo in ("forca", "bpm", "ganho"):
             if isinstance(efeito.get(campo), str):
                 no = _expressao(efeito[campo], (*caminho, campo), erros, analisadas)
                 if no is not None:

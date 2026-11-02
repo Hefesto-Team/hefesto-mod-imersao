@@ -80,7 +80,8 @@ def test_o_coracao_com_a_tensao_subindo_devagar_escreve_no_maximo_4_por_segundo(
     coracao = [t for t, p in porta.de("haptica.tocar") if p["id"] == "coracao"]  # (noqa-acento)
     assert coracao and coracao[0] < 15_000
     assert _no_maximo_por_segundo(coracao) <= 4
-    antes_do_estalo = [t for t, _, p in porta.escritas if p["uniq"] == UM and t < ESTALO_MS]
+    antes_do_estalo = [t for t, m, p in porta.escritas
+                       if p["uniq"] == UM and t < ESTALO_MS and m != "mira.peso"]
     assert _no_maximo_por_segundo(antes_do_estalo) <= 4
 
 

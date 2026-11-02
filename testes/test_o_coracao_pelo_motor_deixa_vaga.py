@@ -93,7 +93,8 @@ def test_o_coracao_pelo_motor_do_universal_nunca_passa_do_teto_menos_a_vaga() ->
     batidas = [t for t, _ in porta.de("vibracao.set") if t < ESTALO_MS]
     assert len(batidas) > 100
     assert _no_maximo_por_segundo(batidas) <= TETO_DA_BATIDA
-    antes_do_estalo = [t for t, _, p in porta.escritas if p["uniq"] == UM and t < ESTALO_MS]
+    antes_do_estalo = [t for t, m, p in porta.escritas
+                       if p["uniq"] == UM and t < ESTALO_MS and m != "mira.peso"]
     assert _no_maximo_por_segundo(antes_do_estalo) <= TETO_DA_BATIDA
 
 

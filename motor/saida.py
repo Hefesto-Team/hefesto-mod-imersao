@@ -4,14 +4,17 @@ Cada tique recebe o vencedor de cada vaga e escreve a diferença: ``vibracao.set
 esquerdo é o ``forte``, o direito o ``fraco``, e o par se renova antes dos 3 s da porta),
 ``gatilho.set`` com os nomes do ``trigger.set``, ``luz.set``, ``haptica.tocar``, ``som.tocar`` (o
 som da caixa pelo id, ou o recorte do estalo do jogo pelo ``t`` do ``jogo.som``) e ``leds.set``
-(as luzes de jogador por máscara e prazo). O teto é o do tato vivo, 12 escritas por segundo em
+(as luzes de jogador por máscara e prazo) e ``mira.peso`` (o ganho do giroscópio, com prazo, renovado
+enquanto o efeito vale e fora do teto, que é do tato). O teto é o do tato vivo, 12 escritas por segundo em
 cada controle e 40 no total: o que passa espera o tique seguinte, e o valor mais novo é o que sai.
 Quando a porta não conhece ``haptica.tocar``, o padrão cai no motor, pelo envelope, e quem pediu
 o mede de novo contra o motor do jogo (``pelo_motor``); quando não
 conhece ``som.tocar`` ou ``leds.set``, aquele efeito se cala. A escrita que a porta recusa com
 ``-32011`` (mais fraca que o pedido vivo no canal) não ficou escrita: ela vai a quem a pediu, o
 mesmo valor não se repete enquanto continuar pedido, e a conta volta ao que a porta aceitou antes,
-que segue no controle e recebe o zero quando o canal se solta ou a extensão sai.
+que segue no controle e recebe o zero quando o canal se solta ou a extensão sai. O ``mira.peso``
+recusado com ``-32013`` (o jogo de anticheat sem a chave) vai a quem o pediu e não se repete, e a
+porta que não o conhece (ou não deu a permissão) cala o peso da mira.
 
 Um pedido vivo que só anda nos parâmetros contínuos (força, batimento, brilho) só se reescreve
 quando a mudança se sente: um degrau de :data:`DEGRAUS` desde o que está no controle, no máximo uma
@@ -28,6 +31,7 @@ from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from efeitos import peso_da_mira
 from motor import efeitos as catalogo
 from motor.arbitragem import Pedido, Vaga
 
@@ -38,6 +42,8 @@ RENOVA_MS = 2500.0
 ATE_MS_DA_HAPTICA = 3000
 METODO_DESCONHECIDO = -32601
 MAIS_FRACO = -32011
+SEM_PERMISSAO = -32010
+NAO_ESCREVEU = -32013
 DEGRAUS = {"forca": 0.05, "bpm": 4.0, "brilho": 0.05}
 INTERVALO_DO_DEGRAU_MS = 250.0
 VAGA_DO_EVENTO = 4
@@ -64,6 +70,7 @@ class Saida:
         self.sem_haptica = False
         self.sem_som = False
         self.sem_leds = False
+        self.sem_mira = False
         self._tocados: set[tuple[str, str, float]] = set()
         self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
         self._degrau_em: dict[tuple[str, str], float] = {}
@@ -188,6 +195,9 @@ class Saida:
                     som["t"] = p["t"]
                 desejo[(uniq, "som", "-")] = ("som.tocar", {**som, "inicio_ms": p["inicio_ms"]},
                                               False)
+            elif canal == "mira":
+                desejo[(uniq, "mira", "-")] = ("mira.peso",
+                                               peso_da_mira.pedido(uniq, p["ganho"]), False)
             elif canal == "leds":
                 desejo[(uniq, "leds", "-")] = ("leds.set", {
                     "uniq": uniq, "mascara": p["mascara"], "ate_ms": p["ate_ms"],
@@ -234,9 +244,15 @@ class Saida:
             if self.sem_haptica:
                 desejo = self._desejado(t_ms, self._pelo_motor(vencedores))
         vivos: set[tuple[str, str, float]] = set()
+        for chave in [c for c in self.escrito if c[1] == "mira" and c not in desejo]:
+            del self.escrito[chave]
         for chave in sorted(desejo):
             metodo, params, zero = desejo[chave]
             if metodo == "haptica.tocar":
+                continue
+            if metodo == "mira.peso":
+                if not self.sem_mira:
+                    await self._pesar(t_ms, chave, params)
                 continue
             if metodo in ("som.tocar", "leds.set"):
                 marca = (chave[0], metodo, params.pop("inicio_ms"))
@@ -280,6 +296,28 @@ class Saida:
             return True
         await self._escrever(t_ms, chave, "haptica.tocar", params, zero)
         return not self.sem_haptica
+
+    async def _pesar(self, t_ms: float, chave: Chave, params: dict[str, Any]) -> None:
+        if self.recusados.get(chave) == params:
+            return
+        antes = self.escrito.get(chave)
+        if antes is not None and antes[1] == params and t_ms - antes[0] < peso_da_mira.RENOVA_MS:
+            return
+        self.escrito[chave] = (t_ms, params)
+        try:
+            await self._pedir("mira.peso", params)
+        except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
+            codigo = getattr(exc, "codigo", None)  # (noqa-acento)
+            if codigo == NAO_ESCREVEU:
+                self._desfazer(chave, antes)
+                self.recusados[chave] = params
+                self._recusado(chave, params, getattr(exc, "dados", None))
+            elif codigo in (METODO_DESCONHECIDO, SEM_PERMISSAO):
+                self.sem_mira = True
+                self._desfazer(chave, antes)
+                self._diario("a porta não pesa a mira: o peso da mira fica calado")
+            else:
+                self._diario(f"mira.peso recusado: {exc}")
 
     async def soltar_tudo(self, t_ms: float) -> None:
         """O zero em tudo que ficou escrito: a extensão que sai não deixa o controle vibrando.

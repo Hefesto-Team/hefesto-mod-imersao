@@ -67,7 +67,9 @@
     "impacto_no_r2": {"canal": "gatilho", "modo": "vibracao", "lado": "r2", "posicao": 2,
                       "amplitude": 6, "frequencia": 40, "dura_ms": 150},
     "impacto_no_l2": {"canal": "gatilho", "modo": "vibracao", "lado": "l2", "posicao": 2,
-                      "amplitude": 6, "frequencia": 40, "dura_ms": 150}
+                      "amplitude": 6, "frequencia": 40, "dura_ms": 150},
+    "peso_da_mira": {"canal": "mira",
+                     "ganho": "mapeia(max(tensao, dano_do_rumble), 0, 1, 1, 0.6)"}
   },
   "regras": [
     {"quando": "tenso", "entao": "coracao", "para": "todos"},
@@ -84,6 +86,7 @@
     {"quando": "golpe_no_r2 e $impacto_nos_gatilhos", "entao": "impacto_no_r2",
      "para": "quem_levou"},
     {"quando": "golpe_no_l2 e $impacto_nos_gatilhos", "entao": "impacto_no_l2",
-     "para": "quem_levou"}
+     "para": "quem_levou"},
+    {"quando": "tenso", "entao": "peso_da_mira", "para": "todos"}
   ]
 }

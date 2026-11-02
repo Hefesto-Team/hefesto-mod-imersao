@@ -36,6 +36,7 @@
     "escrever:haptica",
     "escrever:som",
     "escrever:leds",
+    "escrever:mira",
     "publicar:acessorios.estado",
     "rede:internet"
   ],
@@ -243,7 +244,7 @@
       "id": "peso_da_mira",
       "rotulo": "Peso da mira",
       "tipo": "ligado",
-      "padrao": false,
+      "padrao": true,
       "grupo": "Efeitos",
       "dica": "O perigo deixa a mira do giroscópio mais pesada por instantes"
     },

@@ -22,6 +22,10 @@
   da cena ao vivo.
 - A cor do dano e o intervalo do susto se ajustam na aba Efeitos; no padrão (vermelho e 5 s), a
   extensão escreve o mesmo de antes.
+- O Modo imersão pesa a mira pela receita: no universal e no Minecraft Dungeons II, o perigo e o
+  dano recente deixam o giroscópio de 1 a 0,6, e o alívio o devolve. O «Peso da mira» da aba
+  Efeitos nasce ligado, e o manifesto pede `escrever:mira`; o jogo que recusa o peso o cala até
+  o jogo trocar, sem derrubar a extensão.
 
 ## 0.4.8 (02/11/2026)
 
