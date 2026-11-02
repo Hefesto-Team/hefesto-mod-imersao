@@ -1,5 +1,17 @@
 # Mudanças
 
+## 0.4.2 (02/11/2026)
+
+- O Estúdio caça o que o jogo esconde (`estudio/cacador.py`, página em `estudio/pagina/`): o botão
+  «Ensinar este jogo» guia com frases curtas («perca vida agora», «agora não faça nada», «recupere
+  vida»), e o gesto se marca pelo botão do meio. Três caçadores, com a mesma regra (guarda o que
+  muda com o gesto e descarta o que muda sem ele): o valor da memória, só com a chave «Memória» do
+  jogo ligada, pela varredura de candidatos da porta; a impressão do estalo, em números de até
+  4 KB, nunca o áudio; e a região da tela, em frações de 0 a 1. O achado vira um `estado` na
+  receita de quem joga, com o nome dado, e a receita só se grava validada.
+- O formato da receita ganha a `impressao` no evento de `jogo.som` e a `regiao` no nível de
+  `jogo.tela`; o motor reconhece o estalo pela impressão e lê a memória pelo nome do sentido.
+
 ## 0.4.1 (02/11/2026)
 
 - O pedido vivo (o coração, a luz, a vibração contínua) só se reescreve quando o degrau muda (força de 0,05 em
@@ -21,15 +33,6 @@
   do estudo, sem memória: o coração em dois degraus pelo batimento do rumble do jogo, o susto pelo
   estalo forte na cena tensa, o lado pelo som, a barra vermelha na rajada e o impacto do golpe no
   gatilho. Os gatilhos do jogo só cedem ao impacto mais forte que eles.
-- O Estúdio caça o que o jogo esconde (`estudio/cacador.py`, página em `estudio/pagina/`): o botão
-  «Ensinar este jogo» guia com frases curtas («perca vida agora», «agora não faça nada», «recupere
-  vida»), e o gesto se marca pelo botão do meio. Três caçadores, com a mesma regra (guarda o que
-  muda com o gesto e descarta o que muda sem ele): o valor da memória, só com a chave «Memória» do
-  jogo ligada, pela varredura de candidatos da porta; a impressão do estalo, em números de até
-  4 KB, nunca o áudio; e a região da tela, em frações de 0 a 1. O achado vira um `estado` na
-  receita de quem joga, com o nome dado, e a receita só se grava validada.
-- O formato da receita ganha a `impressao` no evento de `jogo.som` e a `regiao` no nível de
-  `jogo.tela`; o motor reconhece o estalo pela impressão e lê a memória pelo nome do sentido.
 - A coluna «Agora» da janela diz qual receita vale (`acessorios.estado`, no campo «Perfil»): a
   sua, a estudada, a da comunidade ou o universal.
 
