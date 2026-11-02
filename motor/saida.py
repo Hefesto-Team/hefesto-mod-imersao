@@ -17,6 +17,8 @@ Um pedido vivo que só anda nos parâmetros contínuos (força, batimento, brilh
 quando a mudança se sente: um degrau de :data:`DEGRAUS` desde o que está no controle, no máximo uma
 vez por :data:`INTERVALO_DO_DEGRAU_MS` em cada canal e controle, e só com :data:`VAGA_DO_EVENTO`
 escritas ainda livres no teto. O efeito novo, o zero e a passagem por zero saem no tique deles.
+A batida do padrão que se repete, desenhada no motor pelo envelope, passa pela mesma regra: só
+sai com :data:`VAGA_DO_EVENTO` escritas livres, e a que não cabe se adia, nunca o evento.
 """
 from __future__ import annotations
 
@@ -65,6 +67,8 @@ class Saida:
         self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
         self._degrau_em: dict[tuple[str, str], float] = {}
         self._no_tique: tuple[float, list[tuple[str, str]]] = (-1.0, [])
+        self._no_motor: dict[str, frozenset[tuple[Any, ...]]] = {}
+        self._motor_em_dia: dict[str, frozenset[tuple[Any, ...]]] = {}
 
     def _cabe(self, t_ms: float, uniq: str, reserva: int = 0,
               reserva_total: int | None = None) -> bool:
@@ -107,9 +111,9 @@ class Saida:
         return pedido.params
 
     async def _escrever(self, t_ms: float, chave: Chave, metodo: str,
-                        params: dict[str, Any], zero: bool = False) -> bool:
+                        params: dict[str, Any], zero: bool = False, reserva: int = 0) -> bool:
         uniq = chave[0]
-        if not zero and not self._cabe(t_ms, uniq):
+        if (reserva or not zero) and not self._cabe(t_ms, uniq, reserva):
             return False
         self.janela.append((t_ms, uniq))
         antes = self.escrito.get(chave)
@@ -149,14 +153,21 @@ class Saida:
                   ) -> dict[Chave, tuple[str, dict[str, Any], bool]]:
         desejo: dict[Chave, tuple[str, dict[str, Any], bool]] = {}
         motores: dict[str, dict[str, float]] = {}
+        no_motor: dict[str, set[tuple[Any, ...]]] = {}
         self._vivos = {vaga: vivo for vaga, vivo in self._vivos.items() if vaga in vencedores}
         grupos = Counter((uniq, canal) for uniq, canal, _ in vencedores)
         for (uniq, canal, lado), pedido in sorted(vencedores.items()):
             p = self._no_degrau(t_ms, (uniq, canal, lado), pedido, grupos[(uniq, canal)])
             if canal == "motor" or (canal == "haptica" and self.sem_haptica):
                 forca = p["forca"]
+                marca: tuple[Any, ...] = (canal, lado, pedido.efeito, pedido.inicio_ms,
+                                          pedido.regra, forca)
                 if canal == "haptica":
-                    forca *= catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"])  # (noqa-acento)
+                    envelope = catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"])  # (noqa-acento)
+                    forca *= envelope
+                    repete = catalogo.PADROES[p["padrao"]].repete  # (noqa-acento)
+                    marca += (p["bpm"],) if repete else (envelope,)
+                no_motor.setdefault(uniq, set()).add(marca)
                 atual = motores.setdefault(uniq, {"esquerdo": 0.0, "direito": 0.0})
                 atual[lado] = max(atual[lado], forca)
             elif canal == "haptica":
@@ -196,7 +207,18 @@ class Saida:
                                                  "params": []}, True)
             elif canal == "haptica" and params["forca"]:
                 desejo[chave] = ("haptica.tocar", {**params, "forca": 0.0, "ate_ms": 0}, True)
+        self._no_motor = {uniq: frozenset(marcas) for uniq, marcas in no_motor.items()}
         return desejo
+
+    def _batida(self, chave: Chave, antes: tuple[float, dict[str, Any]] | None,
+                params: dict[str, Any]) -> bool:
+        marca = self._no_motor.get(chave[0])
+        return (chave[1] == "vibracao" and marca is not None and antes is not None
+                and antes[1] != params and self._motor_em_dia.get(chave[0]) == marca)
+
+    def _em_dia(self, chave: Chave) -> None:
+        if chave[1] == "vibracao" and chave[0] in self._no_motor:
+            self._motor_em_dia[chave[0]] = self._no_motor[chave[0]]
 
     async def aplicar(self, t_ms: float, vencedores: dict[Vaga, Pedido]) -> None:
         """Escreve o que mudou desde o tique anterior, sob o teto."""
@@ -230,8 +252,16 @@ class Saida:
             vence = metodo == "vibracao.set" and antes is not None and not zero and (
                 t_ms - antes[0] >= RENOVA_MS)
             if antes is not None and antes[1] == params and not vence:
+                self._em_dia(chave)
                 continue
-            await self._escrever(t_ms, chave, metodo, params, zero)
+            reserva = VAGA_DO_EVENTO if self._batida(chave, antes, params) else 0
+            if await self._escrever(t_ms, chave, metodo, params, zero, reserva):
+                self._em_dia(chave)
+        for uniq in self._no_motor:
+            if (uniq, "vibracao", "-") not in desejo:
+                self._em_dia((uniq, "vibracao", "-"))
+        self._motor_em_dia = {uniq: marca for uniq, marca in self._motor_em_dia.items()
+                              if uniq in self._no_motor}
         self._tocados &= vivos
 
     @staticmethod
