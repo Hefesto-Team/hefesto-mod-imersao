@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from apoio import RAIZ, UM
+from apoio import DOIS, QUATRO, RAIZ, TRES, UM
 
 import servidor
 from motor.arbitragem import Pedido
@@ -152,6 +152,18 @@ def test_o_ultimo_efeito_sem_entrada_leva_o_nome_do_canal_e_o_antigo_nao_volta()
     assert extensao.ultimo_efeito == ("Susto no alto-falante", 20.0)
 
 
+def test_o_ultimo_efeito_vale_para_qualquer_controle_de_p1_a_p4() -> None:
+    extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal())  # type: ignore[arg-type]
+    extensao.relogio = lambda: 40.0
+    controles = [UM, DOIS, TRES, QUATRO]
+    pedidos = [Pedido(uniq, "haptica", "-", "coracao", 0.6, 0, 100.0 * n, 0)  # (noqa-acento)
+               for n, uniq in enumerate(controles[:3], 1)]
+    pedidos.append(Pedido(controles[3], "gatilho", "direito", "impacto_nos_gatilhos", 0.7, 0,
+                          900.0, 4))
+    extensao.anotar({p.vaga: p for p in pedidos})
+    assert extensao.ultimo_efeito == ("Impacto nos gatilhos", 40.0)
+
+
 def test_a_linha_dos_sentidos_cabe_no_valor_e_a_chave_desligada_sai_dela() -> None:
     assert servidor.lista_curta(["som", "vibração", "microfone", "parado", "tela", "golpe"]) == (
         "Som, vibração, microfone, parado, +2")
@@ -225,6 +237,8 @@ def test_a_janela_mostra_so_o_efeito_que_a_receita_tem_e_a_chave_da_memoria() ->
     assert efeitos([]) == set()
     assert efeitos([p for p in universal if p != "canal.mira"]) == EFEITOS_DO_UNIVERSAL - {
         "peso_da_mira"}
+    for efeito in EFEITOS_DO_UNIVERSAL - {"peso_da_mira"}:
+        assert efeito not in efeitos([p for p in universal if p != efeito]), efeito
     assert "cor_do_dano" not in efeitos(universal, {**padroes, "luz_do_dano": False})
     assert "memoria" in opcoes_do_hefesto.aparecem(lido, padroes, [])
 
