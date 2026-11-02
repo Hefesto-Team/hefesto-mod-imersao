@@ -1,5 +1,8 @@
 # Mudanças
 
+## 0.4.5 (02/11/2026)
+
+
 ## 0.4.4 (02/11/2026)
 
 - O Estúdio desenha a receita como grafo (`estudio/grafo.py`): sentido, derivado, estado, regra e
