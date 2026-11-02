@@ -1,7 +1,7 @@
 {
   "id": "imersao",
   "nome": "Modo imersão",
-  "versao": "0.3.1",
+  "versao": "0.4.0",
   "api": ">=2,<3",
   "licenca": "GPL-3.0-or-later",
   "descricao": "O jogo chega ao controle como no console: a receita de cada jogo lê o que acontece na cena e responde com a vibração, os gatilhos e a luz. Sem receita, vale o modo universal.",
@@ -28,7 +28,31 @@
     "escrever:luz",
     "escrever:vibracao",
     "escrever:gatilho",
+    "publicar:acessorios.estado",
     "rede:nenhuma"
+  ],
+  "opcoes": [
+    {
+      "id": "receita",
+      "rotulo": "Receita",
+      "tipo": "escolha",
+      "escolhas": [
+        "Pelo jogo",
+        "Universal"
+      ],
+      "padrao": "Pelo jogo",
+      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+    },
+    {
+      "id": "lado_na_luz",
+      "rotulo": "Lado na luz",
+      "tipo": "ligado",
+      "padrao": false,
+      "dica": "As luzes de jogador acendem do lado do golpe por um instante"
+    }
+  ],
+  "agora": [
+    "perfil"
   ],
   "modos_de_aba": [
     {

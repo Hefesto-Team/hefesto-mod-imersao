@@ -84,8 +84,18 @@ class Motor:
     """Uma receita viva: o que ela leu, os estados e os efeitos ativos."""
 
     def __init__(self, receita: Receita, opcoes: dict[str, Any] | None = None) -> None:
-        self.receita = receita
         self.opcoes = dict(opcoes or {})
+        self.jogadores: dict[str, int] = {}
+        self._fila: list[_Evento] = []
+        self.caminho = Caminho()
+        self.vencedores: dict[Vaga, Pedido] = {}
+        self.agora_ms = 0.0
+        self.haptica_pelo_motor = False
+        self._proxima: Receita | None = None
+        self._montar(receita)
+
+    def _montar(self, receita: Receita) -> None:
+        self.receita = receita
         self.sentidos: dict[str, Any] = receita.secao("sentidos")
         self.leituras = {ident: Leitura() for ident in self.sentidos}
         self.valores: dict[str, float] = {}
@@ -96,13 +106,15 @@ class Motor:
             for ident, d in receita.secao("derivados").items() if "acumula" in d}
         self.regras = [_Regra() for _ in receita.regras]
         self.ativas: list[Ativacao] = []
-        self.jogadores: dict[str, int] = {}
-        self._fila: list[_Evento] = []
         self.universais = universais.criar(s["de"] for s in self.sentidos.values())
-        self.caminho = Caminho()
-        self.vencedores: dict[Vaga, Pedido] = {}
-        self.agora_ms = 0.0
-        self.haptica_pelo_motor = False
+
+    def trocar(self, receita: Receita) -> None:
+        """A receita nova vale no tique seguinte; o que a velha escrevia a saída devolve ao jogo."""
+        self._proxima = receita
+
+    def ajustar(self, opcoes: dict[str, Any]) -> None:
+        """Os valores das opções da janela; a entrada sem valor volta ao padrão da receita."""
+        self.opcoes = dict(opcoes)
 
     def controles(self, lista: list[dict[str, Any]]) -> None:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
@@ -188,7 +200,15 @@ class Motor:
 
     def _ler_entrada(self, ident: str) -> float:
         entrada = self.receita.secao("entradas").get(ident, {})
-        valor = self.opcoes.get(ident, entrada.get("padrao", 0.0))  # (noqa-acento)
+        padrao = entrada.get("padrao", 0.0)  # (noqa-acento)
+        valor = self.opcoes.get(ident, padrao)
+        if entrada.get("tipo") == "ligado":
+            return float(valor if isinstance(valor, bool) else bool(padrao))
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+            valor = padrao
+        minimo, maximo = entrada.get("minimo"), entrada.get("maximo")  # (noqa-acento)
+        if minimo is not None and maximo is not None:
+            valor = min(float(maximo), max(float(minimo), float(valor)))
         return float(valor) if isinstance(valor, (int, float)) else 0.0
 
     def _avaliar(self, caminho: tuple[str | int, ...]) -> float:
@@ -326,6 +346,9 @@ class Motor:
     def passo(self, t_ms: float) -> dict[Vaga, Pedido]:
         """Um tique: lê os eventos, calcula a cena, roda as regras e decide cada vaga."""
         self.agora_ms = t_ms
+        if self._proxima is not None:
+            self._montar(self._proxima)
+            self._proxima = None
         for leitura in self.leituras.values():
             leitura.disparou = False
         fila, self._fila = self._fila, []

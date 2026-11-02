@@ -1,6 +1,6 @@
 [project]
 name = "hefesto-mod-imersao"
-version = "0.3.1"
+version = "0.4.0"
 description = "O Modo imersão do Hefesto: o motor de receitas que leva a cena do jogo ao controle"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"

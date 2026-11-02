@@ -38,7 +38,8 @@ def test_o_manifesto_vale_no_hefesto_e_o_modo_da_aba_espera_o_hefesto_que_o_conh
     assert manifesto.licenca == "GPL-3.0-or-later"
     assert do_hefesto.aceita_a_api(manifesto.api)
     assert "rede:nenhuma" in manifesto.permissoes
-    assert not [p for p in manifesto.permissoes if p.startswith("publicar:")]
+    assert [p for p in manifesto.permissoes if p.startswith("publicar:")] == [
+        "publicar:acessorios.estado"]
 
 
 def test_o_modo_da_aba_tem_a_forma_da_sprint_do_hefesto() -> None:
@@ -116,7 +117,7 @@ def test_o_processo_le_a_receita_assina_o_que_ela_usa_e_escreve_pela_porta(
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.metodos[:3] == ["mod.ola", "eventos.assinar", "controles.lista"]
     assert porta.de("mod.ola") == [{"ficha": "ficha-de-mentira"}]
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "jogo.vibracao"]}]  # (noqa-acento)
+    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "perfil.jogo", "jogo.vibracao"]}]  # (noqa-acento)
     assert porta.de("vibracao.set")[:2] == [{"uniq": UM, "fraco": 0, "forte": 255},
                                             {"uniq": UM, "fraco": 0, "forte": 0}]
 
@@ -134,10 +135,11 @@ def test_sem_receita_ou_com_a_receita_recusada_vale_o_universal(
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("eventos.assinar") == [{"topicos": [  # (noqa-acento)
-        "conexao", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas", "botoes", "movimento"]}]  # (noqa-acento)
+        "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas", "botoes",  # (noqa-acento)
+        "movimento"]}]  # (noqa-acento)
     diario = capsys.readouterr().err
     if arquivo:
-        assert "foi recusada; vale o universal" in diario
+        assert "foi recusada e não vale" in diario
         assert "linha 7: sentidos.rumble.taxa_hz: campo desconhecido" in diario
     else:
         assert "foi recusada" not in diario
@@ -157,7 +159,7 @@ def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diari
         assert not extensao.receita.universal and not extensao.receita.vazia
 
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
-    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "botoes"]}]  # (noqa-acento)
+    assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "perfil.jogo", "botoes"]}]  # (noqa-acento)
     assert "a porta não entrega bateria" in capsys.readouterr().err
 
 

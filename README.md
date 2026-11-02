@@ -7,7 +7,7 @@ a porta os tiver, pela háptica e pelo alto-falante. Licença GPL-3.0-or-later (
 > **Aviso.** Extensão independente: não é afiliada à Sony nem endossada por ela. Nada sai deste
 > computador: o manifesto declara `rede:nenhuma`.
 
-**Estado (0.3.0, 01/11/2026):** o formato da receita, o validador, o motor e o universal que vale
+**Estado (0.4.0, 02/11/2026):** o formato da receita, o validador, o motor e o universal que vale
 em todo jogo, com a porta de mentira das provas. A extensão ainda não toca o controle de verdade: o Hefesto de hoje recusa o campo
 `modos_de_aba` do manifesto, e o install espera o Hefesto que o conhece.
 
@@ -18,11 +18,17 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
 (eventos)    (contas)      (histerese)  (quando)   (o mais forte vence)
 ```
 
-- O processo (`servidor.py`) roda com `python3 -I` e só a biblioteca padrão. Lê a receita em
-  `$HEFESTO_MOD_DADOS/receita.json`; sem ela, ou com ela recusada, vale o **universal**
-  (`receitas/universal.json`), e o diário diz a linha do erro.
+- O processo (`servidor.py`) roda com `python3 -I` e só a biblioteca padrão. A receita se escolhe
+  pelo jogo aberto (`perfil.jogo`), pela `jogo.chave` do arquivo (`receita/biblioteca.py`): a sua
+  (`$HEFESTO_MOD_DADOS/receitas/*.json`, e o `receita.json` de antes, que vale em todo jogo), a
+  estudada (`receitas/estudadas/`), a da comunidade e, sem nenhuma, o **universal**
+  (`receitas/universal.json`). A recusada não vale, e o diário diz a linha do erro. A troca entra
+  no tique seguinte e devolve ao jogo o canal da receita velha; a coluna «Agora» da janela diz qual
+  vale.
+- As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
+  e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
-  (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`) e a `conexao`; o tópico que a receita lê e a
+  (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
   porta ainda não entrega vai ao diário, e o sentido dele fica parado.
 - Os sentidos universais (`sentidos/`) leem a porta e o tempo e publicam no próprio tópico, que a
   receita lê como lê a porta: `sentido.som` (o estalo do jogo, com o lado), `sentido.rumble`

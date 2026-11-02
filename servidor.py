@@ -1,11 +1,16 @@
 """O processo que o Hefesto abre para o Modo imersão: a receita, o motor e a porta.
 
 Fala com o Hefesto pela porta das modificações (``mod.ola``, ``controles.lista``,
-``eventos.assinar`` e as escritas da :class:`~motor.saida.Saida`). A receita de quem joga mora em
-``$HEFESTO_MOD_DADOS/receita.json``; sem ela, ou com ela recusada, vale o universal
-(``receitas/universal.json``), e a recusa vai ao diário com a linha de cada erro. Além do que a
+``eventos.assinar``, ``acessorios.estado`` e as escritas da :class:`~motor.saida.Saida`). A
+receita se escolhe pelo jogo aberto (``perfil.jogo``), na
+:class:`~receita.biblioteca.Biblioteca`: a de quem joga, a estudada, a da comunidade e, sem
+nenhuma, o universal (``receitas/universal.json``); a recusa vai ao diário com a linha de cada erro.
+A troca vale no tique seguinte, e o que a receita velha escrevia volta ao jogo. As opções da janela
+moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, ou o universal
+sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
+``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale. Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
-do controle (``jogo.identidade`` entra quando a porta o entregar). Nada aqui fala com a rede.
+do controle (``jogo.identidade`` entra quando a porta o entregar).
 """
 from __future__ import annotations
 
@@ -29,10 +34,20 @@ from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
+from receita.biblioteca import (  # noqa: E402
+    ARQUIVO_DE_ANTES,
+    PELO_JOGO,
+    Biblioteca,
+    Escolhida,
+)
 from receita.formato import Receita, ReceitaRecusada, ler_receita, receita_vazia  # noqa: E402
 
-ARQUIVO_DA_RECEITA = "receita.json"
+ARQUIVO_DA_RECEITA = ARQUIVO_DE_ANTES
 ARQUIVO_DO_UNIVERSAL = AQUI / "receitas" / "universal.json"
+PASTA_DAS_ESTUDADAS = AQUI / "receitas" / "estudadas"
+ARQUIVO_DAS_OPCOES = "opcoes.json"
+OPCAO_DA_RECEITA = "receita"
+RELE_AS_OPCOES_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento",
@@ -128,22 +143,6 @@ def carregar_o_universal(arquivo: Path = ARQUIVO_DO_UNIVERSAL) -> Receita:
         return receita_vazia()
 
 
-def carregar_a_receita(dados: Path | None) -> Receita:
-    """A receita de quem joga, ou o universal quando ela falta ou é recusada."""
-    if dados is None:
-        return carregar_o_universal()
-    arquivo = dados / ARQUIVO_DA_RECEITA
-    try:
-        bruto = arquivo.read_bytes()
-    except OSError:
-        return carregar_o_universal()
-    try:
-        return ler_receita(bruto)
-    except ReceitaRecusada as exc:
-        diario(f"a receita {arquivo} foi recusada; vale o universal:\n{exc}")
-        return carregar_o_universal()
-
-
 def _lidos(receita: Receita) -> set[str]:
     return universais.origens(s["de"] for s in receita.secao("sentidos").values())
 
@@ -163,6 +162,23 @@ def topicos_da_receita(receita: Receita) -> list[str]:
     return [t for t in TOPICOS_DA_PORTA if t in pedidos]
 
 
+def topicos_assinados(receita: Receita) -> list[str]:
+    """Os tópicos da receita e sempre o ``perfil.jogo``: é ele que diz qual receita vale."""
+    pedidos = set(topicos_da_receita(receita)) | {"perfil.jogo"}
+    return [t for t in TOPICOS_DA_PORTA if t in pedidos]
+
+
+def ler_as_opcoes(dados: Path | None) -> dict[str, Any]:
+    """O ``opcoes.json`` que a janela grava, ``{id: valor}``; vazio quando falta ou não se lê."""
+    if dados is None:
+        return {}
+    try:
+        lidas = json.loads((dados / ARQUIVO_DAS_OPCOES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return lidas if isinstance(lidas, dict) else {}
+
+
 def topicos_fora_da_porta(receita: Receita) -> list[str]:
     """Os tópicos que a receita lê e que a porta de hoje não entrega: esses sentidos ficam parados."""  # (noqa-acento)
     return sorted(_lidos(receita) - set(TOPICOS_DA_PORTA))
@@ -171,11 +187,62 @@ def topicos_fora_da_porta(receita: Receita) -> list[str]:
 class Extensao:
     """A porta, o motor da receita e a saída, juntos."""
 
-    def __init__(self, porta: Porta, receita: Receita) -> None:
+    def __init__(self, porta: Porta, receita: Receita | Escolhida,
+                 biblioteca: Biblioteca | None = None, dados: Path | None = None) -> None:
         self.porta = porta
-        self.receita = receita
-        self.motor = Motor(receita)
+        self.escolhida = receita if isinstance(receita, Escolhida) else Escolhida(
+            receita, "universal" if receita.universal else "sua")
+        self.receita = self.escolhida.receita
+        self.biblioteca = biblioteca
+        self.dados = dados
+        self.jogo: str | None = None
+        self.opcoes = ler_as_opcoes(dados)
+        self.motor = Motor(self.receita, self.opcoes)
         self.saida = Saida(porta.pedir, diario, self.motor.recusado, self.motor.pelo_motor)
+        self.assinados: set[str] = set()
+        self.estados_publicados: list[str] = []
+
+    @property
+    def escolha(self) -> str:
+        valor = self.opcoes.get(OPCAO_DA_RECEITA, PELO_JOGO)
+        return valor if isinstance(valor, str) else PELO_JOGO
+
+    async def assinar(self) -> None:
+        """Assina o que a receita de agora lê e ainda não estava assinado."""
+        faltam = [t for t in topicos_assinados(self.receita) if t not in self.assinados]
+        if faltam:
+            await self.porta.pedir("eventos.assinar", {"topicos": faltam})
+            self.assinados |= set(faltam)
+
+    async def publicar_o_estado(self) -> None:
+        """A coluna «Agora» da janela: de onde veio a receita que vale."""
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.porta.pedir("acessorios.estado", {
+                "ligado": True, "nivel": 0, "perfil": self.escolhida.rotulo,
+                "aparelhos": [], "conexoes": []})  # (noqa-acento)
+            self.estados_publicados.append(self.escolhida.rotulo)
+
+    async def escolher(self) -> None:
+        """A receita do jogo de agora; quando muda, o motor a troca no tique seguinte."""
+        if self.biblioteca is None:
+            return
+        nova = self.biblioteca.para(self.jogo, self.escolha)
+        if nova.marca == self.escolhida.marca and nova.receita.dados == self.receita.dados:
+            return
+        self.escolhida, self.receita = nova, nova.receita
+        self.motor.trocar(nova.receita)
+        diario(f"vale a receita {nova.arquivo or 'universal'} ({nova.rotulo})")
+        if fora := topicos_fora_da_porta(nova.receita):
+            diario(f"a porta não entrega {', '.join(fora)}: os sentidos desses tópicos ficam parados")
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.assinar()
+        await self.publicar_o_estado()
+
+    async def reler_as_opcoes(self) -> None:
+        """O ``opcoes.json`` mudou: as entradas valem já, e a opção da receita pode trocá-la."""
+        self.opcoes = ler_as_opcoes(self.dados)
+        self.motor.ajustar(self.opcoes)
+        await self.escolher()
 
     async def atualizar_os_controles(self) -> None:
         resposta = await self.porta.pedir("controles.lista", {})
@@ -190,9 +257,18 @@ class Extensao:
         if mensagem.get("method") != "evento" or not isinstance(params, dict):
             return True
         topico, nome = params.get("topico"), params.get("nome")
+        dados = params.get("dados")
         if topico == "conexao":  # (noqa-acento)
             with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
                 await self.atualizar_os_controles()
+        elif topico == "perfil.jogo" and isinstance(dados, dict):
+            jogo = dados.get("jogo")
+            self.jogo = jogo if isinstance(jogo, str) and jogo else None
+            await self.escolher()
+        elif topico == "extensao.opcao" and isinstance(dados, dict):
+            ident, valor = dados.get("id"), dados.get("valor")
+            if isinstance(ident, str) and isinstance(valor, (int, float)):
+                self.motor.opcoes[ident] = valor
         if isinstance(topico, str) and isinstance(nome, str):
             uniq = params.get("uniq")
             dados = params.get("dados")
@@ -210,12 +286,17 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     dados = Path(os.environ["HEFESTO_MOD_DADOS"]) if os.environ.get("HEFESTO_MOD_DADOS") else None
     porta = await Porta.abrir(caminho)
     await porta.pedir("mod.ola", {"ficha": ficha})
-    extensao = Extensao(porta, carregar_a_receita(dados))
+    biblioteca = Biblioteca(PASTA_DAS_ESTUDADAS, dados, carregar_o_universal, diario)
+    opcoes = ler_as_opcoes(dados)
+    escolha = opcoes.get(OPCAO_DA_RECEITA, PELO_JOGO)
+    extensao = Extensao(porta, biblioteca.para(None, escolha if isinstance(escolha, str) else
+                                               PELO_JOGO), biblioteca, dados)
     if fora := topicos_fora_da_porta(extensao.receita):
         diario(f"a porta não entrega {', '.join(fora)}: os sentidos desses tópicos ficam parados")
-    await porta.pedir("eventos.assinar", {"topicos": topicos_da_receita(extensao.receita)})
+    await extensao.assinar()
     with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
         await extensao.atualizar_os_controles()
+    await extensao.publicar_o_estado()
     if ao_nascer is not None:
         ao_nascer(extensao)
 
@@ -230,21 +311,41 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
             pass
         fim.set()
 
+    async def vigiar_as_opcoes() -> None:
+        marca = _marca_das_opcoes(dados)
+        while True:
+            await asyncio.sleep(RELE_AS_OPCOES_S)
+            agora = _marca_das_opcoes(dados)
+            if agora != marca:
+                marca = agora
+                await extensao.reler_as_opcoes()
+
     ouvir = asyncio.create_task(ouvir_a_porta())
+    vigiar = asyncio.create_task(vigiar_as_opcoes())
     motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim))
     try:
         await fim.wait()
         with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
             await asyncio.wait_for(motor, 2.0)
     finally:
-        for tarefa in (ouvir, motor):
+        for tarefa in (ouvir, vigiar, motor):
             tarefa.cancel()
-        await asyncio.gather(ouvir, motor, return_exceptions=True)
+        await asyncio.gather(ouvir, vigiar, motor, return_exceptions=True)
         for sinal in (signal.SIGTERM, signal.SIGINT):
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 laco.remove_signal_handler(sinal)
         porta.fechar()
     return 0
+
+
+def _marca_das_opcoes(dados: Path | None) -> tuple[int, int] | None:
+    if dados is None:
+        return None
+    try:
+        estado = (dados / ARQUIVO_DAS_OPCOES).stat()
+    except OSError:
+        return None
+    return (estado.st_mtime_ns, estado.st_size)
 
 
 def main() -> int:

@@ -1,5 +1,19 @@
 # Mudanças
 
+## 0.4.0 (02/11/2026)
+
+- A receita se escolhe pelo jogo aberto (`perfil.jogo`), pela `jogo.chave` de cada arquivo: vale a
+  de quem joga (`$HEFESTO_MOD_DADOS/receitas/*.json`), depois a estudada que vem com a extensão
+  (`receitas/estudadas/`), depois a da comunidade; sem nenhuma, o universal. O jogo fechado volta ao
+  universal. A troca entra no tique seguinte, e o canal que a receita velha usava se solta e volta ao
+  jogo. O `receita.json` de antes segue valendo como a receita de quem joga sem jogo próprio.
+- As `entradas` da receita são opções da janela «Configurar»: o manifesto declara a opção
+  «Receita» (Pelo jogo ou Universal) e «Lado na luz», e o motor lê o valor salvo
+  (`opcoes.json`, relido a cada meio segundo) e o arrasto ao vivo (`extensao.opcao`). O
+  deslizante fica entre o mínimo e o máximo da entrada, e o «ligado» só vale verdadeiro ou falso.
+- A coluna «Agora» da janela diz qual receita vale (`acessorios.estado`, no campo «Perfil»): a
+  sua, a estudada, a da comunidade ou o universal.
+
 ## 0.3.1 (01/11/2026)
 
 - A escrita que a porta recusa com `-32011` devolve a conta da saída ao que a porta aceitou antes,
