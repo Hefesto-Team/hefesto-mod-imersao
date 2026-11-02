@@ -1,6 +1,6 @@
 # Mudanças
 
-## 0.4.9 a 0.4.19 (02/11/2026)
+## 0.4.9 a 0.4.20 (02/11/2026)
 
 - A memória do jogo tem uma chave só, a «Memória neste jogo» do Hefesto, na aba Geral: o
   `jogo.memoria` chega ao motor só com ela ligada, em toda receita. A chave «Memória» própria da
