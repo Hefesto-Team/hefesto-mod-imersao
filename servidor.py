@@ -36,6 +36,7 @@ import sentidos as universais  # noqa: E402
 from estudio import linha_do_tempo  # noqa: E402
 from estudio.blocos import TIPOS_DO_MONTADOR, Montador  # noqa: E402
 from estudio.cacador import Estudio  # noqa: E402
+from estudio.grafo import TIPOS_DO_EDITOR, Editor  # noqa: E402
 from estudio.linha_do_tempo import TIPOS_DO_GRAVADOR, Gravador  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.laco import Motor  # noqa: E402
@@ -61,6 +62,7 @@ TOPICOS_DA_PORTA = (
 )
 TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
 BOTAO_DA_MARCA = "ps"
+RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -213,6 +215,8 @@ class Extensao:
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
         self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
                                  lambda: (self.jogo, self.receita.dados))
+        self.editor = Editor(dados / "receitas" if dados else None,
+                             lambda: (self.jogo, self.receita.dados))
         self.gravador = Gravador()
         self.tocando: asyncio.Task[None] | None = None
         self.parar_de_tocar = asyncio.Event()
@@ -259,12 +263,16 @@ class Extensao:
                 tipo = pedido.get("tipo")
                 if tipo in TIPOS_DO_MONTADOR:
                     resposta = self.montador.mensagem(pedido)
+                elif tipo in TIPOS_DO_EDITOR:
+                    resposta = self.editor.mensagem(pedido)
                 elif tipo in TIPOS_DO_GRAVADOR:
                     resposta = await self.ao_gravador(str(tipo), agora_ms)
                 else:
                     if tipo == "comecar":
                         await self.assinar_o_estudio()
                     resposta = await self.estudio.mensagem(pedido, agora_ms)
+                if resposta.get("tipo") in RESPOSTAS_QUE_GRAVAM:
+                    await self.escolher()
                 await self.responder_ao_estudio(resposta, dados.get("id"))
         if self.gravador.gravando and isinstance(nome, str):
             self.gravador.ouvir(topico, nome, uniq if isinstance(uniq, str) else None, dados,

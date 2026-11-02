@@ -103,6 +103,8 @@ do controle marca o gesto. O caçador do valor (só com a chave «Memória» do 
 o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele; o achado vira um
 `estado` na sua receita, com o nome que você der. «Blocos» mostra a receita como QUANDO e FAÇA, e
 «Gravar» e «Tocar» repetem cinco minutos de jogo com a receita de agora, sem abrir o jogo.
+«Grafo» desenha a receita do sentido ao efeito e marca o nó com erro (ciclo, órfão, tipo errado);
+«Texto» mostra o JSON, validado a cada tecla, com «Exportar» e «Importar».
 
 ## Instalar
 

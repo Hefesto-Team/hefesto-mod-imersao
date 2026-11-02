@@ -12,6 +12,9 @@ button[hidden], section[hidden] { display: none; }
 #frase { font-size: 28px; font-weight: 600; margin: 16px 0 4px; }
 #vez, .apagado { color: var(--apagado); }
 .linha { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+textarea { width: 100%; box-sizing: border-box; font: 13px/1.4 monospace; background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; }
+#desenho { width: 100%; height: auto; }
+#erros-do-grafo, #erros-do-texto { white-space: pre-line; margin-top: 8px; }
 select, input { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; font: inherit; }
 </style>
 </head>
@@ -22,6 +25,8 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
   <button id="gravar" data-gesto="gravar">Gravar</button>
   <button id="parar" data-gesto="parar">Parar</button>
   <button id="tocar" data-gesto="tocar">Tocar</button>
+  <button id="ver-grafo" data-gesto="grafo">Grafo</button>
+  <button id="ver-texto" data-gesto="texto">Texto</button>
 </div>
 <div id="linha-do-tempo" class="apagado"></div>
 <section id="escolha" hidden>
@@ -49,13 +54,25 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
     <button id="montar" class="principal" data-gesto="montar">Montar</button>
   </div>
 </section>
+<section id="grafo" hidden>
+  <svg id="desenho" role="img" aria-label="Grafo da receita"></svg>
+  <div id="erros-do-grafo" class="apagado"></div>
+</section>
+<section id="texto" hidden>
+  <textarea id="receita-em-texto" spellcheck="false" rows="18"></textarea>
+  <div id="erros-do-texto" class="apagado"></div>
+  <div class="linha">
+    <button id="exportar" data-gesto="exportar">Exportar</button>
+    <button id="importar" class="principal" data-gesto="importar">Importar</button>
+  </div>
+</section>
 <script>
 "use strict";
 const ROTULOS = { valor: "Valor", som: "Som", tela: "Canto da tela" };
 const el = (id) => document.getElementById(id);
 const mandar = (pedido) => window.parent.postMessage(pedido, "*");
 const mostrar = (qual) => {
-  for (const id of ["escolha", "caca", "nomear", "blocos"]) el(id).hidden = id !== qual;
+  for (const id of ["escolha", "caca", "nomear", "blocos", "grafo", "texto"]) el(id).hidden = id !== qual;
 };
 let vista = null;
 const PARA = { todos: "Todos", quem_levou: "Quem levou" };
@@ -99,9 +116,57 @@ function desenharBlocos() {
   });
   mostrar("blocos");
 }
+const SVG = "http://www.w3.org/2000/svg";
+function desenharGrafo(resposta) {
+  const desenho = el("desenho");
+  desenho.replaceChildren();
+  const comErro = new Set((resposta.erros || []).map((e) => e.no));
+  const porColuna = {};
+  const lugar = {};
+  for (const no of resposta.nos) {
+    const linha = (porColuna[no.coluna] = (porColuna[no.coluna] || 0) + 1) - 1;
+    lugar[no.id] = { x: 10 + no.coluna * 150, y: 10 + linha * 28 };
+  }
+  const altura = 20 + 28 * Math.max(1, ...Object.values(porColuna));
+  desenho.setAttribute("viewBox", "0 0 760 " + altura);
+  for (const [de, para] of resposta.arestas) {
+    const linha = document.createElementNS(SVG, "line");
+    Object.entries({ x1: lugar[de].x + 130, y1: lugar[de].y + 10, x2: lugar[para].x, y2: lugar[para].y + 10, stroke: "var(--apagado)" })
+      .forEach(([k, v]) => linha.setAttribute(k, v));
+    desenho.append(linha);
+  }
+  for (const no of resposta.nos) {
+    const caixa = document.createElementNS(SVG, "g");
+    caixa.dataset.gesto = "no-" + no.id;
+    const fundo = document.createElementNS(SVG, "rect");
+    Object.entries({ x: lugar[no.id].x, y: lugar[no.id].y, width: 130, height: 20, rx: 4, fill: "var(--borda)", stroke: comErro.has(no.id) ? "#ff5a5a" : "var(--borda)" })
+      .forEach(([k, v]) => fundo.setAttribute(k, v));
+    const nome = document.createElementNS(SVG, "text");
+    Object.entries({ x: lugar[no.id].x + 6, y: lugar[no.id].y + 14, fill: "var(--texto)", "font-size": 11 })
+      .forEach(([k, v]) => nome.setAttribute(k, v));
+    nome.textContent = no.tipo === "regra" ? "regra " + no.nome : no.nome;
+    caixa.append(fundo, nome);
+    desenho.append(caixa);
+  }
+  el("erros-do-grafo").textContent = (resposta.erros || []).map((e) => e.no + ": " + e.frase).join("\n");
+  mostrar("grafo");
+}
+function mostrarErros(erros) {
+  el("erros-do-texto").textContent = erros.length ? erros.map((e) => (e.linha ? "linha " + e.linha : e.no) + ": " + e.frase).join("\n") : "Sem erro";
+}
 function receber(resposta) {
   if (!resposta || typeof resposta !== "object") return;
-  if (resposta.tipo === "blocos") {
+  if (resposta.tipo === "grafo") {
+    desenharGrafo(resposta);
+  } else if (resposta.tipo === "exportado") {
+    el("receita-em-texto").value = resposta.texto;
+    mostrarErros([]);
+    mostrar("texto");
+  } else if (resposta.tipo === "validado") {
+    mostrarErros(resposta.erros);
+  } else if (resposta.tipo === "importado") {
+    el("erros-do-texto").textContent = "Importada";
+  } else if (resposta.tipo === "blocos") {
     vista = resposta;
     desenharBlocos();
   } else if (["gravando", "gravado", "tocando", "parado", "montado"].includes(resposta.tipo)) {
@@ -135,6 +200,11 @@ function receber(resposta) {
 window.addEventListener("message", (evento) => receber(evento.data && evento.data.dados ? evento.data.dados : evento.data));
 el("ensinar").addEventListener("click", () => mandar({ tipo: "abrir" }));
 el("ver-blocos").addEventListener("click", () => mandar({ tipo: "blocos" }));
+el("ver-grafo").addEventListener("click", () => mandar({ tipo: "grafo" }));
+el("ver-texto").addEventListener("click", () => mandar({ tipo: "exportar" }));
+el("exportar").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText(el("receita-em-texto").value));
+el("receita-em-texto").addEventListener("input", () => mandar({ tipo: "validar", texto: el("receita-em-texto").value }));
+el("importar").addEventListener("click", () => mandar({ tipo: "importar", texto: el("receita-em-texto").value }));
 el("montar").addEventListener("click", () => vista && mandar({ tipo: "montar", vista }));
 for (const tipo of ["gravar", "parar", "tocar"]) el(tipo).addEventListener("click", () => mandar({ tipo }));
 el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));
