@@ -1,7 +1,7 @@
 {
   "id": "imersao",
   "nome": "Modo imersão",
-  "versao": "0.4.18",
+  "versao": "0.4.19",
   "api": ">=2,<3",
   "licenca": "GPL-3.0-or-later",
   "descricao": "O jogo chega ao controle como no console: a receita de cada jogo lê o que acontece na cena e responde com a vibração, os gatilhos e a luz. Sem receita, vale o modo universal.",
