@@ -1,5 +1,13 @@
 # Mudanças
 
+## 0.4.3 (02/11/2026)
+
+- O Estúdio monta QUANDO e FAÇA (`estudio/blocos.py`): cada bloco é uma regra da receita, com a
+  condição, os efeitos (a frase de cada um como dica), a prioridade e para quem; a ida e a volta
+  sai igual, e «Montar» grava a receita só validada. «Gravar» guarda até cinco minutos de sinais
+  (`estudio/linha_do_tempo.py`: as bandas do som, a vibração do jogo, a tela e a memória, nunca o
+  microfone), e «Tocar» os repete com a receita de agora, sem o jogo aberto.
+
 ## 0.4.2 (02/11/2026)
 
 - O Estúdio caça o que o jogo esconde (`estudio/cacador.py`, página em `estudio/pagina/`): o botão
