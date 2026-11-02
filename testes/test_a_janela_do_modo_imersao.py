@@ -509,7 +509,7 @@ def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
 
     extensao, janela = _com_os_controles(tmp_path)
     assert janela.estados()[-1]["nivel"] == 0
-    extensao.motor.valores["tensao"] = 0.62
+    extensao.motor.valores["tensao"] = 0.62  # (noqa-acento)
     asyncio.run(extensao.publicar_se_mudou())
     asyncio.run(extensao.publicar_se_mudou())
     assert [e["nivel"] for e in janela.estados()] == [0, 6]

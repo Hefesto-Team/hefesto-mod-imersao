@@ -31,7 +31,7 @@ from receita.formato import COR, Receita
 
 HZ = 60
 DURACAO_MINIMA_MS = 250.0
-DERIVADO_DO_CLIMA = "tensao"
+DERIVADO_DO_CLIMA = "tensao"  # (noqa-acento)
 _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
 
@@ -385,7 +385,7 @@ class Motor:
                 for lado in lados]
 
     def clima(self) -> int:
-        """A tensão da cena agora, de 0 a 10: o derivado ``tensao`` da receita, ou 0 sem ele."""
+        """A tensão da cena agora, de 0 a 10: o derivado do clima da receita, ou 0 sem ele."""
         return round(10 * min(1.0, max(0.0, self.valores.get(DERIVADO_DO_CLIMA, 0.0))))
 
     def passo(self, t_ms: float) -> dict[Vaga, Pedido]:
