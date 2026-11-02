@@ -1,5 +1,13 @@
 # Mudanças
 
+## 0.4.4 (02/11/2026)
+
+- O Estúdio desenha a receita como grafo (`estudio/grafo.py`): sentido, derivado, estado, regra e
+  efeito em colunas, com até 64 nós e 32 regras. O ciclo, o nó órfão e a aresta de tipo errado (a
+  regra que faz um estado, a expressão que lê um efeito) se recusam com o nó apontado. A vista
+  «Texto» mostra a receita em JSON, validada a cada tecla; «Exportar» a copia e «Importar» grava só
+  o texto sem erro, que vale no tique seguinte.
+
 ## 0.4.3 (02/11/2026)
 
 - O Estúdio monta QUANDO e FAÇA (`estudio/blocos.py`): cada bloco é uma regra da receita, com a
