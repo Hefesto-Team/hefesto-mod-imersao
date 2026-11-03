@@ -42,6 +42,7 @@ RENOVA_MS = 2500.0
 ATE_MS_DA_HAPTICA = 3000
 METODO_DESCONHECIDO = -32601
 MAIS_FRACO = -32011
+NAO_REGISTRADO = "padrão não registrado"
 SEM_PERMISSAO = -32010
 NAO_ESCREVEU = -32013
 DEGRAUS = {"forca": 0.05, "bpm": 4.0, "brilho": 0.05}
@@ -71,6 +72,7 @@ class Saida:
         self.sem_som = False
         self.sem_leds = False
         self.sem_mira = False
+        self._registrados = False
         self._tocados: set[tuple[str, str, float]] = set()
         self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
         self._degrau_em: dict[tuple[str, str], float] = {}
@@ -140,6 +142,10 @@ class Saida:
                 self._diario("a porta não toca háptica: o padrão segue pelo motor")
                 self._desfazer(chave, antes)
                 return False
+            if metodo == "haptica.tocar" and NAO_REGISTRADO in str(exc):
+                self._registrados = False
+                self._desfazer(chave, antes)
+                return True
             if codigo == METODO_DESCONHECIDO and metodo == "som.tocar":
                 self.sem_som = True
                 self._diario("a porta não toca som: o efeito de som fica calado")
@@ -294,8 +300,27 @@ class Saida:
         vence = antes is not None and not zero and t_ms - antes[0] >= RENOVA_MS
         if antes is not None and antes[1] == params and not vence:
             return True
+        if not self._registrados and not await self._registrar():
+            return not self.sem_haptica
         await self._escrever(t_ms, chave, "haptica.tocar", params, zero)
         return not self.sem_haptica
+
+    async def _registrar(self) -> bool:
+        """Registra o catálogo na porta antes do primeiro toque e depois de ela o perder."""
+        for nome, padrao in catalogo.PADROES.items():
+            golpes = [[g.inicio_ms, g.dura_ms, g.frequencia_hz, g.amplitude] for g in padrao.golpes]
+            try:
+                await self._pedir("haptica.registrar",
+                                  {"id": nome, "golpes": golpes, "repete": padrao.repete})
+            except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
+                self.sem_haptica = True
+                if getattr(exc, "codigo", None) == METODO_DESCONHECIDO:
+                    self._diario("a porta não toca háptica: o padrão segue pelo motor")
+                else:
+                    self._diario(f"haptica.registrar recusado ({exc}): o padrão segue pelo motor")
+                return False
+        self._registrados = True
+        return True
 
     async def _pesar(self, t_ms: float, chave: Chave, params: dict[str, Any]) -> None:
         if self.recusados.get(chave) == params:

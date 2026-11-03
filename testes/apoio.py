@@ -32,7 +32,9 @@ class EscritasDeMentira:
     """O ``pedir`` da porta sem socket: guarda ``(instante, método, params)`` de cada escrita.
 
     ``com_haptica`` e ``com_som`` dizem se a porta conhece ``haptica.tocar`` e ``som.tocar``;
-    sem eles, a resposta é o -32601 de método desconhecido, como no Hefesto de hoje.
+    sem eles, a resposta é o -32601 de método desconhecido. Como no Hefesto, o ``haptica.tocar``
+    de um padrão que não passou pelo ``haptica.registrar`` recusa com -32602. O registro não escreve no controle: ele
+    fica em ``registros``, com o número de escritas que já havia, e não em ``escritas``.
     """
 
     def __init__(self, com_haptica: bool = False, com_som: bool = False) -> None:
@@ -40,13 +42,24 @@ class EscritasDeMentira:
         self.escritas: list[tuple[float, str, dict[str, Any]]] = []
         self.com_haptica = com_haptica
         self.com_som = com_som
+        self.registrados: set[str] = set()
+        self.registros: list[tuple[int, str]] = []
 
     async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
-        if (metodo == "haptica.tocar" and not self.com_haptica) or (
+        if (metodo in ("haptica.tocar", "haptica.registrar") and not self.com_haptica) or (
                 metodo == "som.tocar" and not self.com_som):
             raise Recusa(f"método desconhecido: {metodo}", -32601)
+        if metodo == "haptica.registrar":
+            self.registrados.add(params["id"])
+            self.registros.append((len(self.escritas), params["id"]))
+            return {"status": "ok"}
+        if metodo == "haptica.tocar" and params["id"] not in self.registrados:
+            raise Recusa(f"haptica.tocar: padrão não registrado: {params['id']}", -32602)
         self.escritas.append((self.agora, metodo, dict(params)))
         return {"status": "ok"}
+
+    def esquecer(self) -> None:
+        self.registrados.clear()
 
     def de(self, metodo: str) -> list[tuple[float, dict[str, Any]]]:
         return [(t, p) for t, m, p in self.escritas if m == metodo]
@@ -84,7 +97,7 @@ class PortaDeMentira:
             elif metodo == "eventos.assinar":
                 self.assinados |= set(params.get("topicos", []))
                 resultado = {"assinados": params.get("topicos", [])}
-            elif metodo in ("haptica.tocar", "som.tocar"):
+            elif metodo in ("haptica.tocar", "haptica.registrar", "som.tocar"):
                 erro = {"code": -32601, "message": f"método desconhecido: {metodo}"}
             resposta: dict[str, Any] = {"jsonrpc": "2.0", "id": pedido["id"]}
             resposta.update({"error": erro} if erro else {"result": resultado})

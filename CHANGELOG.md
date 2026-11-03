@@ -1,5 +1,11 @@
 # Mudanças
 
+## 0.4.21 (02/11/2026)
+
+- O coração e o susto voltam a tocar na vibração fina: a extensão registra os padrões dela no
+  Hefesto (`haptica.registrar`) antes do primeiro toque, e de novo quando o Hefesto os perde (o
+  daemon reiniciou). Até a 0.4.20, todo toque era recusado com «padrão não registrado».
+
 ## 0.4.9 a 0.4.20 (02/11/2026)
 
 - A memória do jogo tem uma chave só, a «Memória neste jogo» do Hefesto, na aba Geral: o

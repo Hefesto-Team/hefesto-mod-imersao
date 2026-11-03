@@ -188,6 +188,11 @@ def _luz(uniq: str, k: int) -> dict[Vaga, Pedido]:
         "inicio_ms": 0.0, "rgb": [k % 256, 0, 0], "brilho": 1.0})}
 
 
+def _leds(uniq: str, k: int) -> dict[Vaga, Pedido]:
+    return {(uniq, "leds", "-"): Pedido(uniq, "leds", "-", "luzes", 1.0, 0, 0.0, 9, {
+        "inicio_ms": 0.0, "mascara": 1 + k % 31, "ate_ms": 600})}
+
+
 def test_o_coracao_que_para_solta_o_motor_no_tique_dele_mesmo_com_o_teto_cheio() -> None:
     porta = EscritasDeMentira()
     saida = Saida(porta.pedir)
@@ -206,9 +211,10 @@ def test_o_coracao_que_para_solta_o_motor_no_tique_dele_mesmo_com_o_teto_cheio()
             porta.agora = t = k * TIQUE
             await saida.aplicar(t, _coracao(UM, 180.0))
             k += 1
-        while not cheio(t := k * TIQUE):
+        while not (cheio(t := k * TIQUE) and porta.de("vibracao.set")[-1][1]["forte"]):
+            assert t < 20_000, "o teto cheio nunca encontrou o motor ligado"
             porta.agora = t
-            await saida.aplicar(t, {**_coracao(UM, 180.0), **_luz(UM, k)})
+            await saida.aplicar(t, {**_coracao(UM, 180.0), **_luz(UM, k), **_leds(UM, k)})
             k += 1
         porta.agora = t
         await saida.aplicar(t, _luz(UM, k))
