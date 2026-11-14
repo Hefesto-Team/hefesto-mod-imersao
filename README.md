@@ -28,18 +28,26 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   vale.
 - As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
   e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
-- A janela tem seis abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita, «O
+- A janela tem sete abas. Geral: a Força (multiplica tudo o que sai; em 0, nada), a Receita, «O
   golpe vai para» (quem levou, ou todos os controles) e, com um jogo em cena, a «Memória neste
   jogo» do Hefesto. Sentidos e Canais: cada um se desliga, e o sentido desligado desassina o tópico
-  dele (a Tela nasce desligada). Efeitos: as entradas do universal, com a cor do dano e o intervalo
-  do susto; cada linha só aparece quando a receita que vale tem o efeito dela (o `@presente` pelos
-  `presentes` do estado). «Procurar receitas» fica na Geral. «Ensinar
+  dele. A tela não tem chave: só se lê no clique «Ver a tela» da aba Sentidos (`tela.ver` e o
+  `jogo.tela`), até «Parar de ver», o segundo clique, o jogo que fecha ou a saída da extensão; o
+  Hefesto que não conhece o `tela.ver` vira a linha «Tela» do «Agora». Efeitos: as entradas do
+  universal, com a cor do dano. Susto: as duas chaves, o intervalo, a duração (100 a 1500 ms), o
+  volume e a força do susto; cada linha só aparece quando a receita que vale tem o efeito dela (o
+  `@presente` pelos `presentes` do estado). «Procurar receitas» fica na Geral. «Ensinar
   este jogo»: a página do Estúdio. Os ajustes de Geral, Sentidos e Canais moram em `opcoes.py` e
   valem em toda receita.
 - Na Geral, cada controle conectado é um cartão com a chave «Sente os efeitos»: o desligado não
-  recebe nada da extensão, e a escolha fica em `controles.json`, pelo número do jogador. A coluna
+  recebe nada da extensão, e a escolha fica em `controles.json`, pelo número do jogador. Na aba
+  Controles, o cartão de cada um, pela cor do plástico, leva a Força e o Volume dele (0 a 100 %, de
+  25 em 25): valem juntos, vezes a Força geral, a Força em tudo menos o alto-falante e o Volume só
+  nele, e ficam no mesmo `controles.json`. A coluna
   «Agora» mostra o clima da cena (o derivado `tensao`, de 0 a 10) no «Nível» e, nas linhas, os
-  sentidos lendo agora, a memória que espera a chave e o último efeito tocado, com a hora.
+  sentidos lendo agora, a memória que espera a chave e o último efeito tocado, com a hora. A cada
+  minuto em que houve jogo, uma linha do diário conta, por controle e pela cor, o que tocou em cada
+  canal e por que algo não tocou (o motivo que a porta devolve, ou o jogo mais forte no canal).
 - O `jogo.memoria` só chega ao motor com a «Memória neste jogo» ligada (o `memoria` do
   `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
@@ -85,7 +93,7 @@ gramática recusam, sempre com a linha.
 | `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar` |
 | `derivados` | uma expressão, ou um acumulador (`sobe_com`, `passo`, `meia_vida_ms`) |
 | `estados` | `quando`, `histerese`, `minimo_ms` |
-| `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo), `leds` (as luzes de jogador do lado, até 600 ms), `mira` (o `ganho` do giroscópio, de 0,3 a 1, pelo `mira.peso`) |
+| `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`; o padrão que não se repete, com `dura_ms`, se estica até ela com a mesma forma), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo, com `dura_ms` de 50 a 5000 no recorte), `leds` (as luzes de jogador do lado, até 600 ms), `mira` (o `ganho` do giroscópio, de 0,3 a 1, pelo `mira.peso`); `forca`, `volume`, `bpm`, `ganho` e o `dura_ms` da háptica e do som aceitam expressão |
 | `regras` | `quando`, `entao`, `senao`, `prioridade`, `espera_ms` (número ou expressão), `para` (`todos`, `quem_levou` ou `p1`..`p4`) |
 | `confere` | a faixa esperada de um sentido, ou a concordância entre dois |
 

@@ -1,5 +1,22 @@
 # Mudanças
 
+## 0.5.0 (14/11/2026)
+
+- O susto se ajusta numa aba própria, «Susto»: a duração do pico (de 100 a 1500 ms, padrão 300),
+  o volume no alto-falante e a força no tato, ao lado das duas chaves e do intervalo. A duração vale
+  no tato e no alto-falante. O universal e a receita do Minecraft Dungeons II leem os três; no
+  padrão, o susto é o de antes.
+- A tela do jogo só se lê quando você pede: o botão «Ver a tela», na aba Sentidos, começa a leitura,
+  e «Parar de ver» (ou clicar de novo, ou fechar o jogo) a encerra. A chave «Tela» saiu, e quem a
+  tinha ligada volta com ela desligada. Num Hefesto que ainda não lê a tela no clique, o «Agora»
+  diz «Tela: Este Hefesto não lê» e nada mais acontece.
+- Aba nova, «Controles»: cada controle, pela cor do plástico, tem a Força e o Volume dele, lado a
+  lado. Os dois valem juntos e vezes a Força geral: a Força de um controle não mexe no volume do
+  alto-falante dele, e o Volume não mexe na vibração.
+- O diário da extensão ganha um resumo por minuto de jogo: em cada controle, o que tocou em cada
+  canal e o que não tocou, com o motivo (o Modo Nativo, o jogo mais forte, o rádio sem vaga para o
+  som). Minuto sem jogo não escreve nada.
+
 ## 0.4.21 (02/11/2026)
 
 - O coração e o susto voltam a tocar na vibração fina: a extensão registra os padrões dela no
