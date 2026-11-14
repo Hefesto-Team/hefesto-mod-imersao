@@ -73,6 +73,8 @@ class Saida:
         self.sem_leds = False
         self.sem_mira = False
         self._registrados = False
+        self._formas: dict[str, float | None] = {}
+        self._registradas: dict[str, float | None] = {}
         self._tocados: set[tuple[str, str, float]] = set()
         self._vivos: dict[Vaga, tuple[tuple[str, float, int], dict[str, float]]] = {}
         self._degrau_em: dict[tuple[str, str], float] = {}
@@ -177,7 +179,8 @@ class Saida:
                 marca: tuple[Any, ...] = (canal, lado, pedido.efeito, pedido.inicio_ms,
                                           pedido.regra, forca)
                 if canal == "haptica":
-                    envelope = catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"])  # (noqa-acento)
+                    envelope = catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"],  # (noqa-acento)
+                                                 p.get("escala_ms"))
                     forca *= envelope
                     repete = catalogo.PADROES[p["padrao"]].repete  # (noqa-acento)
                     marca += (p["bpm"],) if repete else (envelope,)
@@ -185,6 +188,7 @@ class Saida:
                 atual = motores.setdefault(uniq, {"esquerdo": 0.0, "direito": 0.0})
                 atual[lado] = max(atual[lado], forca)
             elif canal == "haptica":
+                self._formas[p["padrao"]] = p.get("escala_ms")  # (noqa-acento)
                 desejo[(uniq, "haptica", lado)] = ("haptica.tocar", {
                     "uniq": uniq, "id": p["padrao"], "forca": round(p["forca"], 3),  # (noqa-acento)
                     "bpm": round(p["bpm"]), "lado": lado, "ate_ms": ATE_MS_DA_HAPTICA}, False)
@@ -197,8 +201,9 @@ class Saida:
                     "uniq": uniq, "rgb": p["rgb"], "brilho": p["brilho"]}, False)
             elif canal == "som":
                 som = {"uniq": uniq, "som": p["som"], "volume": p["volume"]}
-                if "t" in p:
-                    som["t"] = p["t"]
+                for campo in ("t", "dura_s"):
+                    if campo in p:
+                        som[campo] = p[campo]
                 desejo[(uniq, "som", "-")] = ("som.tocar", {**som, "inicio_ms": p["inicio_ms"]},
                                               False)
             elif canal == "mira":
@@ -302,24 +307,38 @@ class Saida:
             return True
         if not self._registrados and not await self._registrar():
             return not self.sem_haptica
+        nome = params["id"]
+        if (self._formas.get(nome) != self._registradas.get(nome)
+                and not await self._registrar_um(nome, self._formas.get(nome))):
+            return not self.sem_haptica
         await self._escrever(t_ms, chave, "haptica.tocar", params, zero)
         return not self.sem_haptica
 
     async def _registrar(self) -> bool:
-        """Registra o catálogo na porta antes do primeiro toque e depois de ela o perder."""
-        for nome, padrao in catalogo.PADROES.items():
-            golpes = [[g.inicio_ms, g.dura_ms, g.frequencia_hz, g.amplitude] for g in padrao.golpes]
-            try:
-                await self._pedir("haptica.registrar",
-                                  {"id": nome, "golpes": golpes, "repete": padrao.repete})
-            except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
-                self.sem_haptica = True
-                if getattr(exc, "codigo", None) == METODO_DESCONHECIDO:
-                    self._diario("a porta não toca háptica: o padrão segue pelo motor")
-                else:
-                    self._diario(f"haptica.registrar recusado ({exc}): o padrão segue pelo motor")
+        """Registra o catálogo na porta antes do primeiro toque e depois de ela o perder; o padrão
+        que não se repete vai na duração pedida agora."""
+        self._registradas = {}
+        for nome in catalogo.PADROES:
+            if not await self._registrar_um(nome, self._formas.get(nome)):
                 return False
         self._registrados = True
+        return True
+
+    async def _registrar_um(self, nome: str, escala_ms: float | None) -> bool:
+        """O padrão ``nome`` na duração ``escala_ms``: o mesmo ``id`` registrado de novo troca os
+        golpes dele na porta."""
+        escolhido = catalogo.padrao(nome, escala_ms)
+        try:
+            await self._pedir("haptica.registrar", {"id": nome, "golpes": catalogo.golpes(escolhido),
+                                                    "repete": escolhido.repete})
+        except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
+            self.sem_haptica = True
+            if getattr(exc, "codigo", None) == METODO_DESCONHECIDO:
+                self._diario("a porta não toca háptica: o padrão segue pelo motor")
+            else:
+                self._diario(f"haptica.registrar recusado ({exc}): o padrão segue pelo motor")
+            return False
+        self._registradas[nome] = escala_ms
         return True
 
     async def _pesar(self, t_ms: float, chave: Chave, params: dict[str, Any]) -> None:

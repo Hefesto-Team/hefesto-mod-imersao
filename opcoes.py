@@ -1,5 +1,6 @@
 """Os ajustes que são da extensão, não da receita: a Força, para quem vai o golpe, os sentidos e
-os canais, e os controles que sentem. Valem para toda receita (a sua, a estudada, a da comunidade e o universal), no tique
+os canais, e os controles que sentem. A tela não tem chave: ela só se lê depois do clique «Ver a
+tela», e o estado do clique entra nas opções por :func:`com_a_tela`. Valem para toda receita (a sua, a estudada, a da comunidade e o universal), no tique
 seguinte, lidos do mesmo ``opcoes.json`` que a janela grava."""
 from __future__ import annotations
 
@@ -14,6 +15,10 @@ from typing import Any
 ARQUIVO_DAS_OPCOES = "opcoes.json"
 ARQUIVO_DOS_CONTROLES = "controles.json"
 ACAO_DE_LIGAR = "ligar"
+ACAO_DE_VER_A_TELA = "ver_a_tela"
+ACAO_DE_PARAR_DE_VER = "parar_de_ver"
+SENTIDO_DA_TELA = "sentido_tela"
+TOPICO_DA_TELA = "jogo.tela"
 ID_DO_CONTROLE = re.compile(r"^(?:jogador|controle)-[1-9][0-9]?$")
 FORCA = "forca_geral"
 FORCA_PADRAO = 100.0
@@ -45,6 +50,23 @@ TOPICOS_DA_PORTA_COM_CHAVE: dict[str, tuple[str, bool]] = {
     for ident, (topicos, padrao) in SENTIDOS.items()
     for topico in topicos if not topico.startswith("sentido.")
 }
+
+
+def com_a_tela(opcoes: dict[str, Any], vendo: bool) -> dict[str, Any]:
+    """As opções com o sentido da tela no estado do clique «Ver a tela»: o arquivo nunca o liga."""
+    return {**{k: v for k, v in opcoes.items() if k != SENTIDO_DA_TELA}, SENTIDO_DA_TELA: vendo}
+
+
+def migrar(dados: Path) -> bool:
+    """O ``opcoes.json`` de antes da 0.5.0 guardava a chave da tela: ela sai, e a tela fica
+    desligada até o clique. ``True`` quando o arquivo mudou."""
+    arquivo = dados / ARQUIVO_DAS_OPCOES
+    valores = _ler(arquivo)
+    if SENTIDO_DA_TELA not in valores:
+        return False
+    del valores[SENTIDO_DA_TELA]
+    _gravar(dados, ARQUIVO_DAS_OPCOES, valores)
+    return True
 
 
 def ligado(opcoes: dict[str, Any], ident: str, padrao: bool = True) -> bool:
@@ -85,7 +107,7 @@ def consentir(dados: Path, topico: str) -> bool:
     ``opcoes.json`` (arquivo novo e ``rename``, em ``0600``, as outras opções intactas).
     ``True`` quando a chave mudou; desligá-la depois volta a calar a receita."""
     ident, padrao = TOPICOS_DA_PORTA_COM_CHAVE.get(topico, ("", True))
-    if not ident:
+    if not ident or ident == SENTIDO_DA_TELA:
         return False
     valores = _ler(dados / ARQUIVO_DAS_OPCOES)
     if ligado(valores, ident, padrao):

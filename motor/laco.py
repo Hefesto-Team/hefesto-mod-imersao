@@ -27,7 +27,7 @@ from motor.estados import Acumulador, Estado, continua_com_histerese
 from motor.saida import Saida
 from receita import expressao
 from receita import impressao as impressoes
-from receita.formato import COR, Receita
+from receita.formato import COR, DURA_DO_RECORTE_MS, Receita
 
 HZ = 60
 DURACAO_MINIMA_MS = 250.0
@@ -284,11 +284,20 @@ class Motor:
         numeros = {int(p[1:]) for p in para}
         return tuple(sorted(u for u, j in self.jogadores.items() if j in numeros))
 
-    def _fim(self, efeito: dict[str, Any], t_ms: float, de_borda: bool) -> float | None:
-        if "dura_ms" in efeito:
-            return t_ms + float(efeito["dura_ms"])
+    def _dura(self, nome: str, efeito: dict[str, Any]) -> float | None:
+        """O ``dura_ms`` do efeito, número ou expressão das entradas; ``None`` sem ele."""
+        if "dura_ms" not in efeito:
+            return None
+        return self._numero(efeito["dura_ms"], ("efeitos", nome, "dura_ms"), 1.0, 600_000.0,
+                            DURACAO_MINIMA_MS)
+
+    def _fim(self, nome: str, efeito: dict[str, Any], t_ms: float, de_borda: bool
+             ) -> float | None:
+        dura = self._dura(nome, efeito)
         if efeito["canal"] == "haptica" and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
-            return t_ms + catalogo.PADROES[efeito["padrao"]].dura_ms  # (noqa-acento)
+            return t_ms + catalogo.padrao(efeito["padrao"], dura).dura_ms  # (noqa-acento)
+        if dura is not None:
+            return t_ms + dura
         if efeito["canal"] == "leds":
             return t_ms + luzes.PRAZO_MAXIMO_MS
         return t_ms + DURACAO_MINIMA_MS if de_borda else None
@@ -303,7 +312,7 @@ class Motor:
         for nome in [nomes] if isinstance(nomes, str) else nomes:
             efeito = self.receita.secao("efeitos")[nome]
             self.ativas.append(Ativacao(indice, nome, alvos, t_ms,
-                                        self._fim(efeito, t_ms, de_borda), t_do_jogo))
+                                        self._fim(nome, efeito, t_ms, de_borda), t_do_jogo))
 
     def _rodar_as_regras(self, t_ms: float) -> None:
         for indice, regra in enumerate(self.receita.regras):
@@ -357,6 +366,9 @@ class Motor:
                 params["padrao"] = efeito["padrao"]  # (noqa-acento)
                 params["bpm"] = self._numero(efeito.get("bpm", catalogo.BPM_PADRAO),
                                              (*caminho, "bpm"), 30.0, 220.0, catalogo.BPM_PADRAO)
+                dura = self._dura(ativa.efeito, efeito)
+                if dura is not None and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
+                    params["escala_ms"] = catalogo.padrao(efeito["padrao"], dura).dura_ms  # (noqa-acento)
             lado = efeito.get("lado", "ambos")
             lados = ["esquerdo", "direito"] if lado == "ambos" else [lado]
         elif canal == "gatilho":
@@ -388,12 +400,19 @@ class Motor:
                           ate_ms=luzes.prazo(fim - ativa.inicio_ms))
             lados = ["-"]
         else:
-            forca = float(efeito.get("volume", 1.0)) * escala
-            params.update(som=efeito["som"], volume=forca)
+            forca = self._numero(efeito.get("volume", 1.0), (*caminho, "volume"), 0.0, 1.0,
+                                 1.0) * escala
+            if forca <= 0:
+                return []
+            params.update(som=efeito["som"], volume=round(forca, 3))
             if efeito["som"] == "recorte":
                 if ativa.t_do_jogo is None:
                     return []
                 params["t"] = ativa.t_do_jogo
+                dura = self._dura(ativa.efeito, efeito)
+                if dura is not None:
+                    minimo, maximo = DURA_DO_RECORTE_MS
+                    params["dura_s"] = round(min(maximo, max(minimo, dura)) / 1000, 3)
             lados = ["-"]
         prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
         return [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade, ativa.inicio_ms,
@@ -455,7 +474,8 @@ class Motor:
         """Os controles que a extensão faz vibrar no instante: o padrão só vibra nos golpes dele."""
         return frozenset(p.uniq for p in self.vencedores.values() if p.forca > 0 and (
             p.canal == "motor" or (p.canal == "haptica" and catalogo.envelope(
-                p.params["padrao"], t_ms - p.params["inicio_ms"], p.params["bpm"]) > 0)))  # (noqa-acento)
+                p.params["padrao"], t_ms - p.params["inicio_ms"], p.params["bpm"],  # (noqa-acento)
+                p.params.get("escala_ms")) > 0)))
 
 
 async def rodar(motor: Motor, saida: Saida, parar: asyncio.Event,

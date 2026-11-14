@@ -371,6 +371,8 @@ _ENTRADA = estrito(
 )
 
 _DURA = Inteiro(1, 600_000)
+_DURA_OU_EXPRESSAO = InteiroOuExpressao(1, 600_000)
+DURA_DO_RECORTE_MS = (50, 5000)
 _POSICAO = Inteiro(0, 9)
 _FORCA_DO_GATILHO = Inteiro(1, 8)
 _ZONA = Inteiro(0, 8)
@@ -422,14 +424,15 @@ _EFEITO = Discriminado("canal", {
     "haptica": estrito(("canal", "padrao"), canal=Texto(escolhas=CANAIS),  # (noqa-acento)
                        padrao=Texto(escolhas=PADROES_PCM), forca=RealOuExpressao(0.0, 1.0),
                        bpm=RealOuExpressao(30.0, 220.0), lado=Texto(escolhas=LADOS),
-                       dura_ms=_DURA),
+                       dura_ms=_DURA_OU_EXPRESSAO),
     "motor": estrito(("canal", "forca"), canal=Texto(escolhas=CANAIS),
                      forca=RealOuExpressao(0.0, 1.0), lado=Texto(escolhas=LADOS), dura_ms=_DURA),
     "gatilho": EfeitoDeGatilho(),
     "luz": estrito(("canal", "cor"), canal=Texto(escolhas=CANAIS), cor=CorOuEntrada(),
                    brilho=Real(0.0, 1.0), dura_ms=_DURA),
     "som": estrito(("canal", "som"), canal=Texto(escolhas=CANAIS), som=Texto(escolhas=SONS),
-                   volume=Real(0.0, 1.0)),
+                   volume=RealOuExpressao(0.0, 1.0),
+                   dura_ms=InteiroOuExpressao(*DURA_DO_RECORTE_MS)),
     "leds": estrito(("canal", "lado"), canal=Texto(escolhas=CANAIS), lado=Texto(escolhas=LADOS),
                     dura_ms=Inteiro(1, luzes.PRAZO_MAXIMO_MS)),
     "mira": estrito(("canal", "ganho"), canal=Texto(escolhas=CANAIS),
@@ -715,7 +718,7 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
 
     for ident, efeito in efeitos.items():
         caminho = ("efeitos", ident)
-        for campo in ("forca", "bpm", "ganho"):
+        for campo in ("forca", "bpm", "ganho", "volume", "dura_ms"):
             if isinstance(efeito.get(campo), str):
                 no = _expressao(efeito[campo], (*caminho, campo), erros, analisadas)
                 if no is not None:

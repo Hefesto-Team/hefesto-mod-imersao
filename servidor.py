@@ -14,9 +14,10 @@ entradas e os canais da receita que vale) escondem a linha do efeito que ela nã
 conectado é um cartão na aba Geral, e o desligado não recebe efeito (``controles.json``). Além do que a
 receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
-janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem; o ``jogo.tela`` nasce
-desligado, porque assiná-lo abre o portal de captura do sistema, e se liga quando a pessoa
-ensina pela tela uma receita que o lê. O
+janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela só se lê no clique
+«Ver a tela» da aba Sentidos: ele pede ``tela.ver`` e assina ``jogo.tela``, até «Parar de ver», o
+segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o Hefesto que não conhece
+``tela.ver`` vira a linha «Tela» do «Agora», e nada se assina. O
 :class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
@@ -106,6 +107,11 @@ ROTULOS_DOS_CANAIS = {
     "leds": "Luzes de jogador", "som": "Alto-falante", "mira": "Peso da mira",
 }
 ESPERA_A_MEMORIA = "Desligada"
+TELA_VENDO = "Vendo"
+TELA_SEM_O_PEDIDO = "Este Hefesto não lê"
+TELA_RECUSADA = "Recusada"
+METODO_DESCONHECIDO = -32601
+ESPERA_O_FIM_DA_TELA_S = 1.0
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -323,7 +329,9 @@ class Extensao:
         self.biblioteca = biblioteca
         self.dados = dados
         self.jogo: str | None = None
-        self.opcoes = ler_as_opcoes(dados)
+        self.vendo = False
+        self.tela: str | None = None
+        self.opcoes = ajustes.com_a_tela(ler_as_opcoes(dados), self.vendo)
         self.motor = Motor(self.receita, self.opcoes)
         self.saida = SaidaQueAnota(porta.pedir, diario, self.motor.recusado,
                                    self.motor.pelo_motor, anotar=self.anotar)
@@ -355,8 +363,10 @@ class Extensao:
     async def assinar(self) -> None:
         """Assina o que a receita de agora lê e ainda não estava assinado, e solta o tópico cuja
         chave a janela desligou."""
-        faltam = [t for t in topicos_assinados(self.receita, self.opcoes)
-                  if t not in self.assinados]
+        querem = topicos_assinados(self.receita, self.opcoes)
+        if self.vendo and ajustes.TOPICO_DA_TELA not in querem:
+            querem.append(ajustes.TOPICO_DA_TELA)
+        faltam = [t for t in querem if t not in self.assinados]
         if faltam:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
@@ -523,6 +533,8 @@ class Extensao:
             linhas.append({"rotulo": "Lendo", "valor": lista_curta(lendo)})
         if self.jogo is not None and self._le_a_memoria() and not self.memoria_vale:
             linhas.append({"rotulo": "Memória", "valor": ESPERA_A_MEMORIA})
+        if self.tela is not None:
+            linhas.append({"rotulo": "Tela", "valor": self.tela})
         if self.ultimo_efeito is not None:
             nome, quando = self.ultimo_efeito
             hora = time.strftime("%H:%M:%S", time.localtime(quando))
@@ -592,9 +604,50 @@ class Extensao:
             await self.assinar()
         await self.publicar_o_estado()
 
+    async def ver_a_tela(self) -> None:
+        """O clique «Ver a tela»: ``tela.ver`` e, aceito, a assinatura do ``jogo.tela``. O
+        segundo clique para. O Hefesto que não conhece o pedido vira a linha «Tela», uma vez por
+        clique, e nada se assina."""
+        if self.vendo:
+            await self.parar_de_ver()
+            return
+        try:
+            await self.porta.pedir("tela.ver", {})
+        except RecusaDaPorta as exc:
+            antes = self.tela
+            self.tela = TELA_SEM_O_PEDIDO if exc.codigo == METODO_DESCONHECIDO else TELA_RECUSADA
+            if self.tela != antes:
+                diario(f"tela.ver recusado: {exc}")
+            await self.publicar_se_mudou()
+            return
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as exc:
+            diario(f"tela.ver sem resposta: {exc}")
+            return
+        await self._a_tela(True)
+
+    async def parar_de_ver(self) -> None:
+        """«Parar de ver», o segundo clique ou o jogo que fecha: ``tela.parar`` e a desassinatura."""
+        if not self.vendo:
+            if self.tela is not None:
+                self.tela = None
+                await self.publicar_se_mudou()
+            return
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.porta.pedir("tela.parar", {})
+        await self._a_tela(False)
+
+    async def _a_tela(self, vendo: bool) -> None:
+        self.vendo = vendo
+        self.tela = TELA_VENDO if vendo else None
+        self.opcoes = ajustes.com_a_tela(self.opcoes, vendo)
+        self.motor.ajustar(self.opcoes)
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.assinar()
+        await self.publicar_se_mudou()
+
     async def reler_as_opcoes(self) -> None:
         """O ``opcoes.json`` mudou: as entradas valem já, e a opção da receita pode trocá-la."""
-        self.opcoes = ler_as_opcoes(self.dados)
+        self.opcoes = ajustes.com_a_tela(ler_as_opcoes(self.dados), self.vendo)
         self.motor.ajustar(self.opcoes)
         await self.escolher()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
@@ -624,7 +677,9 @@ class Extensao:
                 await self.atualizar_os_controles()
         elif topico == "perfil.jogo" and isinstance(dados, dict):
             jogo = dados.get("jogo")
-            self.jogo = jogo if isinstance(jogo, str) and jogo else None
+            antes, self.jogo = self.jogo, jogo if isinstance(jogo, str) and jogo else None
+            if self.vendo and antes is not None and self.jogo != antes:
+                await self.parar_de_ver()
             self.estudio.jogo = self.jogo
             self.memoria_vale = dados.get("memoria") is True
             self.estudio.memoria_ligada = self.memoria_vale
@@ -634,7 +689,8 @@ class Extensao:
                 self.procurar_em_fundo()
         elif topico == "extensao.opcao" and isinstance(dados, dict):
             ident, valor = dados.get("id"), dados.get("valor")
-            if isinstance(ident, str) and isinstance(valor, (bool, int, float, str)):
+            if (isinstance(ident, str) and ident != ajustes.SENTIDO_DA_TELA
+                    and isinstance(valor, (bool, int, float, str))):
                 self.motor.opcoes[ident] = valor
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ACAO_DE_PROCURAR):  # (noqa-acento)
@@ -642,6 +698,12 @@ class Extensao:
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_LIGAR):  # (noqa-acento)
             await self.sentir(dados.get("alvo"), dados.get("valor"))
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") == ajustes.ACAO_DE_VER_A_TELA):  # (noqa-acento)
+            await self.ver_a_tela()
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") == ajustes.ACAO_DE_PARAR_DE_VER):  # (noqa-acento)
+            await self.parar_de_ver()
         if isinstance(topico, str) and isinstance(dados, dict):
             await self.ao_estudio(topico, nome, dados, params.get("uniq"))
         if topico == "jogo.memoria" and not self.memoria_vale:
@@ -661,6 +723,9 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
         diario("sem HEFESTO_MOD_SOCKET e HEFESTO_MOD_FICHA: quem abre esta extensão é o Hefesto")
         return 2
     dados = Path(os.environ["HEFESTO_MOD_DADOS"]) if os.environ.get("HEFESTO_MOD_DADOS") else None
+    if dados is not None:
+        with contextlib.suppress(OSError):
+            ajustes.migrar(dados)
     porta = await Porta.abrir(caminho)
     await porta.pedir("mod.ola", {"ficha": ficha})
     biblioteca = Biblioteca(PASTA_DAS_ESTUDADAS, dados, carregar_o_universal, diario)
@@ -711,6 +776,10 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
         await fim.wait()
         with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
             await asyncio.wait_for(motor, 2.0)
+        if extensao.vendo:
+            with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
+                await asyncio.wait_for(extensao.porta.pedir("tela.parar", {}),
+                                       ESPERA_O_FIM_DA_TELA_S)
     finally:
         extensao.parar_de_tocar.set()
         tarefas = [ouvir, vigiar, clima, motor, *([extensao.tocando] if extensao.tocando else []),

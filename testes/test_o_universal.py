@@ -349,7 +349,7 @@ def test_o_susto_toca_o_recorte_do_proprio_jogo_pelo_t_do_estalo_e_cala_sem_o_so
     motor, porta = _universal(), EscritasDeMentira(com_haptica=True, com_som=True)
     _correr(motor, porta, 19_000, linha)
     assert [p for _, p in porta.de("som.tocar")] == [
-        {"uniq": UM, "som": "recorte", "volume": 1.0, "t": 1234.5}]
+        {"uniq": UM, "som": "recorte", "volume": 1.0, "t": 1234.5, "dura_s": 0.3}]
     assert [p["id"] for _, p in porta.de("haptica.tocar")  # (noqa-acento)
             if p["id"] == "susto"]  # (noqa-acento)
     motor, porta = _universal(), EscritasDeMentira(com_haptica=True)

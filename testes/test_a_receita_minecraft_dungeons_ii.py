@@ -117,7 +117,7 @@ def test_o_batimento_do_rumble_liga_o_coracao_e_o_estalo_forte_na_cena_tensa_e_o
     assert {(p["forca"], p["bpm"]) for _, p in coracao} <= {(0.5, 95), (0.75, 130)}  # (noqa-acento)
     assert len([t for t, _ in porta.de("haptica.tocar") if 6000 <= t < 7000]) < 6
     assert [p for _, p in porta.de("som.tocar")] == [
-        {"uniq": UM, "som": "recorte", "volume": 1.0, "t": 70.0}]
+        {"uniq": UM, "som": "recorte", "volume": 1.0, "t": 70.0, "dura_s": 0.3}]
     assert [round(t) for t, p in porta.de("haptica.tocar") if p["id"] == "susto"][:1] == [7000]  # (noqa-acento)
 
 

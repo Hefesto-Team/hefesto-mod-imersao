@@ -37,7 +37,7 @@ from motor.laco import HZ, Motor
 from motor.saida import Saida
 from receita.formato import ler_receita
 
-ABAS = ["Geral", "Sentidos", "Efeitos", "Canais"]
+ABAS = ["Geral", "Sentidos", "Efeitos", "Susto", "Canais"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -88,7 +88,8 @@ def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None
     do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto")
     lido = do_hefesto.ler_manifesto(RAIZ)
     assert [o.id for o in lido.opcoes] == [o["id"] for o in manifesto["opcoes"]]  # (noqa-acento)
-    assert [a.id for a in lido.acoes] == [servidor.ACAO_DE_PROCURAR]
+    assert [a.id for a in lido.acoes] == [servidor.ACAO_DE_PROCURAR, ajustes.ACAO_DE_VER_A_TELA,
+                                          ajustes.ACAO_DE_PARAR_DE_VER]
 
 
 def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> None:
@@ -96,7 +97,10 @@ def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> N
     assert opcoes[ajustes.FORCA]["padrao"] == ajustes.FORCA_PADRAO  # (noqa-acento)
     assert opcoes[ajustes.PARA_QUEM]["escolhas"] == list(ajustes.ESCOLHAS_DE_PARA_QUEM)
     assert opcoes[ajustes.PARA_QUEM]["padrao"] == ajustes.QUEM_LEVOU  # (noqa-acento)
+    assert ajustes.SENTIDO_DA_TELA not in opcoes
     for ident, (_, padrao) in ajustes.SENTIDOS.items():
+        if ident == ajustes.SENTIDO_DA_TELA:
+            continue
         assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Sentidos", padrao)  # (noqa-acento)
     for ident in ajustes.CANAIS:
         assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Canais", True)  # (noqa-acento)
@@ -195,8 +199,9 @@ SO_NO_UNIVERSAL = {"alivio", "peso_da_mira"}
 
 
 @pytest.mark.parametrize("arquivo", RECEITAS_DE_FABRICA, ids=lambda a: a.stem)
-def test_toda_receita_de_fabrica_le_a_aba_efeitos_com_o_padrao_da_janela(arquivo: Any) -> None:
-    efeitos = {i: o for i, o in _opcoes().items() if o["grupo"] == "Efeitos"}
+def test_toda_receita_de_fabrica_le_as_abas_efeitos_e_susto_com_o_padrao_da_janela(
+        arquivo: Any) -> None:
+    efeitos = {i: o for i, o in _opcoes().items() if o["grupo"] in ("Efeitos", "Susto")}
     declaradas = ler_receita(arquivo.read_bytes()).secao("entradas")
     fora = {"peso_da_mira"} if arquivo.stem == "universal" else SO_NO_UNIVERSAL
     pedidas = set(efeitos) - fora
@@ -288,29 +293,36 @@ def _assinados_pela_porta(porta: _PortaDoEstudio) -> set[str]:
     return vivos
 
 
-def test_a_receita_ensinada_pela_tela_liga_o_sentido_tela_e_assina_o_jogo_tela(
-        tmp_path: Path) -> None:
+def test_a_receita_ensinada_pela_tela_nao_liga_a_tela_sem_o_clique(tmp_path: Path) -> None:
     (tmp_path / "opcoes.json").write_text(json.dumps({"forca_geral": 70}), encoding="utf-8")
     porta = _PortaDoEstudio()
     extensao = _ensinar_pela_tela(tmp_path, porta)
     assert extensao.escolhida.origem == "sua"
     guardadas = json.loads((tmp_path / "opcoes.json").read_text(encoding="utf-8"))
-    assert guardadas == {"forca_geral": 70, "sentido_tela": True}
-    assert extensao.opcoes.get("sentido_tela") is True
-    assert "jogo.tela" in extensao.assinados
-    assert "jogo.tela" in _assinados_pela_porta(porta)
-
-    (tmp_path / "opcoes.json").write_text(json.dumps({"sentido_tela": False}), encoding="utf-8")
-    asyncio.run(extensao.reler_as_opcoes())
+    assert guardadas == {"forca_geral": 70}
+    assert extensao.opcoes.get("sentido_tela") is False
     assert "jogo.tela" not in extensao.assinados
     assert "jogo.tela" not in _assinados_pela_porta(porta)
 
 
-@pytest.mark.parametrize(("tipo", "topico", "sentido"), [
-    ("som", "jogo.som", "sentido_som"), ("tela", "jogo.tela", "sentido_tela")])
+def test_o_achado_da_tela_guardado_nao_liga_a_tela(tmp_path: Path) -> None:
+    desligados = {"sentido_som": False, "sentido_golpe": False}
+    (tmp_path / "opcoes.json").write_text(json.dumps(desligados), encoding="utf-8")
+    achado = _achar_a_tela()
+    assert achado is not None
+    estudio = Estudio(_sem_porta, tmp_path / "receitas", ler_receita)
+    estudio.jogo, estudio.cacador, estudio.achado = JOGO, "tela", achado
+    resposta = asyncio.run(estudio.mensagem({"tipo": "guardar", "nome": "Achado"}, 0.0))
+    assert resposta["tipo"] == "guardado"
+    guardadas = json.loads((tmp_path / "opcoes.json").read_text(encoding="utf-8"))
+    assert guardadas == desligados
+    assert not ajustes.topico_ligado("jogo.tela", guardadas)
+
+
+@pytest.mark.parametrize(("tipo", "topico", "sentido"), [("som", "jogo.som", "sentido_som")])
 def test_o_achado_guardado_liga_o_sentido_que_ele_le_e_nao_mexe_em_outro(
         tmp_path: Path, tipo: str, topico: str, sentido: str) -> None:
-    desligados = {"sentido_som": False, "sentido_tela": False, "sentido_golpe": False}
+    desligados = {"sentido_som": False, "sentido_golpe": False}
     (tmp_path / "opcoes.json").write_text(json.dumps(desligados), encoding="utf-8")
     achado = _achar_o_som() if tipo == "som" else _achar_a_tela()
     assert achado is not None
@@ -405,12 +417,12 @@ def test_a_receita_recusa_a_cor_e_o_intervalo_fora_da_forma(onde: tuple[Any, ...
         ler_receita(json.dumps(bruto))
 
 
-def test_as_opcoes_da_cor_e_do_intervalo_moram_nos_efeitos_com_o_padrao_de_antes() -> None:
+def test_a_cor_mora_nos_efeitos_e_o_intervalo_no_susto_com_o_padrao_de_antes() -> None:
     opcoes = _opcoes()
     cor, intervalo = opcoes["cor_do_dano"], opcoes["intervalo_do_susto"]
     assert (cor["tipo"], cor["padrao"], cor["grupo"]) == ("cor", "#ff0000", "Efeitos")  # (noqa-acento)
     assert cor["aparece_com"] == {"luz_do_dano": True, "@presente": "cor_do_dano"}
-    assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Efeitos")  # (noqa-acento)
+    assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Susto")  # (noqa-acento)
 
 
 class _PortaDosControles(_Porta):

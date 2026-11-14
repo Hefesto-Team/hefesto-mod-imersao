@@ -14,6 +14,8 @@ from typing import Any
 
 TAXA_DO_PCM = 48_000
 BPM_PADRAO = 72.0
+DURA_MINIMA_DO_PADRAO_MS = 50.0
+DURA_MAXIMA_DO_PADRAO_MS = 4000.0
 FORCA_MAXIMA_DO_GATILHO = 8
 
 
@@ -42,6 +44,26 @@ PADROES: dict[str, Padrao] = {
 }
 
 
+def padrao(nome: str, dura_ms: float | None = None) -> Padrao:
+    """O padrão do catálogo; o que não se repete, com ``dura_ms``, tem os golpes escalados até ela,
+    com a mesma forma."""
+    base = PADROES[nome]
+    if dura_ms is None or base.repete:
+        return base
+    alvo = min(DURA_MAXIMA_DO_PADRAO_MS, max(DURA_MINIMA_DO_PADRAO_MS, float(dura_ms)))
+    fator = alvo / base.dura_ms
+    if abs(fator - 1.0) < 1e-9:
+        return base
+    return Padrao(tuple(Golpe(g.inicio_ms * fator, g.dura_ms * fator, g.frequencia_hz, g.amplitude)
+                        for g in base.golpes), repete=False)
+
+
+def golpes(escolhido: Padrao) -> list[list[float]]:
+    """Os golpes como o ``haptica.registrar`` os pede."""
+    return [[round(g.inicio_ms, 3), round(g.dura_ms, 3), g.frequencia_hz, g.amplitude]
+            for g in escolhido.golpes]
+
+
 def _posicao(padrao: Padrao, decorrido_ms: float, bpm: float) -> float | None:
     if decorrido_ms < 0:
         return None
@@ -51,27 +73,28 @@ def _posicao(padrao: Padrao, decorrido_ms: float, bpm: float) -> float | None:
     return decorrido_ms % periodo
 
 
-def envelope(nome: str, decorrido_ms: float, bpm: float = BPM_PADRAO) -> float:
+def envelope(nome: str, decorrido_ms: float, bpm: float = BPM_PADRAO,
+             dura_ms: float | None = None) -> float:
     """A amplitude (0 a 1) do padrão naquele instante: o que o motor imita sem a háptica."""
-    padrao = PADROES[nome]
-    posicao = _posicao(padrao, decorrido_ms, bpm)
+    escolhido = padrao(nome, dura_ms)
+    posicao = _posicao(escolhido, decorrido_ms, bpm)
     if posicao is None:
         return 0.0
-    return max((g.amplitude for g in padrao.golpes
+    return max((g.amplitude for g in escolhido.golpes
                 if g.inicio_ms <= posicao < g.inicio_ms + g.dura_ms), default=0.0)
 
 
 def pcm(nome: str, dura_ms: float, bpm: float = BPM_PADRAO, forca: float = 1.0,
-        taxa: int = TAXA_DO_PCM) -> array[int]:
+        taxa: int = TAXA_DO_PCM, escala_ms: float | None = None) -> array[int]:
     """As amostras PCM de 16 bits do padrão, por ``dura_ms``: cada golpe é uma senoide que cai."""
-    padrao = PADROES[nome]
+    escolhido = padrao(nome, escala_ms)
     total = int(taxa * dura_ms / 1000)
     saida = array("h", bytes(2 * total))
     for i in range(total):
-        posicao = _posicao(padrao, i * 1000 / taxa, bpm)
+        posicao = _posicao(escolhido, i * 1000 / taxa, bpm)
         if posicao is None:
             continue
-        for golpe in padrao.golpes:
+        for golpe in escolhido.golpes:
             dentro = posicao - golpe.inicio_ms
             if 0 <= dentro < golpe.dura_ms:
                 queda = math.exp(-3.0 * dentro / golpe.dura_ms)

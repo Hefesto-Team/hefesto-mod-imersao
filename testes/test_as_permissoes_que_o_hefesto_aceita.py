@@ -105,7 +105,7 @@ def pasta_curta() -> Iterator[Path]:
         shutil.rmtree(pasta, ignore_errors=True)
 
 
-def test_a_porta_assina_o_jogo_som_e_o_estalo_vibra_o_lado_e_a_tela_espera_a_chave(
+def test_a_porta_assina_o_jogo_som_e_o_estalo_vibra_o_lado_e_a_tela_espera_o_clique(
         pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     porta = _PortaQueToca()
     dados = pasta_curta / "dados"
@@ -122,9 +122,15 @@ def test_a_porta_assina_o_jogo_som_e_o_estalo_vibra_o_lado_e_a_tela_espera_a_cha
             "bandas": [0.0] * 24})
         await ate(lambda: any(p["forte"] for p in porta.de("vibracao.set")))
         (dados / servidor.ARQUIVO_DAS_OPCOES).write_text('{"sentido_tela": true}')
+        await asyncio.sleep(3 * servidor.RELE_AS_OPCOES_S)
+        assert "jogo.tela" not in porta.assinados and not porta.de("tela.ver")
+        await extensao.ao_evento({"method": "evento", "params": {
+            "topico": "extensao.acao", "dados": {"acao": "ver_a_tela"}}})
         await ate(lambda: "jogo.tela" in porta.assinados)
-        (dados / servidor.ARQUIVO_DAS_OPCOES).write_text('{"sentido_tela": false}')
+        await extensao.ao_evento({"method": "evento", "params": {
+            "topico": "extensao.acao", "dados": {"acao": "parar_de_ver"}}})
         await ate(lambda: "jogo.tela" not in porta.assinados)
+        assert porta.metodos.count("tela.ver") == porta.metodos.count("tela.parar") == 1
 
     async def rodar() -> int:
         socket = await asyncio.start_unix_server(porta.atender, path=str(pasta_curta / "mods.sock"))
