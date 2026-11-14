@@ -3,13 +3,22 @@ toda receita pelo mesmo ``$tipo_do_*``; a receita que não cita toca o de antes,
 toca uma vez em cada controle, de 1 a 4, pelo cabo e pelo rádio."""
 from __future__ import annotations
 
+import asyncio
 import json
 from itertools import combinations
+from pathlib import Path
 from typing import Any
 
 import pytest
 from apoio import QUATRO_CONTROLES, RAIZ, UM, EscritasDeMentira
-from test_o_susto_se_ajusta import LINHA, MESAS, PortaQueGuardaOsRegistros, _linha
+from test_o_susto_se_ajusta import (
+    LINHA,
+    MESAS,
+    PortaDaTela,
+    PortaQueGuardaOsRegistros,
+    _acao,
+    _linha,
+)
 from test_o_universal import _correr, _universal, entradas, rumble
 
 import opcoes as ajustes
@@ -161,3 +170,24 @@ def test_cada_tipo_da_janela_e_uma_entrada_de_escolha_das_receitas_com_o_padrao_
     assert da_janela["tipo_do_coracao"]["padrao"] == "Batida"  # (noqa-acento)
     assert da_janela["tipo_do_golpe"]["padrao"] == catalogo.CONTINUO  # (noqa-acento)
     assert da_janela["tipo_do_r2"]["padrao"] == da_janela["tipo_do_l2"]["padrao"] == "Vibração"  # (noqa-acento)
+
+
+@pytest.mark.parametrize(("acao", "efeitos"), [
+    ("testar_susto", {"susto_no_tato"}), ("testar_golpe", {"motor_esquerdo", "motor_direito"}),
+    ("testar_gatilhos", {"impacto_no_l2", "impacto_no_r2"}), ("testar_coracao", {"coracao"}),  # (noqa-acento)
+    ("testar_alivio", {"alivio"})])
+def test_o_clique_no_testar_da_janela_toca_o_efeito_em_todo_controle(
+        tmp_path: Path, acao: str, efeitos: set[str]) -> None:
+    porta = PortaDaTela()
+
+    async def corpo() -> servidor.Extensao:
+        extensao = servidor.Extensao(porta, servidor.carregar_o_universal(), None,  # type: ignore[arg-type]
+                                     tmp_path)
+        await extensao.atualizar_os_controles()
+        await extensao.ao_evento(_acao(acao))
+        return extensao
+
+    extensao = asyncio.run(corpo())
+    tocadas = [a for a in extensao.motor.ativas if a.efeito in efeitos]
+    assert {a.efeito for a in tocadas} == efeitos
+    assert all(a.alvos == tuple(sorted(str(c["uniq"]) for c in QUATRO_CONTROLES)) for a in tocadas)
