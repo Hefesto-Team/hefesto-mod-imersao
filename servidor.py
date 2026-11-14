@@ -650,6 +650,12 @@ class Extensao:
             await self.assinar()
         await self.publicar_o_estado()
 
+    def testar(self, acao: str) -> None:
+        """O botão de testar da aba Tipos: o efeito toca uma vez em cada controle que sente."""
+        tocados = self.motor.testar(ajustes.TESTES[acao])
+        diario(f"teste: {', '.join(tocados)}" if tocados
+               else "teste: a receita de agora não tem este efeito")
+
     async def ver_a_tela(self) -> None:
         """O clique «Ver a tela»: ``tela.ver`` e, aceito, a assinatura do ``jogo.tela``. O
         segundo clique para. O Hefesto que não conhece o pedido vira a linha «Tela», uma vez por
@@ -748,6 +754,9 @@ class Extensao:
               and dados.get("acao") in (ajustes.CONTROLE_DA_FORCA,  # (noqa-acento)
                                         ajustes.CONTROLE_DO_VOLUME)):
             await self.nivelar(str(dados.get("acao")), dados.get("alvo"), dados.get("valor"))  # (noqa-acento)
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") in ajustes.TESTES):  # (noqa-acento)
+            self.testar(str(dados.get("acao")))  # (noqa-acento)
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_VER_A_TELA):  # (noqa-acento)
             await self.ver_a_tela()

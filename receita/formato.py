@@ -17,6 +17,7 @@ from typing import Any
 
 import sentidos as universais
 from efeitos import luzes, peso_da_mira
+from motor import efeitos as catalogo
 from receita import expressao
 from receita.json_com_linhas import Caminho, JsonRecusado, ler, linha_de
 
@@ -56,6 +57,11 @@ MODOS_DO_GATILHO = (
     "vibracao_por_zona",
 )
 ZONAS = 10
+TIPOS_POR_CANAL: dict[str, tuple[str, ...]] = {
+    "haptica": tuple(catalogo.TIPOS_DA_VIBRACAO),
+    "motor": (catalogo.CONTINUO, *catalogo.TIPOS_DA_VIBRACAO),
+    "gatilho": tuple(catalogo.TIPOS_DO_GATILHO),
+}
 
 
 class ReceitaRecusada(ValueError):
@@ -155,8 +161,20 @@ class InteiroOuExpressao(Esquema):
 class PadraoDaEntrada(Esquema):
     def conferir(self, valor: Any, caminho: Caminho, erros: Erros) -> None:
         if not _numero(valor) and not isinstance(valor, bool) and not (
-                isinstance(valor, str) and COR.match(valor)):
-            erros.append((caminho, "pede um número, verdadeiro/falso ou uma cor #rrggbb"))
+                isinstance(valor, str) and (COR.match(valor) or (
+                    1 <= len(valor) <= 40 and not valor.startswith("#")))):
+            erros.append((caminho, "pede um número, verdadeiro/falso, uma cor #rrggbb ou uma escolha"))
+
+
+@dataclass(frozen=True)
+class TipoDoEfeito(Esquema):
+    canal: str
+
+    def conferir(self, valor: Any, caminho: Caminho, erros: Erros) -> None:
+        tipos = TIPOS_POR_CANAL[self.canal]
+        if not isinstance(valor, str) or not (valor in tipos or COR_DA_ENTRADA.match(valor)):
+            erros.append((caminho, (f"pede um tipo ({', '.join(tipos)}) ou a entrada de escolha "
+                                    "($nome)")))
 
 
 @dataclass(frozen=True)
@@ -364,7 +382,8 @@ _ESTADO = estrito(
 _ENTRADA = estrito(
     ("rotulo", "tipo", "padrao"),  # (noqa-acento)
     rotulo=Texto(40),
-    tipo=Texto(escolhas=("deslizante", "ligado", "cor")),
+    tipo=Texto(escolhas=("deslizante", "ligado", "cor", "escolha")),
+    escolhas=Lista(Texto(40), 16, minimo=1, unicos=True),
     minimo=Real(-1e9, 1e9),
     maximo=Real(-1e9, 1e9),
     padrao=PadraoDaEntrada(),
@@ -382,7 +401,7 @@ _FREQUENCIA = Inteiro(0, 255)
 def _gatilho(obrigatorios: tuple[str, ...] = (), **params: Esquema) -> Objeto:
     return estrito(("canal", "modo", "lado", *obrigatorios), canal=Texto(escolhas=CANAIS),
                    modo=Texto(escolhas=MODOS_DO_GATILHO), lado=Texto(escolhas=LADOS_DO_GATILHO),
-                   dura_ms=_DURA, **params)
+                   dura_ms=_DURA, tipo=TipoDoEfeito("gatilho"), **params)
 
 
 _EFEITO_DE_GATILHO = Discriminado("modo", {
@@ -424,9 +443,10 @@ _EFEITO = Discriminado("canal", {
     "haptica": estrito(("canal", "padrao"), canal=Texto(escolhas=CANAIS),  # (noqa-acento)
                        padrao=Texto(escolhas=PADROES_PCM), forca=RealOuExpressao(0.0, 1.0),
                        bpm=RealOuExpressao(30.0, 220.0), lado=Texto(escolhas=LADOS),
-                       dura_ms=_DURA_OU_EXPRESSAO),
+                       dura_ms=_DURA_OU_EXPRESSAO, tipo=TipoDoEfeito("haptica")),
     "motor": estrito(("canal", "forca"), canal=Texto(escolhas=CANAIS),
-                     forca=RealOuExpressao(0.0, 1.0), lado=Texto(escolhas=LADOS), dura_ms=_DURA),
+                     forca=RealOuExpressao(0.0, 1.0), lado=Texto(escolhas=LADOS), dura_ms=_DURA,
+                     tipo=TipoDoEfeito("motor")),
     "gatilho": EfeitoDeGatilho(),
     "luz": estrito(("canal", "cor"), canal=Texto(escolhas=CANAIS), cor=CorOuEntrada(),
                    brilho=Real(0.0, 1.0), dura_ms=_DURA),
@@ -482,7 +502,7 @@ RECEITA = estrito(
         leitura_de_memoria=Texto(escolhas=("nao", "pede", "nunca")),  # (noqa-acento)
     ),
     permissoes=Lista(Texto(escolhas=PERMISSOES), len(PERMISSOES), unicos=True),
-    entradas=Dicionario(_ENTRADA, 16),
+    entradas=Dicionario(_ENTRADA, 32),
     sentidos=Dicionario(_SENTIDO, 64),
     derivados=Dicionario(_DERIVADO, 32),
     estados=Dicionario(_ESTADO, 32),
@@ -623,6 +643,16 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
 
     for ident, entrada in entradas.items():
         caminho: Caminho = ("entradas", ident)
+        if ("escolhas" in entrada) != (entrada["tipo"] == "escolha"):
+            erros.append((caminho, "só a entrada de escolha lista «escolhas», e ela as lista"))
+            continue
+        if entrada["tipo"] == "escolha":
+            if entrada["padrao"] not in entrada["escolhas"]:  # (noqa-acento)
+                erros.append(((*caminho, "padrao"), "o padrão da escolha é uma das escolhas"))  # (noqa-acento)
+            for campo in ("minimo", "maximo"):  # (noqa-acento)
+                if campo in entrada:
+                    erros.append(((*caminho, campo), "a entrada de escolha não tem faixa"))
+            continue
         if entrada["tipo"] == "cor":
             if not isinstance(entrada["padrao"], str) or not COR.match(entrada["padrao"]):  # (noqa-acento)
                 erros.append(((*caminho, "padrao"), "a entrada de cor tem padrão #rrggbb"))  # (noqa-acento)
@@ -679,8 +709,9 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
         for nome in sorted(expressao.entradas(no)):
             if nome not in entradas:
                 erros.append((caminho, f"a expressão lê a entrada «${nome}», que não existe"))
-            elif entradas[nome]["tipo"] == "cor":
-                erros.append((caminho, f"a entrada «${nome}» é uma cor e não entra em conta"))
+            elif entradas[nome]["tipo"] in ("cor", "escolha"):
+                erros.append((caminho, (f"a entrada «${nome}» é uma {entradas[nome]['tipo']} e "
+                                        "não entra em conta")))
 
     grafo: dict[str, set[str]] = {}
     caminho_do_no: dict[str, Caminho] = {}
@@ -723,6 +754,13 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
                 no = _expressao(efeito[campo], (*caminho, campo), erros, analisadas)
                 if no is not None:
                     conferir_nomes(no, (*caminho, campo))
+        tipo = efeito.get("tipo")
+        if isinstance(tipo, str) and COR_DA_ENTRADA.match(tipo):
+            entrada = entradas.get(tipo[1:], {})
+            if entrada.get("tipo") != "escolha":
+                erros.append(((*caminho, "tipo"), f"«{tipo}» não é uma entrada de escolha da receita"))
+            elif not set(entrada["escolhas"]) <= set(TIPOS_POR_CANAL[efeito["canal"]]):
+                erros.append(((*caminho, "tipo"), f"«{tipo}» oferece escolha que não é tipo deste canal"))
         cor = efeito.get("cor")
         if (isinstance(cor, str) and COR_DA_ENTRADA.match(cor)
                 and entradas.get(cor[1:], {}).get("tipo") != "cor"):

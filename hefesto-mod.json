@@ -329,6 +329,127 @@
       "dica": "A força do tranco do susto na vibração fina"
     },
     {
+      "id": "tipo_do_coracao",
+      "rotulo": "Coração",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Batida",
+      "grupo": "Tipos",
+      "dica": "A forma de cada batida do coração no tato",
+      "aparece_com": {
+        "@presente": "tipo_do_coracao"
+      }
+    },
+    {
+      "id": "tipo_do_alivio",
+      "rotulo": "Alívio",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Batida",
+      "grupo": "Tipos",
+      "dica": "A forma do alívio, a batida calma depois do perigo",
+      "aparece_com": {
+        "@presente": "tipo_do_alivio"
+      }
+    },
+    {
+      "id": "tipo_do_golpe",
+      "rotulo": "Golpe com lado",
+      "tipo": "escolha",
+      "escolhas": [
+        "Contínuo",
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Contínuo",
+      "grupo": "Tipos",
+      "dica": "A forma do golpe nos motores; Contínuo é o golpe inteiro, sem forma",
+      "aparece_com": {
+        "@presente": "tipo_do_golpe"
+      }
+    },
+    {
+      "id": "tipo_do_susto",
+      "rotulo": "Susto no tato",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Pancada",
+      "grupo": "Tipos",
+      "dica": "A forma do susto no tato, na duração da aba Susto",
+      "aparece_com": {
+        "@presente": "tipo_do_susto"
+      }
+    },
+    {
+      "id": "tipo_do_l2",
+      "rotulo": "Impacto no L2",
+      "tipo": "escolha",
+      "escolhas": [
+        "Vibração",
+        "Resistência",
+        "Disparo",
+        "Arco",
+        "Galope",
+        "Metralhadora",
+        "Rampa de força",
+        "Curva de força",
+        "Vibração por posição"
+      ],
+      "padrao": "Vibração",
+      "grupo": "Tipos",
+      "dica": "O efeito do impacto no L2, da lista da aba Gatilhos",
+      "aparece_com": {
+        "@presente": "tipo_do_l2"
+      }
+    },
+    {
+      "id": "tipo_do_r2",
+      "rotulo": "Impacto no R2",
+      "tipo": "escolha",
+      "escolhas": [
+        "Vibração",
+        "Resistência",
+        "Disparo",
+        "Arco",
+        "Galope",
+        "Metralhadora",
+        "Rampa de força",
+        "Curva de força",
+        "Vibração por posição"
+      ],
+      "padrao": "Vibração",
+      "grupo": "Tipos",
+      "dica": "O efeito do impacto no R2, da lista da aba Gatilhos",
+      "aparece_com": {
+        "@presente": "tipo_do_r2"
+      }
+    },
+    {
       "id": "canal_haptica",
       "rotulo": "Vibração fina",
       "tipo": "ligado",
@@ -413,6 +534,36 @@
       "id": "parar_de_ver",
       "rotulo": "Parar de ver",
       "grupo": "Sentidos"
+    },
+    {
+      "id": "testar_coracao",
+      "rotulo": "Testar o coração",
+      "grupo": "Tipos",
+      "icone": "testar"
+    },
+    {
+      "id": "testar_alivio",
+      "rotulo": "Testar o alívio",
+      "grupo": "Tipos",
+      "icone": "testar"
+    },
+    {
+      "id": "testar_golpe",
+      "rotulo": "Testar o golpe",
+      "grupo": "Tipos",
+      "icone": "testar"
+    },
+    {
+      "id": "testar_susto",
+      "rotulo": "Testar o susto",
+      "grupo": "Tipos",
+      "icone": "testar"
+    },
+    {
+      "id": "testar_gatilhos",
+      "rotulo": "Testar os gatilhos",
+      "grupo": "Tipos",
+      "icone": "testar"
     }
   ],
   "pagina": {

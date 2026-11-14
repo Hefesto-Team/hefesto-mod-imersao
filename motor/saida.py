@@ -212,7 +212,7 @@ class Saida:
                 forca = p["forca"]
                 marca: tuple[Any, ...] = (canal, lado, pedido.efeito, pedido.inicio_ms,
                                           pedido.regra, forca)
-                if canal == "haptica":
+                if "padrao" in p:  # (noqa-acento)
                     envelope = catalogo.envelope(p["padrao"], t_ms - p["inicio_ms"], p["bpm"],  # (noqa-acento)
                                                  p.get("escala_ms"))
                     forca *= envelope

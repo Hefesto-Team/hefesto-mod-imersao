@@ -18,6 +18,13 @@ ACAO_DE_LIGAR = "ligar"
 ACAO_DE_VER_A_TELA = "ver_a_tela"
 ACAO_DE_PARAR_DE_VER = "parar_de_ver"
 SENTIDO_DA_TELA = "sentido_tela"
+TESTES: dict[str, tuple[str, ...]] = {
+    "testar_coracao": ("tipo_do_coracao",),
+    "testar_alivio": ("tipo_do_alivio",),
+    "testar_golpe": ("tipo_do_golpe",),
+    "testar_susto": ("tipo_do_susto",),
+    "testar_gatilhos": ("tipo_do_l2", "tipo_do_r2"),
+}
 TOPICO_DA_TELA = "jogo.tela"
 ID_DO_CONTROLE = re.compile(r"^(?:jogador|controle)-[1-9][0-9]?$")
 FORCA = "forca_geral"

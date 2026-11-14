@@ -37,7 +37,7 @@ from motor.laco import HZ, Motor
 from motor.saida import Saida
 from receita.formato import ler_receita
 
-ABAS = ["Geral", "Sentidos", "Efeitos", "Susto", "Canais"]
+ABAS = ["Geral", "Sentidos", "Tipos", "Efeitos", "Susto", "Canais"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -89,7 +89,7 @@ def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None
     lido = do_hefesto.ler_manifesto(RAIZ)
     assert [o.id for o in lido.opcoes] == [o["id"] for o in manifesto["opcoes"]]  # (noqa-acento)
     assert [a.id for a in lido.acoes] == [servidor.ACAO_DE_PROCURAR, ajustes.ACAO_DE_VER_A_TELA,
-                                          ajustes.ACAO_DE_PARAR_DE_VER]
+                                          ajustes.ACAO_DE_PARAR_DE_VER, *ajustes.TESTES]
 
 
 def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> None:
@@ -403,7 +403,7 @@ def test_a_cor_do_dano_e_o_intervalo_do_susto_mudam_o_que_sai(arquivo: Path) -> 
     (("efeitos", "vermelho", "cor"), "vermelho", "pede uma cor"),
     (("regras", 7, "espera_ms"), "$cor_do_dano * 1000", "é uma cor e não entra em conta"),
     (("regras", 7, "espera_ms"), "$sem_entrada * 1000", "que não existe"),
-    (("entradas", "cor_do_dano", "padrao"), "vermelho", "pede um número"),  # (noqa-acento)
+    (("entradas", "cor_do_dano", "padrao"), "vermelho", "padrão #rrggbb"),  # (noqa-acento)
 ], ids=["cor-que-nao-e-cor", "cor-fora-da-forma", "cor-na-conta", "entrada-que-falta",
         "padrao-da-cor-fora-da-forma"])
 def test_a_receita_recusa_a_cor_e_o_intervalo_fora_da_forma(onde: tuple[Any, ...], valor: Any,

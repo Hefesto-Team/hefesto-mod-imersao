@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from array import array
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,11 +38,49 @@ class Padrao:
         return max(g.inicio_ms + g.dura_ms for g in self.golpes)
 
 
-PADROES: dict[str, Padrao] = {
-    "coracao": Padrao((Golpe(0, 90, 55, 1.0), Golpe(180, 110, 45, 0.7)), repete=True),  # (noqa-acento)
-    "susto": Padrao((Golpe(0, 40, 90, 1.0), Golpe(40, 260, 60, 0.6)), repete=False),
-    "estalo": Padrao((Golpe(0, 30, 120, 1.0),), repete=False),
+FORMAS: dict[str, tuple[Golpe, ...]] = {
+    "batida": (Golpe(0, 90, 55, 1.0), Golpe(180, 110, 45, 0.7)),
+    "pancada": (Golpe(0, 40, 90, 1.0), Golpe(40, 260, 60, 0.6)),
+    "pulso": (Golpe(0, 240, 50, 0.8),),
+    "tremor": (Golpe(0, 30, 110, 0.9), Golpe(70, 30, 110, 0.9), Golpe(140, 30, 110, 0.9),
+               Golpe(210, 30, 110, 0.9)),
+    "estalo": (Golpe(0, 30, 120, 1.0),),
+    "onda": (Golpe(0, 80, 40, 0.35), Golpe(80, 80, 45, 0.65), Golpe(160, 80, 50, 1.0),
+             Golpe(240, 80, 45, 0.65), Golpe(320, 80, 40, 0.35)),
 }
+TIPOS_DA_VIBRACAO: dict[str, str] = {
+    "Batida": "batida", "Pancada": "pancada", "Pulso": "pulso", "Tremor": "tremor",
+    "Estalo": "estalo", "Onda": "onda",
+}
+CONTINUO = "Contínuo"
+_ID_DE_ANTES: dict[tuple[str, bool], str] = {
+    ("batida", True): "coracao", ("pancada", False): "susto", ("estalo", False): "estalo",  # (noqa-acento)
+}
+
+
+def id_do_padrao(forma: str, repete: bool) -> str:
+    """O ``id`` do padrão na porta: a forma, que se repete ou toca uma vez; as três de antes da
+    0.5.1 guardam o ``id`` delas."""
+    return _ID_DE_ANTES.get((forma, repete), f"{forma}_{'ritmo' if repete else 'uma_vez'}")
+
+
+PADROES: dict[str, Padrao] = {
+    id_do_padrao(forma, repete): Padrao(golpes_da_forma, repete)
+    for repete in (True, False) for forma, golpes_da_forma in FORMAS.items()
+}
+
+
+def padrao_do_tipo(tipo: str | None, base: str) -> str:
+    """O padrão que toca: o ``tipo`` escolhido na forma dele, repetindo como o ``base`` repete;
+    sem tipo conhecido, o ``base``."""
+    forma = TIPOS_DA_VIBRACAO.get(tipo or "")
+    return id_do_padrao(forma, PADROES[base].repete) if forma else base
+
+
+def padrao_do_golpe(tipo: str | None) -> str | None:
+    """O padrão que o motor desenha no golpe, uma vez; ``None`` no «Contínuo», o golpe de antes."""
+    forma = TIPOS_DA_VIBRACAO.get(tipo or "")
+    return id_do_padrao(forma, False) if forma else None
 
 
 def padrao(nome: str, dura_ms: float | None = None) -> Padrao:
@@ -125,6 +164,38 @@ def para_o_trigger_set(efeito: dict[str, Any]) -> tuple[str, list[int]]:
     if modo == "vibracao_por_zona":
         return "MultiPositionVibration", [efeito["frequencia"], *efeito["amplitudes"]]  # (noqa-acento)
     return "Off", []
+
+
+def _zonas(forca: int) -> list[int]:
+    return [round(forca * i / 9) for i in range(10)]
+
+
+TIPOS_DO_GATILHO: dict[str, Callable[[int], tuple[str, list[int]]]] = {
+    "Vibração": lambda f: ("Vibration", [2, f, 40]),
+    "Resistência": lambda f: ("Resistance", [2, f]),
+    "Disparo": lambda f: ("Weapon", [2, 6, _byte_da_forca(f)]),
+    "Arco": lambda f: ("Bow", [1, 7, f, f]),
+    "Galope": lambda f: ("Galloping", [0, 9, 7, max(1, round(f * 7 / 8)), 10]),
+    "Metralhadora": lambda f: ("Machine", [2, 9, f, 40]),
+    "Rampa de força": lambda f: ("SlopeFeedback", [1, 8, max(1, f // 4), f]),
+    "Curva de força": lambda f: ("MultiPositionFeedback", _zonas(f)),
+    "Vibração por posição": lambda f: ("MultiPositionVibration", [40, *_zonas(f)]),
+}
+_TIPO_DO_MODO = {
+    "vibracao": "Vibração", "arma": "Disparo", "rampa": "Rampa de força",  # (noqa-acento)
+    "resistencia_por_zona": "Curva de força", "vibracao_por_zona": "Vibração por posição",  # (noqa-acento)
+}
+
+
+def trigger_do_tipo(tipo: str | None, efeito: dict[str, Any]) -> tuple[str, list[int]] | None:
+    """O ``trigger.set`` do ``tipo`` escolhido, na força do ``efeito`` (de 1 a 8); ``None`` sem
+    tipo conhecido ou quando o tipo é o modo do próprio efeito, que segue como a receita o diz."""
+    fabrica = TIPOS_DO_GATILHO.get(tipo or "")
+    if fabrica is None or _TIPO_DO_MODO.get(efeito["modo"]) == tipo:
+        return None
+    forca = max(1, min(FORCA_MAXIMA_DO_GATILHO,
+                       round(forca_do_gatilho(efeito) * FORCA_MAXIMA_DO_GATILHO)))
+    return fabrica(forca)
 
 
 def forca_do_gatilho(efeito: dict[str, Any]) -> float:

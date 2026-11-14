@@ -31,6 +31,9 @@ from receita.formato import COR, DURA_DO_RECORTE_MS, Receita
 
 HZ = 60
 DURACAO_MINIMA_MS = 250.0
+REGRA_DO_TESTE = -1
+PRIORIDADE_DO_TESTE = 100
+TESTE_DO_QUE_REPETE_MS = 1000.0
 DERIVADO_DO_CLIMA = "tensao"  # (noqa-acento)
 _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
@@ -301,8 +304,10 @@ class Motor:
     def _fim(self, nome: str, efeito: dict[str, Any], t_ms: float, de_borda: bool
              ) -> float | None:
         dura = self._dura(nome, efeito)
-        if efeito["canal"] == "haptica" and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
-            return t_ms + catalogo.padrao(efeito["padrao"], dura).dura_ms  # (noqa-acento)
+        if efeito["canal"] == "haptica":
+            escolhido = self._padrao_do_efeito(efeito)
+            if not catalogo.PADROES[escolhido].repete:
+                return t_ms + catalogo.padrao(escolhido, dura).dura_ms
         if dura is not None:
             return t_ms + dura
         if efeito["canal"] == "leds":
@@ -320,6 +325,40 @@ class Motor:
             efeito = self.receita.secao("efeitos")[nome]
             self.ativas.append(Ativacao(indice, nome, alvos, t_ms,
                                         self._fim(nome, efeito, t_ms, de_borda), t_do_jogo))
+
+    def _tipo(self, efeito: dict[str, Any]) -> str | None:
+        """O tipo do efeito: o texto da receita ou, com ``$entrada``, a escolha da janela, que fora
+        das escolhas da entrada vale o padrão dela."""
+        valor = efeito.get("tipo")
+        if not isinstance(valor, str) or not valor.startswith("$"):
+            return valor if isinstance(valor, str) else None
+        entrada = self.receita.secao("entradas").get(valor[1:], {})
+        escolhido = self.opcoes.get(valor[1:])
+        if isinstance(escolhido, str) and escolhido in entrada.get("escolhas", ()):
+            return escolhido
+        padrao = entrada.get("padrao")  # (noqa-acento)
+        return padrao if isinstance(padrao, str) else None  # (noqa-acento)
+
+    def _padrao_do_efeito(self, efeito: dict[str, Any]) -> str:
+        return catalogo.padrao_do_tipo(self._tipo(efeito), efeito["padrao"])
+
+    def testar(self, entradas: tuple[str, ...], t_ms: float | None = None) -> list[str]:
+        """O botão de testar: cada efeito cujo tipo é uma das ``entradas`` toca uma vez em todo
+        controle que sente, como se a regra dele disparasse agora. Devolve os efeitos tocados."""
+        quando = self.agora_ms if t_ms is None else t_ms
+        citam = {f"${e}" for e in entradas}
+        tocados = []
+        for nome, efeito in self.receita.secao("efeitos").items():
+            if efeito.get("tipo") not in citam:
+                continue
+            fim = self._fim(nome, efeito, quando, de_borda=True)
+            if efeito["canal"] == "haptica" and catalogo.PADROES[
+                    self._padrao_do_efeito(efeito)].repete:
+                fim = quando + TESTE_DO_QUE_REPETE_MS
+            self.ativas.append(Ativacao(REGRA_DO_TESTE, nome, tuple(sorted(self.jogadores)),
+                                        quando, fim))
+            tocados.append(nome)
+        return tocados
 
     def _rodar_as_regras(self, t_ms: float) -> None:
         for indice, regra in enumerate(self.receita.regras):
@@ -363,7 +402,8 @@ class Motor:
         geral = ajustes.forca(self.opcoes)
         if geral <= 0 or canal in ajustes.canais_calados(self.opcoes):
             return []
-        prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
+        prioridade = (PRIORIDADE_DO_TESTE if ativa.regra == REGRA_DO_TESTE
+                      else int(self.receita.regras[ativa.regra].get("prioridade", 0)))
         montados: dict[float, tuple[float, dict[str, Any], list[str]] | None] = {}
         pedidos: list[Pedido] = []
         for uniq in ativa.alvos:
@@ -395,18 +435,26 @@ class Motor:
                 return None
             params["forca"] = forca
             if canal == "haptica":
-                params["padrao"] = efeito["padrao"]  # (noqa-acento)
+                escolhido = self._padrao_do_efeito(efeito)
+                params["padrao"] = escolhido  # (noqa-acento)
                 params["bpm"] = self._numero(efeito.get("bpm", catalogo.BPM_PADRAO),
                                              (*caminho, "bpm"), 30.0, 220.0, catalogo.BPM_PADRAO)
                 dura = self._dura(ativa.efeito, efeito)
-                if dura is not None and not catalogo.PADROES[efeito["padrao"]].repete:  # (noqa-acento)
-                    params["escala_ms"] = catalogo.padrao(efeito["padrao"], dura).dura_ms  # (noqa-acento)
+                if dura is not None and not catalogo.PADROES[escolhido].repete:
+                    params["escala_ms"] = catalogo.padrao(escolhido, dura).dura_ms
+            elif (desenho := catalogo.padrao_do_golpe(self._tipo(efeito))) is not None:
+                params["padrao"] = desenho  # (noqa-acento)
+                params["bpm"] = catalogo.BPM_PADRAO
+                dura = self._dura(ativa.efeito, efeito)
+                if dura is not None:
+                    params["escala_ms"] = catalogo.padrao(desenho, dura).dura_ms
             lado = efeito.get("lado", "ambos")
             lados = ["esquerdo", "direito"] if lado == "ambos" else [lado]
         elif canal == "gatilho":
             efeito = catalogo.gatilho_na_escala(efeito, escala)
             forca = catalogo.forca_do_gatilho(efeito)
-            params["trigger"] = catalogo.para_o_trigger_set(efeito)
+            params["trigger"] = (catalogo.trigger_do_tipo(self._tipo(efeito), efeito)
+                                 or catalogo.para_o_trigger_set(efeito))
             lados = ["esquerdo", "direito"] if efeito["lado"] == "ambos" else [
                 "esquerdo" if efeito["lado"] == "l2" else "direito"]
         elif canal == "luz":
