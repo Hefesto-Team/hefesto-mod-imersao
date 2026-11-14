@@ -101,6 +101,8 @@ class Motor:
 
     def __init__(self, receita: Receita, opcoes: dict[str, Any] | None = None) -> None:
         self.opcoes = dict(opcoes or {})
+        self.sem_do_estilo: frozenset[str] = frozenset()
+        self.escala_do_estilo: dict[str, float] = {}
         self.jogadores: dict[str, int] = {}
         self.calados: frozenset[str] = frozenset()
         self.niveis: dict[str, tuple[float, float]] = {}
@@ -136,6 +138,20 @@ class Motor:
     def ajustar(self, opcoes: dict[str, Any]) -> None:
         """Os valores das opções da janela; a entrada sem valor volta ao padrão da receita."""
         self.opcoes = dict(opcoes)
+
+    def estilo(self, sem: frozenset[str] = frozenset(),
+               escalas: dict[str, float] | None = None) -> None:
+        """O preset do estilo no universal (``receita/estilos``): os efeitos que não tocam e a
+        escala da força de outros. O efeito que sai do preset para já; a receita de um jogo
+        não muda."""
+        self.sem_do_estilo = frozenset(sem)
+        self.escala_do_estilo = dict(escalas or {})
+        for ativa in self.ativas:
+            if self._fora_do_estilo(ativa.efeito) and ativa.regra != REGRA_DO_TESTE:
+                ativa.fim_ms = self.agora_ms
+
+    def _fora_do_estilo(self, efeito: str) -> bool:
+        return self.receita.universal and efeito in self.sem_do_estilo
 
     def controles(self, lista: list[dict[str, Any]]) -> None:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
@@ -321,6 +337,8 @@ class Motor:
                   if n in self.leituras and self.leituras[n].disparou]
         t_do_jogo = next((m for m in marcas if m is not None), None)
         for nome in [nomes] if isinstance(nomes, str) else nomes:
+            if self._fora_do_estilo(nome):
+                continue
             efeito = self.receita.secao("efeitos")[nome]
             self.ativas.append(Ativacao(indice, nome, alvos, t_ms,
                                         self._fim(nome, efeito, t_ms, de_borda), t_do_jogo))
@@ -411,6 +429,8 @@ class Motor:
                 continue
             forca_do_controle, volume_do_controle = self.niveis.get(uniq, (1.0, 1.0))
             escala = geral * (volume_do_controle if canal == "som" else forca_do_controle)
+            if self.receita.universal:
+                escala *= self.escala_do_estilo.get(ativa.efeito, 1.0)
             if escala not in montados:
                 montados[escala] = self._montar_o_pedido(ativa, efeito, canal, escala)
             montado = montados[escala]

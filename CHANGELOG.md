@@ -1,5 +1,17 @@
 # Mudanças
 
+## 0.5.2 (14/11/2026)
+
+- A universal segue o estilo do jogo: deixa de tocar o terror em todo jogo. Num jogo de terror,
+  continuam o coração, o susto e o peso da mira. Num de tiro, ficam o golpe com lado e o impacto
+  no gatilho, sem coração e sem susto. Na corrida o golpe é mais leve; na luta, inteiro; na
+  aventura e na plataforma, leve; no ritmo, a batida chega ao corpo sem impacto no gatilho. Sem
+  estilo, vale o geral, sem coração e sem susto.
+- A opção «Estilo», na aba Geral, troca o estilo à mão; «Pelo jogo» é o padrão. O «Agora» diz o
+  estilo que vale.
+- Pede o Hefesto que publica o estilo do jogo (`ler:jogo.estilo`). Um Hefesto mais velho recusa a
+  instalação e diz por quê.
+
 ## 0.5.1 (14/11/2026)
 
 - Aba nova, «Tipos»: você escolhe a forma de cada efeito que vibra. O coração, o alívio e o susto no

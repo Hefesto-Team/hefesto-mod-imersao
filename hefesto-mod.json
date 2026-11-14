@@ -1,7 +1,7 @@
 {
   "id": "imersao",
   "nome": "Modo imersão",
-  "versao": "0.5.1",
+  "versao": "0.5.2",
   "api": ">=2,<3",
   "licenca": "GPL-3.0-or-later",
   "descricao": "O jogo chega ao controle como no console: a receita de cada jogo lê o que acontece na cena e responde com a vibração, os gatilhos e a luz. Sem receita, vale o modo universal.",
@@ -30,6 +30,7 @@
     "ler:jogo.tela",
     "ler:jogo.identidade",
     "ler:jogo.memoria",
+    "ler:jogo.estilo",
     "escrever:luz",
     "escrever:vibracao",
     "escrever:gatilho",
@@ -65,6 +66,24 @@
       "padrao": "Pelo jogo",
       "grupo": "Geral",
       "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+    },
+    {
+      "id": "estilo",
+      "rotulo": "Estilo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Pelo jogo",
+        "Terror",
+        "Tiro",
+        "Corrida",
+        "Luta",
+        "Aventura",
+        "Ritmo",
+        "Geral"
+      ],
+      "padrao": "Pelo jogo",
+      "grupo": "Geral",
+      "dica": "Pelo jogo, a universal toca o que combina com o estilo do jogo aberto"
     },
     {
       "id": "para_quem",

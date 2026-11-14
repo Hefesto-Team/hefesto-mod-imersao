@@ -61,6 +61,7 @@ from motor.conta import ContaDoMinuto  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
+from receita import estilos  # noqa: E402
 from receita.biblioteca import (  # noqa: E402
     ARQUIVO_DE_ANTES,
     PELO_JOGO,
@@ -82,7 +83,7 @@ PUBLICA_O_CLIMA_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
-    "jogo.memoria",
+    "jogo.memoria", "jogo.estilo",
 )
 TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
 BOTAO_DA_MARCA = "ps"
@@ -228,8 +229,9 @@ def topicos_da_receita(receita: Receita) -> list[str]:
 
 
 def topicos_assinados(receita: Receita, opcoes: dict[str, Any] | None = None) -> list[str]:
-    """Os tópicos da receita e sempre o ``perfil.jogo``: é ele que diz qual receita vale."""
-    pedidos = set(topicos_da_receita(receita)) | {"perfil.jogo"}
+    """Os tópicos da receita e sempre o ``perfil.jogo`` e o ``jogo.estilo``: eles dizem qual
+    receita e qual preset valem."""
+    pedidos = set(topicos_da_receita(receita)) | {"perfil.jogo", "jogo.estilo"}
     return [t for t in TOPICOS_DA_PORTA if t in pedidos and ajustes.topico_ligado(t, opcoes)]
 
 
@@ -365,6 +367,10 @@ class Extensao:
         self.calados = ajustes.controles_calados(dados)
         self.niveis = ajustes.niveis_dos_controles(dados)
         self.ultimo_estado: dict[str, Any] | None = None
+        self.estilo_do_jogo: str | None = None
+        self.estilo_dito = False
+        self.preset: str | None = None
+        self.aplicar_o_estilo()
 
     @property
     def escolha(self) -> str:
@@ -554,6 +560,8 @@ class Extensao:
         """As linhas do «Agora»: os sentidos lendo, a memória que espera a chave e o último
         efeito tocado, com a hora."""
         linhas: list[dict[str, str]] = []
+        if self.preset is not None and self.receita.universal:
+            linhas.append({"rotulo": "Estilo", "valor": self.preset})
         if lendo := self.sentidos_lendo():
             linhas.append({"rotulo": "Lendo", "valor": lista_curta(lendo)})
         if self.jogo is not None and self._le_a_memoria() and not self.memoria_vale:
@@ -697,10 +705,22 @@ class Extensao:
             await self.assinar()
         await self.publicar_se_mudou()
 
+    def aplicar_o_estilo(self) -> None:
+        """O preset do universal: o escolhido na janela, ou o do estilo que o Hefesto diz. Sem
+        escolha à mão e sem o estilo dito (o Hefesto que não o publica), o padrão da receita."""
+        escolha = self.opcoes.get(estilos.OPCAO, estilos.PELO_JOGO)
+        if escolha not in estilos.PRESETS and not self.estilo_dito:
+            self.preset = None
+            self.motor.estilo()
+            return
+        self.preset = estilos.preset(escolha, self.estilo_do_jogo)
+        self.motor.estilo(*estilos.do_preset(self.preset))
+
     async def reler_as_opcoes(self) -> None:
         """O ``opcoes.json`` mudou: as entradas valem já, e a opção da receita pode trocá-la."""
         self.opcoes = ajustes.com_a_tela(ler_as_opcoes(self.dados), self.vendo)
         self.motor.ajustar(self.opcoes)
+        self.aplicar_o_estilo()
         await self.escolher()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.assinar()
@@ -739,11 +759,21 @@ class Extensao:
             await self.publicar_se_mudou()
             if self.jogo is not None:
                 self.procurar_em_fundo()
+        elif topico == "jogo.estilo" and isinstance(dados, dict):
+            estilo = dados.get("estilo")
+            self.estilo_do_jogo = estilo if isinstance(estilo, str) and estilo else None
+            self.estilo_dito = True
+            self.aplicar_o_estilo()
+            await self.publicar_se_mudou()
         elif topico == "extensao.opcao" and isinstance(dados, dict):
             ident, valor = dados.get("id"), dados.get("valor")
             if (isinstance(ident, str) and ident != ajustes.SENTIDO_DA_TELA
                     and isinstance(valor, (bool, int, float, str))):
                 self.motor.opcoes[ident] = valor
+                if ident == estilos.OPCAO:
+                    self.opcoes = {**self.opcoes, ident: valor}
+                    self.aplicar_o_estilo()
+                    await self.publicar_se_mudou()
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ACAO_DE_PROCURAR):  # (noqa-acento)
             self.procurar_em_fundo(agora=True)
