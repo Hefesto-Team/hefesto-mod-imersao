@@ -1,5 +1,17 @@
 # Mudanças
 
+## 0.5.1 (14/11/2026)
+
+- Aba nova, «Tipos»: você escolhe a forma de cada efeito que vibra. O coração, o alívio e o susto no
+  tato têm Batida, Pancada, Pulso, Tremor, Estalo ou Onda; o golpe com lado tem as mesmas e o
+  Contínuo, o golpe inteiro de antes. O impacto no L2 e no R2 tem os efeitos da aba Gatilhos do
+  Hefesto (Vibração, Resistência, Disparo, Arco, Galope, Metralhadora, Rampa de força, Curva de força
+  e Vibração por posição). No padrão, tudo toca como antes.
+- Cada tipo tem o botão de testar ao lado: o efeito toca uma vez em todo controle ligado, pelo cabo
+  ou pelo rádio, na Força da janela e na de cada controle.
+- O universal e a receita do Minecraft Dungeons II leem a escolha; a receita que não a cita toca como
+  na 0.5.0.
+
 ## 0.5.0 (14/11/2026)
 
 - O susto se ajusta numa aba própria, «Susto»: a duração do pico (de 100 a 1500 ms, padrão 300),
