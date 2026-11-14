@@ -33,7 +33,6 @@ HZ = 60
 DURACAO_MINIMA_MS = 250.0
 REGRA_DO_TESTE = -1
 PRIORIDADE_DO_TESTE = 100
-TESTE_DO_QUE_REPETE_MS = 1000.0
 DERIVADO_DO_CLIMA = "tensao"  # (noqa-acento)
 _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
@@ -354,7 +353,8 @@ class Motor:
             fim = self._fim(nome, efeito, quando, de_borda=True)
             if efeito["canal"] == "haptica" and catalogo.PADROES[
                     self._padrao_do_efeito(efeito)].repete:
-                fim = quando + TESTE_DO_QUE_REPETE_MS
+                fim = quando + catalogo.PADROES[
+                    catalogo.uma_vez(self._padrao_do_efeito(efeito))].dura_ms
             self.ativas.append(Ativacao(REGRA_DO_TESTE, nome, tuple(sorted(self.jogadores)),
                                         quando, fim))
             tocados.append(nome)
@@ -436,10 +436,12 @@ class Motor:
             params["forca"] = forca
             if canal == "haptica":
                 escolhido = self._padrao_do_efeito(efeito)
+                dura = self._dura(ativa.efeito, efeito)
+                if ativa.regra == REGRA_DO_TESTE and catalogo.PADROES[escolhido].repete:
+                    escolhido, dura = catalogo.uma_vez(escolhido), None
                 params["padrao"] = escolhido  # (noqa-acento)
                 params["bpm"] = self._numero(efeito.get("bpm", catalogo.BPM_PADRAO),
                                              (*caminho, "bpm"), 30.0, 220.0, catalogo.BPM_PADRAO)
-                dura = self._dura(ativa.efeito, efeito)
                 if dura is not None and not catalogo.PADROES[escolhido].repete:
                     params["escala_ms"] = catalogo.padrao(escolhido, dura).dura_ms
             elif (desenho := catalogo.padrao_do_golpe(self._tipo(efeito))) is not None:

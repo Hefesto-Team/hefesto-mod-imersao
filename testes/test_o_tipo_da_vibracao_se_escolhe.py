@@ -145,6 +145,20 @@ def test_o_botao_de_testar_toca_o_tipo_escolhido_uma_vez_em_cada_controle(mesa: 
         assert {p["modo"] for _, p in porta.de("gatilho.set") if p["uniq"] == uniq} >= {"Off"}
 
 
+@pytest.mark.parametrize("mesa", sorted(MESAS))
+@pytest.mark.parametrize(("acao", "tipo"), [("testar_coracao", "Tremor"), ("testar_coracao", "Batida"),
+                                            ("testar_alivio", "Onda")])
+def test_o_testar_do_que_repete_toca_a_forma_uma_vez_so(mesa: str, acao: str, tipo: str) -> None:
+    controles = MESAS[mesa]
+    entrada = ajustes.TESTES[acao][0]
+    porta = _testar(acao, {entrada: tipo}, controles)
+    forma = catalogo.id_do_padrao(catalogo.TIPOS_DA_VIBRACAO[tipo], False)
+    assert not catalogo.PADROES[forma].repete
+    for uniq in sorted(c["uniq"] for c in controles):
+        assert {p["id"] for _, p in porta.de("haptica.tocar")
+                if p["uniq"] == uniq and p["forca"]} == {forma}
+
+
 def test_o_golpe_com_forma_desenha_o_motor_e_o_continuo_segue_reto() -> None:
     def forcas(tipo: str) -> list[int]:
         porta = _testar("testar_golpe", {"tipo_do_golpe": tipo}, MESAS["um"])

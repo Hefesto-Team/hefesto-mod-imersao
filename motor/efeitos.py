@@ -70,6 +70,12 @@ PADROES: dict[str, Padrao] = {
 }
 
 
+def uma_vez(nome: str) -> str:
+    """O padrão que toca a forma de ``nome`` uma vez só."""
+    forma = next((f for f in FORMAS if id_do_padrao(f, True) == nome), None)
+    return id_do_padrao(forma, False) if forma else nome
+
+
 def padrao_do_tipo(tipo: str | None, base: str) -> str:
     """O padrão que toca: o ``tipo`` escolhido na forma dele, repetindo como o ``base`` repete;
     sem tipo conhecido, o ``base``."""
