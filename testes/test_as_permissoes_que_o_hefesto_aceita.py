@@ -147,3 +147,35 @@ def test_a_porta_assina_o_jogo_som_e_o_estalo_vibra_o_lado_e_a_tela_espera_o_cli
 
     assert asyncio.run(rodar()) == 0
     assert {"topicos": ["jogo.tela"]} in porta.de("eventos.desassinar")
+
+
+def test_a_extensao_que_sai_vendo_a_tela_manda_o_tela_parar(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    porta = _PortaQueToca()
+    dados = pasta_curta / "dados"
+    dados.mkdir()
+    monkeypatch.setenv("HEFESTO_MOD_SOCKET", str(pasta_curta / "mods.sock"))
+    monkeypatch.setenv("HEFESTO_MOD_FICHA", "ficha-de-mentira")
+    monkeypatch.setenv("HEFESTO_MOD_DADOS", str(dados))
+
+    async def rodar() -> int:
+        socket = await asyncio.start_unix_server(porta.atender, path=str(pasta_curta / "mods.sock"))
+        extensoes: list[servidor.Extensao] = []
+        processo = asyncio.create_task(servidor.rodar(extensoes.append))
+        try:
+            await ate(lambda: bool(extensoes))
+            extensao = extensoes[0]
+            await extensao.ao_evento({"method": "evento", "params": {
+                "topico": "extensao.acao", "dados": {"acao": "ver_a_tela"}}})
+            await ate(lambda: "jogo.tela" in porta.assinados)
+            assert "tela.parar" not in porta.metodos
+            await extensao.porta.eventos.put({"method": "porta.fechou"})
+            codigo = await asyncio.wait_for(processo, 5)
+            for escritor in porta.escritores:
+                escritor.close()
+            return codigo
+        finally:
+            socket.close()
+
+    assert asyncio.run(rodar()) == 0
+    assert porta.metodos.count("tela.ver") == porta.metodos.count("tela.parar") == 1

@@ -227,6 +227,30 @@ def test_o_jogo_que_fecha_para_de_ver_a_tela(tmp_path: Path) -> None:
     asyncio.run(corpo())
 
 
+def _gravar() -> dict[str, Any]:
+    return {"method": "evento", "params": {"topico": "extensao.mensagem",
+                                           "nome": "extensao.mensagem", "uniq": None,
+                                           "dados": {"id": 1, "dados": {"tipo": "gravar"}}}}
+
+
+def test_gravar_no_estudio_sem_o_clique_nao_assina_a_tela(tmp_path: Path) -> None:
+    porta = PortaDaTela()
+
+    async def corpo() -> None:
+        extensao = _extensao(porta, tmp_path)
+        await extensao.ao_evento(_jogo("steam_app_1"))
+        await extensao.ao_evento(_gravar())
+        assert extensao.gravador.gravando and "jogo.som" in porta.assinados
+        assert "jogo.tela" not in porta.assinados and porta.assinou_a_tela() == 0
+        await extensao.ao_evento(_acao(ajustes.ACAO_DE_VER_A_TELA))
+        assert "jogo.tela" in porta.assinados
+        await extensao.ao_evento(_acao(ajustes.ACAO_DE_PARAR_DE_VER))
+        assert "jogo.tela" not in porta.assinados
+
+    asyncio.run(corpo())
+    assert porta.conta("tela.ver") == porta.conta("tela.parar") == 1
+
+
 def test_o_hefesto_sem_tela_ver_vira_a_linha_da_tela_e_nunca_assina_nem_repete(
         tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     porta = PortaDaTela(conhece=False)

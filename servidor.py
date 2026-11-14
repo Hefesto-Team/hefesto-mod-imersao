@@ -453,7 +453,8 @@ class Extensao:
     async def ao_gravador(self, tipo: str, agora_ms: float) -> dict[str, Any]:
         """«Gravar», «Parar» e «Tocar» da linha do tempo."""
         if tipo == "gravar":
-            await self.assinar_o_estudio(linha_do_tempo.TOPICOS_GRAVADOS)
+            await self.assinar_o_estudio(tuple(t for t in linha_do_tempo.TOPICOS_GRAVADOS
+                                               if t != ajustes.TOPICO_DA_TELA))
             self.gravador.gravar(agora_ms)
             return {"tipo": "gravando", "segundos": linha_do_tempo.DURACAO_MS / 1000}
         if tipo == "parar":
