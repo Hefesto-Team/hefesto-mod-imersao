@@ -101,3 +101,32 @@ def test_o_manifesto_pede_o_estilo_e_a_janela_tem_a_escolha() -> None:
     assert tuple(opcao["escolhas"]) == estilos.ESCOLHAS
     assert opcao["padrao"] == estilos.PELO_JOGO
     assert "jogo.estilo" in servidor.topicos_assinados(servidor.carregar_o_universal())
+
+
+def _por_controle(preset: str) -> tuple[dict[str, int], dict[str, set[str]]]:
+    motor = _universal(QUATRO_CONTROLES)
+    motor.estilo(*estilos.do_preset(preset))
+    porta = EscritasDeMentira(com_haptica=True, com_som=True)
+    _correr(motor, porta, 19_000, TENSO_E_SUSTO)
+    golpe: dict[str, int] = {}
+    for _, p in porta.de("vibracao.set"):
+        golpe[p["uniq"]] = max(golpe.get(p["uniq"], 0), p["fraco"], p["forte"])
+    haptica: dict[str, set[str]] = {}
+    for _, p in porta.de("haptica.tocar"):
+        if p["forca"] > 0:
+            haptica.setdefault(p["uniq"], set()).add(p["id"])
+    return golpe, haptica
+
+
+@pytest.mark.parametrize("preset", [estilos.CORRIDA, estilos.AVENTURA, estilos.RITMO,
+                                    estilos.GERAL])
+def test_o_golpe_com_lado_sai_pela_forca_do_preset_nos_quatro_controles(preset: str) -> None:
+    inteiro, terror = _por_controle(estilos.TERROR)
+    suave, sem = _por_controle(preset)
+    _sem, escalas = estilos.do_preset(preset)
+    todos = {str(c["uniq"]) for c in QUATRO_CONTROLES}
+    assert set(inteiro) == set(suave) == todos
+    assert all({"coracao", "susto"} <= terror[u] for u in todos)  # (noqa-acento)
+    assert not sem
+    for uniq in todos:
+        assert suave[uniq] == pytest.approx(inteiro[uniq] * escalas["motor_direito"], abs=2)
