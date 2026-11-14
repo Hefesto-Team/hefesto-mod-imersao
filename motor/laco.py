@@ -106,6 +106,7 @@ class Motor:
         self._fila: list[_Evento] = []
         self.caminho = Caminho()
         self.vencedores: dict[Vaga, Pedido] = {}
+        self.cedidos: dict[Vaga, Pedido] = {}
         self.agora_ms = 0.0
         self.haptica_pelo_motor = False
         self._proxima: Receita | None = None
@@ -168,6 +169,7 @@ class Motor:
         """Os vencedores medidos de novo com a háptica no motor: a porta não toca háptica."""
         self.haptica_pelo_motor = True
         self.vencedores = self.caminho.filtrar(vencedores, self.agora_ms, True)
+        self.cedidos.update({v: p for v, p in vencedores.items() if v not in self.vencedores})
         return self.vencedores
 
     def _ler_evento(self, evento: _Evento) -> None:
@@ -464,9 +466,9 @@ class Motor:
         self._calcular(t_ms)
         self._rodar_as_regras(t_ms)
         self.ativas = [a for a in self.ativas if a.fim_ms is None or t_ms < a.fim_ms]
-        vencedores = self.caminho.filtrar(
-            decidir(p for a in self.ativas for p in self._pedidos(a)), t_ms,
-            self.haptica_pelo_motor)
+        decididos = decidir(p for a in self.ativas for p in self._pedidos(a))
+        vencedores = self.caminho.filtrar(decididos, t_ms, self.haptica_pelo_motor)
+        self.cedidos = {v: p for v, p in decididos.items() if v not in vencedores}
         self.vencedores = vencedores
         return vencedores
 

@@ -27,6 +27,7 @@ nunca o evento.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -48,11 +49,32 @@ NAO_ESCREVEU = -32013
 DEGRAUS = {"forca": 0.05, "bpm": 4.0, "brilho": 0.05}
 INTERVALO_DO_DEGRAU_MS = 250.0
 VAGA_DO_EVENTO = 4
+SEM_PONTE = -32015
+MOTIVOS_POR_CODIGO = {MAIS_FRACO: "cedeu", SEM_PONTE: "sem_ponte", SEM_PERMISSAO: "sem_permissao",
+                      NAO_ESCREVEU: "anticheat", METODO_DESCONHECIDO: "porta_sem_o_pedido"}
+MOTIVO_DA_PORTA = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
 
 Pedir = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 Chave = tuple[str, str, str]
 Recusado = Callable[[Chave, dict[str, Any], Any], None]
 Vencedores = dict[Vaga, Pedido]
+
+
+def motivo_da_recusa(codigo: Any, dados: Any) -> str:
+    """Por que a porta não escreveu, numa palavra: o ``motivo`` que ela devolve, o Modo Nativo, a
+    outra extensão mais forte ou o código do erro."""
+    if isinstance(dados, dict):
+        motivo = dados.get("motivo")
+        if isinstance(motivo, str) and MOTIVO_DA_PORTA.match(motivo):
+            return motivo
+        if dados.get("modo") == "nativo":
+            return "nativo"
+        vence = dados.get("vence")
+        if isinstance(vence, str) and vence.startswith("extensao"):
+            return "outra_extensao"
+    if isinstance(codigo, int) and not isinstance(codigo, bool):
+        return MOTIVOS_POR_CODIGO.get(codigo, f"recusa_{abs(codigo)}")
+    return "recusa"
 
 
 class Saida:
@@ -66,6 +88,7 @@ class Saida:
         self._recusado = recusado or (lambda _chave, _params, _dados: None)
         self._pelo_motor = pelo_motor or (lambda vencedores: vencedores)
         self.recusados: dict[Chave, dict[str, Any]] = {}
+        self.recusas_do_tique: list[tuple[str, str, str]] = []
         self.escrito: dict[Chave, tuple[float, dict[str, Any]]] = {}
         self.janela: deque[tuple[float, str]] = deque()
         self.sem_haptica = False
@@ -134,6 +157,9 @@ class Saida:
             await self._pedir(metodo, params)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
+            if not (metodo == "haptica.tocar" and (codigo == METODO_DESCONHECIDO
+                                                   or NAO_REGISTRADO in str(exc))):
+                self._anotar_a_recusa(chave, codigo, getattr(exc, "dados", None))
             if codigo == MAIS_FRACO:
                 self._desfazer(chave, antes)
                 self.recusados[chave] = params
@@ -158,6 +184,14 @@ class Saida:
                 return False
             self._diario(f"{metodo} recusado: {exc}")
         return True
+
+    def _anotar_a_recusa(self, chave: Chave, codigo: Any, dados: Any) -> None:
+        self.recusas_do_tique.append((chave[0], chave[1], motivo_da_recusa(codigo, dados)))
+
+    def tirar_as_recusas(self) -> list[tuple[str, str, str]]:
+        """As recusas da porta desde a última chamada: ``(uniq, canal da escrita, motivo)``."""
+        recusas, self.recusas_do_tique = self.recusas_do_tique, []
+        return recusas
 
     def _desfazer(self, chave: Chave, antes: tuple[float, dict[str, Any]] | None) -> None:
         if antes is None:
@@ -352,6 +386,7 @@ class Saida:
             await self._pedir("mira.peso", params)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
+            self._anotar_a_recusa(chave, codigo, getattr(exc, "dados", None))
             if codigo == NAO_ESCREVEU:
                 self._desfazer(chave, antes)
                 self.recusados[chave] = params

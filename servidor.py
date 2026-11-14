@@ -22,7 +22,9 @@ segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o He
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
-aba Geral da janela (``extensao.acao``). O ``jogo.memoria`` só chega ao motor com a chave «Memória
+aba Geral da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
+por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
+(:class:`~motor.conta.ContaDoMinuto`). O ``jogo.memoria`` só chega ao motor com a chave «Memória
 neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
 """
 from __future__ import annotations
@@ -54,6 +56,7 @@ from estudio.grafo import TIPOS_DO_EDITOR, Editor  # noqa: E402
 from estudio.linha_do_tempo import TIPOS_DO_GRAVADOR, Gravador  # noqa: E402
 from motor.arbitragem import Pedido, Vaga  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
+from motor.conta import ContaDoMinuto  # noqa: E402
 from motor.laco import Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
@@ -73,6 +76,7 @@ ARQUIVO_DAS_OPCOES = ajustes.ARQUIVO_DAS_OPCOES
 OPCAO_DA_RECEITA = "receita"
 ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
+RESUMO_A_CADA_S = 60.0
 PUBLICA_O_CLIMA_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
@@ -265,13 +269,16 @@ class SaidaQueAnota(Saida):
     """A :class:`~motor.saida.Saida` que conta à extensão o que vence em cada tique."""
 
     def __init__(self, *args: Any, anotar: Callable[[dict[Vaga, Pedido]], None],
+                 contar: Callable[[dict[Vaga, Pedido]], None] | None = None,
                  **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._anotar = anotar
+        self._contar = contar or (lambda _vencedores: None)
 
     async def aplicar(self, t_ms: float, vencedores: dict[Vaga, Pedido]) -> None:
         self._anotar(vencedores)
         await super().aplicar(t_ms, vencedores)
+        self._contar(vencedores)
 
 
 def ler_as_opcoes(dados: Path | None) -> dict[str, Any]:
@@ -334,7 +341,9 @@ class Extensao:
         self.opcoes = ajustes.com_a_tela(ler_as_opcoes(dados), self.vendo)
         self.motor = Motor(self.receita, self.opcoes)
         self.saida = SaidaQueAnota(porta.pedir, diario, self.motor.recusado,
-                                   self.motor.pelo_motor, anotar=self.anotar)
+                                   self.motor.pelo_motor, anotar=self.anotar,
+                                   contar=self.contar)
+        self.conta = ContaDoMinuto()
         self.assinados: set[str] = set()
         self.do_estudio: set[str] = set()
         self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
@@ -506,6 +515,19 @@ class Extensao:
         if novo.inicio_ms > self._inicio_do_ultimo:
             self._inicio_do_ultimo = novo.inicio_ms
             self.ultimo_efeito = (nome_do_efeito(self.receita, novo.efeito), self.relogio())
+
+    def contar(self, vencedores: dict[Vaga, Pedido]) -> None:
+        """A conta do minuto, a cada tique da saída: o que tocou e o que não tocou, e por quê."""
+        self.conta.tique(vencedores, self.motor.cedidos, self.saida.tirar_as_recusas(),
+                         self.jogo is not None)
+
+    def fechar_o_minuto(self) -> None:
+        """O resumo do minuto que acabou vai ao diário, só se houve jogo nele."""
+        nomes = {c["uniq"]: ajustes.nome_do_controle(c, n)
+                 for n, c in enumerate(self.controles, 1)}
+        hora = time.strftime("%H:%M", time.localtime(self.relogio()))
+        if (linha := self.conta.fechar(hora, nomes)) is not None:
+            diario(linha)
 
     def _le_a_memoria(self) -> bool:
         return any(s["de"] == "jogo.memoria" for s in self.receita.secao("sentidos").values())
@@ -763,6 +785,11 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
                 marca = agora
                 await extensao.reler_as_opcoes()
 
+    async def resumir_o_minuto() -> None:
+        while True:
+            await asyncio.sleep(RESUMO_A_CADA_S)
+            extensao.fechar_o_minuto()
+
     async def acompanhar_o_clima() -> None:
         while True:
             await asyncio.sleep(PUBLICA_O_CLIMA_S)
@@ -771,18 +798,20 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     ouvir = asyncio.create_task(ouvir_a_porta())
     vigiar = asyncio.create_task(vigiar_as_opcoes())
     clima = asyncio.create_task(acompanhar_o_clima())
+    resumo = asyncio.create_task(resumir_o_minuto())
     motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim))
     try:
         await fim.wait()
         with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
             await asyncio.wait_for(motor, 2.0)
+        extensao.fechar_o_minuto()
         if extensao.vendo:
             with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
                 await asyncio.wait_for(extensao.porta.pedir("tela.parar", {}),
                                        ESPERA_O_FIM_DA_TELA_S)
     finally:
         extensao.parar_de_tocar.set()
-        tarefas = [ouvir, vigiar, clima, motor, *([extensao.tocando] if extensao.tocando else []),
+        tarefas = [ouvir, vigiar, clima, resumo, motor, *([extensao.tocando] if extensao.tocando else []),
                    *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()
