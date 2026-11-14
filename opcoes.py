@@ -26,6 +26,14 @@ PARA_QUEM = "para_quem"
 QUEM_LEVOU = "Quem levou"
 TODOS = "Todos os controles"
 ESCOLHAS_DE_PARA_QUEM = (QUEM_LEVOU, TODOS)
+CONTROLE_DA_FORCA = "forca"
+CONTROLE_DO_VOLUME = "volume"
+NIVEIS_DO_CONTROLE = (0, 25, 50, 75, 100)
+NIVEL_PADRAO = 100
+CONTROLES_DO_CARTAO = (
+    (CONTROLE_DA_FORCA, "Força", "A força de tudo o que este controle sente, vezes a Força geral"),
+    (CONTROLE_DO_VOLUME, "Volume", "O volume do alto-falante deste controle; não mexe na Força"),
+)
 
 SENTIDOS: dict[str, tuple[tuple[str, ...], bool]] = {
     "sentido_som": (("sentido.som", "jogo.som"), True),
@@ -144,6 +152,47 @@ def controles_calados(dados: Path | None) -> frozenset[str]:
                      ) if isinstance(calados, list) else frozenset()
 
 
+def niveis_dos_controles(dados: Path | None) -> dict[str, dict[str, int]]:
+    """A Força e o volume de cada controle, ``{controle: {id: nível}}``, pelo ``id`` do cartão;
+    o que falta ou está fora dos níveis vale 100."""
+    if dados is None:
+        return {}
+    lidos = _ler(dados / ARQUIVO_DOS_CONTROLES)
+    niveis: dict[str, dict[str, int]] = {}
+    for controle, _rotulo, _dica in CONTROLES_DO_CARTAO:
+        bruto = lidos.get(controle)
+        niveis[controle] = {ident: valor for ident, valor in (
+            bruto.items() if isinstance(bruto, dict) else ())
+            if isinstance(ident, str) and ID_DO_CONTROLE.match(ident)
+            and valor in NIVEIS_DO_CONTROLE and not isinstance(valor, bool)}
+    return niveis
+
+
+def nivel(niveis: dict[str, dict[str, int]], controle: str, ident: str) -> int:
+    return niveis.get(controle, {}).get(ident, NIVEL_PADRAO)
+
+
+def ajustar_o_nivel(niveis: dict[str, dict[str, int]], controle: str, ident: str,
+                    valor: Any) -> dict[str, dict[str, int]]:
+    """O clique num nível do cartão: ``valor`` é o ``id`` do botão (``"0"`` a ``"100"``); fora
+    dos níveis ou de um controle conhecido, nada muda."""
+    if (controle not in dict.fromkeys(c for c, _, _ in CONTROLES_DO_CARTAO)
+            or not ID_DO_CONTROLE.match(ident) or not isinstance(valor, str)
+            or not valor.isdigit() or int(valor) not in NIVEIS_DO_CONTROLE):
+        return niveis
+    novos = {c: dict(v) for c, v in niveis.items()}
+    novos.setdefault(controle, {})[ident] = int(valor)
+    return novos
+
+
+def controles_do_cartao(niveis: dict[str, dict[str, int]], ident: str) -> list[dict[str, Any]]:
+    """Os dois controles do cartão, lado a lado: a Força e o volume, em níveis de 25 %."""
+    return [{"id": controle, "tipo": "escolha", "rotulo": rotulo, "dica": dica,
+             "valor": str(nivel(niveis, controle, ident)),
+             "opcoes": [{"id": str(n), "rotulo": f"{n}%"} for n in NIVEIS_DO_CONTROLE]}
+            for controle, rotulo, dica in CONTROLES_DO_CARTAO]
+
+
 def sentir(calados: frozenset[str], ident: str, sente: bool) -> frozenset[str]:
     """A chave do controle na janela: ``sente`` falso o cala, verdadeiro o devolve."""
     if not ID_DO_CONTROLE.match(ident):
@@ -151,10 +200,15 @@ def sentir(calados: frozenset[str], ident: str, sente: bool) -> frozenset[str]:
     return calados - {ident} if sente else calados | {ident}
 
 
-def guardar_os_controles(dados: Path, calados: frozenset[str]) -> None:
+def guardar_os_controles(dados: Path, calados: frozenset[str],
+                         niveis: dict[str, dict[str, int]] | None = None) -> None:
     """No ``controles.json``, à parte do ``opcoes.json``, que o Hefesto reescreve só com as
-    opções declaradas."""
-    _gravar(dados, ARQUIVO_DOS_CONTROLES, {"calados": sorted(calados)})
+    opções declaradas: os calados e, por controle, a Força e o volume."""
+    valores: dict[str, Any] = {"calados": sorted(calados)}
+    for controle, por_controle in sorted((niveis or {}).items()):
+        if por_controle:
+            valores[controle] = dict(sorted(por_controle.items()))
+    _gravar(dados, ARQUIVO_DOS_CONTROLES, valores)
 
 
 def _ler(arquivo: Path) -> dict[str, Any]:

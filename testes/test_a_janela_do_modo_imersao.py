@@ -469,7 +469,8 @@ def test_cada_controle_conectado_e_um_cartao_da_aba_geral_com_a_chave_e_sem_o_un
     assert manifesto["aparelhos_acoes"] == {"grupo": "Geral", "acoes": [  # (noqa-acento)
         {"id": "ligar", "rotulo": "Sente os efeitos", "icone": "ligar"}]}
     extensao, porta = _com_os_controles(tmp_path)
-    assert porta.estados()[-1]["aparelhos"] == [
+    assert [{k: v for k, v in a.items() if k != "controles"}
+            for a in porta.estados()[-1]["aparelhos"]] == [
         {"id": "jogador-1", "nome": "Jogador 1", "ligado": True},
         {"id": "jogador-2", "nome": "Jogador 2", "ligado": True},
         {"id": "controle-3", "nome": "Jogador 3", "ligado": True}]

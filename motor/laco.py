@@ -101,6 +101,7 @@ class Motor:
         self.opcoes = dict(opcoes or {})
         self.jogadores: dict[str, int] = {}
         self.calados: frozenset[str] = frozenset()
+        self.niveis: dict[str, tuple[float, float]] = {}
         self.jogo: str | None = None
         self.mira_recusada: dict[str, float] = {}
         self._fila: list[_Evento] = []
@@ -142,6 +143,10 @@ class Motor:
     def calar(self, uniqs: set[str] | frozenset[str]) -> None:
         """Os controles que a janela desmarcou: nenhum efeito chega a eles."""
         self.calados = frozenset(uniqs)
+
+    def nivelar(self, niveis: dict[str, tuple[float, float]]) -> None:
+        """A Força e o volume de cada controle, de 0 a 1, pelo ``uniq``; sem ele, os dois em 1."""
+        self.niveis = dict(niveis)
 
     def evento(self, topico: str, nome: str, uniq: str | None, dados: dict[str, Any]) -> None:
         self._fila.append(_Evento(topico, nome, uniq, dados if isinstance(dados, dict) else {}))
@@ -351,18 +356,43 @@ class Motor:
         return valor if isinstance(valor, str) and COR.match(valor) else padrao
 
     def _pedidos(self, ativa: Ativacao) -> list[Pedido]:
+        """Os pedidos do efeito para cada controle que o sente: a Força geral vezes a Força do
+        controle, ou, no som, vezes o volume dele; uma não mexe na outra."""
         efeito = self.receita.secao("efeitos")[ativa.efeito]
         canal = efeito["canal"]
-        escala = ajustes.forca(self.opcoes)
-        if escala <= 0 or canal in ajustes.canais_calados(self.opcoes):
+        geral = ajustes.forca(self.opcoes)
+        if geral <= 0 or canal in ajustes.canais_calados(self.opcoes):
             return []
+        prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
+        montados: dict[float, tuple[float, dict[str, Any], list[str]] | None] = {}
+        pedidos: list[Pedido] = []
+        for uniq in ativa.alvos:
+            if not self._sente(uniq, canal):
+                continue
+            forca_do_controle, volume_do_controle = self.niveis.get(uniq, (1.0, 1.0))
+            escala = geral * (volume_do_controle if canal == "som" else forca_do_controle)
+            if escala not in montados:
+                montados[escala] = self._montar_o_pedido(ativa, efeito, canal, escala)
+            montado = montados[escala]
+            if montado is None:
+                continue
+            forca, params, lados = montado
+            pedidos += [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade,
+                               ativa.inicio_ms, ativa.regra, params) for lado in lados]
+        return pedidos
+
+    def _montar_o_pedido(self, ativa: Ativacao, efeito: dict[str, Any], canal: str,
+                         escala: float) -> tuple[float, dict[str, Any], list[str]] | None:
+        """A força, os parâmetros e os lados do efeito na ``escala``; ``None`` quando nada sai."""
+        if escala <= 0:
+            return None
         caminho = ("efeitos", ativa.efeito)
         params: dict[str, Any] = {"inicio_ms": ativa.inicio_ms}
         if canal in ("motor", "haptica"):
             forca = self._numero(efeito.get("forca", 1.0), (*caminho, "forca"), 0.0, 1.0,
                                  1.0) * escala
             if forca <= 0:
-                return []
+                return None
             params["forca"] = forca
             if canal == "haptica":
                 params["padrao"] = efeito["padrao"]  # (noqa-acento)
@@ -387,11 +417,11 @@ class Motor:
             lados = ["-"]
         elif canal == "mira":
             if not ajustes.ligado(self.opcoes, peso_da_mira.OPCAO, peso_da_mira.PADRAO):
-                return []
+                return None
             ganho = peso_da_mira.ganho(self._numero(
                 efeito["ganho"], (*caminho, "ganho"), peso_da_mira.GANHO_MINIMO, 1.0, 1.0), escala)
             if not peso_da_mira.pesa(ganho):
-                return []
+                return None
             forca = 1.0 - ganho
             params["ganho"] = ganho
             lados = ["-"]
@@ -405,21 +435,18 @@ class Motor:
             forca = self._numero(efeito.get("volume", 1.0), (*caminho, "volume"), 0.0, 1.0,
                                  1.0) * escala
             if forca <= 0:
-                return []
+                return None
             params.update(som=efeito["som"], volume=round(forca, 3))
             if efeito["som"] == "recorte":
                 if ativa.t_do_jogo is None:
-                    return []
+                    return None
                 params["t"] = ativa.t_do_jogo
                 dura = self._dura(ativa.efeito, efeito)
                 if dura is not None:
                     minimo, maximo = DURA_DO_RECORTE_MS
                     params["dura_s"] = round(min(maximo, max(minimo, dura)) / 1000, 3)
             lados = ["-"]
-        prioridade = int(self.receita.regras[ativa.regra].get("prioridade", 0))
-        return [Pedido(uniq, canal, lado, ativa.efeito, forca, prioridade, ativa.inicio_ms,
-                       ativa.regra, params)
-                for uniq in ativa.alvos if self._sente(uniq, canal) for lado in lados]
+        return forca, params, lados
 
     def _sente(self, uniq: str, canal: str) -> bool:
         """O controle conectado, que a janela não calou e, na mira, que a porta não recusou agora."""

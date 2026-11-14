@@ -11,8 +11,9 @@ sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arr
 ``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale, o clima da
 cena no nível e, nas linhas, os sentidos lendo e o último efeito tocado; os ``presentes`` (as
 entradas e os canais da receita que vale) escondem a linha do efeito que ela não tem. Cada controle
-conectado é um cartão na aba Geral, e o desligado não recebe efeito (``controles.json``). Além do que a
-receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
+conectado é um cartão na aba Geral, e o desligado não recebe efeito; o cartão leva, lado a lado,
+a Força e o volume daquele controle, que valem juntos e vezes a Força geral
+(``controles.json``). Além do que a receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela só se lê no clique
 «Ver a tela» da aba Sentidos: ele pede ``tela.ver`` e assina ``jogo.tela``, até «Parar de ver», o
@@ -362,6 +363,7 @@ class Extensao:
         self._inicio_do_ultimo = float("-inf")
         self.controles: list[dict[str, Any]] = []
         self.calados = ajustes.controles_calados(dados)
+        self.niveis = ajustes.niveis_dos_controles(dados)
         self.ultimo_estado: dict[str, Any] | None = None
 
     @property
@@ -591,11 +593,34 @@ class Extensao:
         """Um cartão por controle conectado, com a chave de sentir; o ``id`` nunca é o
         ``uniq``."""
         return [{"id": ident, "nome": ajustes.nome_do_controle(c, n),
-                 "ligado": ident not in self.calados}
+                 "ligado": ident not in self.calados,
+                 "controles": ajustes.controles_do_cartao(self.niveis, ident)}
                 for n, (ident, c) in enumerate(self._por_id(), 1)]
 
     def _calar(self) -> None:
-        self.motor.calar({c["uniq"] for ident, c in self._por_id() if ident in self.calados})
+        por_id = self._por_id()
+        self.motor.calar({c["uniq"] for ident, c in por_id if ident in self.calados})
+        self.motor.nivelar({c["uniq"]: (
+            ajustes.nivel(self.niveis, ajustes.CONTROLE_DA_FORCA, ident) / 100,
+            ajustes.nivel(self.niveis, ajustes.CONTROLE_DO_VOLUME, ident) / 100)
+            for ident, c in por_id})
+
+    def _guardar_os_controles(self) -> None:
+        if self.dados is not None:
+            with contextlib.suppress(OSError):
+                ajustes.guardar_os_controles(self.dados, self.calados, self.niveis)
+
+    async def nivelar(self, controle: str, alvo: Any, valor: Any) -> None:
+        """Um nível da Força ou do volume no cartão de um controle: vale no tique seguinte, ao lado
+        do outro, sem mexer nele."""
+        if not isinstance(alvo, str):
+            return
+        niveis = ajustes.ajustar_o_nivel(self.niveis, controle, alvo, valor)
+        if niveis != self.niveis:
+            self.niveis = niveis
+            self._guardar_os_controles()
+            self._calar()
+        await self.publicar_se_mudou()
 
     async def sentir(self, alvo: Any, valor: Any) -> None:
         """A chave de um controle na aba Geral: desligada, nenhum efeito chega a ele."""
@@ -604,9 +629,7 @@ class Extensao:
         calados = ajustes.sentir(self.calados, alvo, valor)
         if calados != self.calados:
             self.calados = calados
-            if self.dados is not None:
-                with contextlib.suppress(OSError):
-                    ajustes.guardar_os_controles(self.dados, calados)
+            self._guardar_os_controles()
             self._calar()
         await self.publicar_se_mudou()
 
@@ -720,6 +743,10 @@ class Extensao:
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_LIGAR):  # (noqa-acento)
             await self.sentir(dados.get("alvo"), dados.get("valor"))
+        elif (topico == "extensao.acao" and isinstance(dados, dict)
+              and dados.get("acao") in (ajustes.CONTROLE_DA_FORCA,  # (noqa-acento)
+                                        ajustes.CONTROLE_DO_VOLUME)):
+            await self.nivelar(str(dados.get("acao")), dados.get("alvo"), dados.get("valor"))  # (noqa-acento)
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_VER_A_TELA):  # (noqa-acento)
             await self.ver_a_tela()

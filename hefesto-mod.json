@@ -429,5 +429,8 @@
         "icone": "ligar"
       }
     ]
+  },
+  "aparelhos_controles": {
+    "grupo": "Controles"
   }
 }
