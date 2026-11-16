@@ -152,6 +152,19 @@ def test_o_efeito_desligado_na_janela_diz_por_que(opcoes: dict[str, Any]) -> Non
                          DOIS: (False, servidor.MOTIVO_DESLIGADO)}
 
 
+@pytest.mark.parametrize(("acao", "opcoes"), [("testar_coracao", {"coracao": 0}),  # (noqa-acento)
+                                             ("testar_alivio", {"alivio": 0}),
+                                             ("testar_golpe", {"golpe_com_lado": 0}),
+                                             ("testar_susto", {"forca_do_susto": 0})])
+def test_o_efeito_em_zero_na_janela_diz_que_esta_desligado(acao: str,
+                                                          opcoes: dict[str, Any]) -> None:
+    async def zerar(extensao: servidor.Extensao) -> None:
+        extensao.motor.opcoes.update(opcoes)
+
+    vereditos = _por_uniq(_testar(PortaQueRecusa(_mesa(3)), acao, zerar))
+    assert vereditos == dict.fromkeys(UNIQS[:3], (False, servidor.MOTIVO_DESLIGADO))
+
+
 def test_a_forca_do_controle_em_zero_diz_por_que() -> None:
     async def zerar(extensao: servidor.Extensao) -> None:
         await extensao.nivelar(ajustes.CONTROLE_DA_FORCA, "jogador-1", "0")

@@ -291,6 +291,8 @@ class Teste:
         self.veredito: dict[str, tuple[bool, str | None]] = {}
         self.vistos: set[str] = set()
         self.adiados: set[str] = set()
+        self.com_pedido: set[str] = set()
+        self.tiques = 0
         self.pronto = asyncio.Event()
 
     def decidir(self, uniq: str, tocou: bool, motivo: str | None = None) -> None:
@@ -308,7 +310,10 @@ class Teste:
             adiadas: list[tuple[str, str]]) -> None:
         """Um tique da saída: o efeito testado que venceu e foi escrito, recusado ou adiado pelo
         teto da extensão."""
+        self.tiques += 1
         for uniq in [u for u in self.alvos if u not in self.veredito]:
+            if self._do_teste(cedidos, uniq) or self._do_teste(vencedores, uniq):
+                self.com_pedido.add(uniq)
             if self._do_teste(cedidos, uniq) and not self._do_teste(vencedores, uniq):
                 self.decidir(uniq, False, MOTIVO_CEDEU)
                 continue
@@ -326,10 +331,13 @@ class Teste:
 
     def fechar(self) -> list[dict[str, Any]]:
         """A resposta: o efeito que venceu sem recusa e sem adiar está no controle, mesmo sem
-        escrita nova; o que o teto da extensão adiou e não saiu não tocou."""
+        escrita nova; o que o teto da extensão adiou e não saiu não tocou, e o efeito que o laço
+        não pediu a este controle em tique nenhum está em zero na janela."""
         for uniq in self.alvos:
-            self.decidir(uniq, uniq in self.vistos and uniq not in self.adiados,
-                         MOTIVO_TETO if uniq in self.adiados else MOTIVO_NAO_CHEGOU)
+            motivo = (MOTIVO_TETO if uniq in self.adiados
+                      else MOTIVO_DESLIGADO if self.tiques and uniq not in self.com_pedido
+                      else MOTIVO_NAO_CHEGOU)
+            self.decidir(uniq, uniq in self.vistos and uniq not in self.adiados, motivo)
         return [{"uniq": u, "tocou": self.veredito[u][0], "motivo": self.veredito[u][1]}
                 for u in self.alvos]
 
