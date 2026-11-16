@@ -8,27 +8,29 @@ nenhuma, o universal (``receitas/universal.json``); a recusa vai ao diário com 
 A troca vale no tique seguinte, e o que a receita velha escrevia volta ao jogo. As opções da janela
 moram em ``$HEFESTO_MOD_DADOS/opcoes.json``: a opção ``receita`` (pelo jogo, ou o universal
 sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arrastar, pelo
-``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale, o clima da
-cena no nível e, nas linhas, os sentidos lendo e o último efeito tocado; os ``presentes`` (as
-entradas e os canais da receita que vale) escondem a linha do efeito que ela não tem. Cada controle
-conectado é um cartão na aba Jogo, e o desligado não recebe efeito; o cartão leva, lado a lado,
+``extensao.opcao``. A faixa do alto da janela diz a ``situacao`` (tocando, com o nome do jogo;
+calado, com o motivo; esperando um jogo) e, nas linhas, o estilo, o ajuste que vale, quem sente e a
+tensão da cena em palavras no Terror; as ``leituras`` dizem o que cada sentido lê, ao lado da chave
+dele; os ``presentes`` (as entradas e os canais da receita que vale) escondem o cartão do efeito que
+ela não tem. Cada controle conectado é um cartão na aba Controles, e o desligado não recebe efeito;
+o cartão leva, lado a lado,
 a Força e o volume daquele controle, que valem juntos e vezes a Força geral
 (``controles.json``). Além do que a receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela só se lê no clique
-«Ver a tela» da aba Sentidos: ele pede ``tela.ver`` e assina ``jogo.tela``, até «Parar de ver», o
+«Ver a tela» da aba Sentir: ele pede ``tela.ver`` e assina ``jogo.tela``, até «Parar de ver», o
 segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o Hefesto que não conhece
-``tela.ver`` vira a linha «Tela» do «Agora», e nada se assina.
+``tela.ver`` vira a linha «Tela» da faixa, e nada se assina.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
-que abre (o índice se baixa uma vez por dia) e no «Procurar receitas» da aba Jogo da janela
-(``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
+que abre (o índice se baixa uma vez por dia). A cada minuto em que houve jogo, uma linha do diário conta,
 por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
 (:class:`~motor.conta.ContaDoMinuto`). A porta lê a cor em fundo, depois da conexão, e a renomeia
 sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
 controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor
 com a chave «Memória neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
-Os botões de testar da aba Efeitos declaram ``responde``: a extensão devolve à janela, em até
-:data:`ESPERA_O_TESTE_S`, uma linha por controle, ``{controles: [{uniq, tocou, motivo}]}``, com a
+Os botões de testar de cada cartão da aba Efeitos declaram ``responde``: a extensão devolve à janela,
+em até :data:`ESPERA_O_TESTE_S`, uma linha por controle, ``{controles: [{uniq, nome, tocou,
+motivo}]}``, com o nome do plástico, a
 frase da recusa da porta ou o motivo da extensão em palavras (:class:`Teste`).
 O Som no corpo e os Gatilhos que vibram tocam em todo estilo e com toda receita: cada controle que
 sente recebe o ``corpo.ligar`` (:meth:`Extensao.pedidos_do_corpo`), renovado pela saída enquanto a
@@ -66,6 +68,7 @@ from receita import estilos  # noqa: E402
 from receita.biblioteca import (  # noqa: E402
     ARQUIVO_DE_ANTES,
     PELO_JOGO,
+    UNIVERSAL_SEMPRE,
     Biblioteca,
     Escolhida,
 )
@@ -77,7 +80,6 @@ ARQUIVO_DO_UNIVERSAL = AQUI / "receitas" / "universal.json"
 PASTA_DAS_ESTUDADAS = AQUI / "receitas" / "estudadas"
 ARQUIVO_DAS_OPCOES = ajustes.ARQUIVO_DAS_OPCOES
 OPCAO_DA_RECEITA = "receita"
-ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
 RESUMO_A_CADA_S = 60.0
 RELE_OS_CONTROLES_S = 5.0
@@ -122,6 +124,24 @@ ESCRITAS_DO_CANAL = {
     "gatilho": frozenset({"gatilho"}), "som": frozenset({"som"}), "luz": frozenset({"luz"}),
     "leds": frozenset({"leds"}), "mira": frozenset({"mira"}),
 }
+RECUSA_RECENTE_S = 5.0
+CALADO_SEM_INTENSIDADE = "A intensidade está em zero"
+CALADO_SEM_QUEM_SINTA = "Nenhum controle sente os efeitos"
+CALADO_SEM_CONTROLE = "Nenhum controle conectado"
+TETO_DA_FRASE = 120
+LEITURA_NAO_USA = "Este ajuste não usa"
+LEITURA_FORA = "Este Hefesto não entrega"
+PASSO_DO_MEDIDOR = 5
+MEIA_VIDA_DA_LEITURA_S = 0.6
+FONTES_DA_LEITURA: dict[str, tuple[str, ...]] = {
+    "sentido_som": ("jogo.som",), "sentido_vibracao": ("jogo.vibracao", "jogo.haptica"),
+    "sentido_microfone": ("microfone.nivel",), "sentido_golpe": ("entradas",),
+    "sentido_parado": (),
+}
+OPCAO_DO_SENTIDO = {"som": "sentido_som", "vibração": "sentido_vibracao",
+                    "vibração fina": "sentido_vibracao", "microfone": "sentido_microfone",
+                    "parado": "sentido_parado", "golpe": "sentido_golpe"}
+TENSOES = ("Calma", "Atenta", "Tensa", "Pânico")
 MOTIVO_CALADO = "o controle está desligado na extensão"
 MOTIVO_SEM_O_EFEITO = "a receita de agora não tem este efeito"
 MOTIVO_DESLIGADO = "o efeito está desligado na janela"
@@ -269,6 +289,50 @@ def lista_curta(nomes: list[str], teto: int = TETO_DO_VALOR) -> str:
     return f"+{len(nomes)}"
 
 
+def escolha_da_receita(opcoes: dict[str, Any]) -> str:
+    """A escolha da biblioteca pelo «Ajuste» da janela: o universal sempre, ou pelo jogo."""
+    return UNIVERSAL_SEMPRE if ajustes.sempre_o_universal(opcoes) else PELO_JOGO
+
+
+def tensao_da_cena(clima: int, limiar: int) -> str:
+    """A tensão da cena em palavras, pelo clima de 0 a 10 e o limiar em que ela fica tensa: Calma
+    abaixo da metade do limiar, Atenta até ele, Tensa dele em diante e Pânico no topo."""
+    if clima < limiar / 2:
+        return TENSOES[0]
+    if clima < limiar:
+        return TENSOES[1]
+    return TENSOES[3] if clima >= max(limiar + 3, 9) else TENSOES[2]
+
+
+def _fracao(valor: Any, escala: float = 1.0) -> float | None:
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return None
+    return min(1.0, max(0.0, float(valor) / escala))
+
+
+def intensidade_do_evento(topico: str, dados: dict[str, Any]) -> float | None:
+    """O quanto um evento da porta traz agora, de 0 a 1: a energia do estalo do som, o nível do
+    microfone (zero no mudo), a vibração ou a háptica que o jogo pede e o gatilho apertado."""
+    if topico == "jogo.som":
+        return _fracao(dados.get("energia"))
+    if topico == "microfone.nivel":
+        return 0.0 if dados.get("mudo") is True else _fracao(dados.get("nivel"))
+    if topico == "jogo.vibracao":
+        pares = [_fracao(v, 255) for v in dados.get("pedido") or ()]
+        return max((v for v in pares if v is not None), default=None)
+    if topico == "jogo.haptica":
+        lados = [_fracao(v) for v in dados.get("intensidade") or ()]
+        return max((v for v in lados if v is not None), default=None)
+    if topico == "entradas":
+        gatilhos = [_fracao(dados.get(g), 255) for g in ("l2", "r2")]
+        return max((v for v in gatilhos if v is not None), default=None)
+    return None
+
+
+def com_maiuscula(frase: str) -> str:
+    return frase[:1].upper() + frase[1:]
+
+
 def nome_do_efeito(receita: Receita, efeito: str) -> str:
     """O rótulo da entrada de mesmo nome do efeito; sem ela, o do canal em que ele escreve."""
     entrada = receita.secao("entradas").get(efeito, {})
@@ -283,7 +347,9 @@ class Teste:
     """O veredito de um clique de testar, controle a controle: tocou quando a porta aceitou a
     escrita do efeito testado, e não tocou com a frase da recusa dela ou o motivo da extensão."""
 
-    def __init__(self, efeitos: set[str], canais: set[str], alvos: list[str]) -> None:
+    def __init__(self, efeitos: set[str], canais: set[str], alvos: list[str],
+                 nomes: dict[str, str] | None = None) -> None:
+        self.nomes = dict(nomes or {})
         self.efeitos = frozenset(efeitos)
         self.escritas = frozenset().union(*(ESCRITAS_DO_CANAL.get(c, frozenset({c}))
                                             for c in canais))
@@ -338,7 +404,8 @@ class Teste:
                       else MOTIVO_DESLIGADO if self.tiques and uniq not in self.com_pedido
                       else MOTIVO_NAO_CHEGOU)
             self.decidir(uniq, uniq in self.vistos and uniq not in self.adiados, motivo)
-        return [{"uniq": u, "tocou": self.veredito[u][0], "motivo": self.veredito[u][1]}
+        return [{"uniq": u, **({"nome": self.nomes[u]} if u in self.nomes else {}),
+                 "tocou": self.veredito[u][0], "motivo": self.veredito[u][1]}
                 for u in self.alvos]
 
 
@@ -439,11 +506,15 @@ class Extensao:
         self.saida.pedidos_do_corpo = self.pedidos_do_corpo
         self.testes: list[Teste] = []
         self.respondendo: set[asyncio.Task[None]] = set()
+        self.em_cena = False
+        self.nome_do_jogo: str | None = None
+        self.recusado_em: dict[str, tuple[str, float]] = {}
+        self.tocou_em: dict[str, float] = {}
+        self.ouvido: dict[str, tuple[float, float]] = {}
 
     @property
     def escolha(self) -> str:
-        valor = self.opcoes.get(OPCAO_DA_RECEITA, PELO_JOGO)
-        return valor if isinstance(valor, str) else PELO_JOGO
+        return escolha_da_receita(self.opcoes)
 
     async def assinar(self) -> None:
         """Assina o que a receita de agora lê e ainda não estava assinado, e solta o tópico cuja
@@ -491,12 +562,18 @@ class Extensao:
     def contar(self, vencedores: dict[Vaga, Pedido]) -> None:
         """A conta do minuto, a cada tique da saída: o que tocou e o que não tocou, e por quê."""
         aceitas, frases, adiadas = self.saida.tirar_os_desfechos()
+        agora = self.relogio()
+        for uniq, _canal in aceitas:
+            self.tocou_em[uniq] = agora
+        for uniq, _canal, frase in frases:
+            self.recusado_em[uniq] = (frase, agora)
         for teste in self.testes:
             teste.ver(vencedores, self.motor.cedidos, aceitas, frases, adiadas)
         self.conta.tique(vencedores, self.motor.cedidos, self.saida.tirar_as_recusas(),
                          self.jogo is not None)
         for uniq, parte in self.saida.tirar_os_corpos():
             self.conta.tocados[(uniq, parte)] += 1
+            self.tocou_em[uniq] = agora
 
     def pedidos_do_corpo(self) -> dict[str, dict[str, Any]]:
         """O ``corpo.ligar`` de cada controle conectado que sente, pela Força dele e pelas opções
@@ -545,23 +622,109 @@ class Extensao:
             lendo.add(nome)
         return [nome for _, nome in NOMES_DOS_SENTIDOS if nome in lendo]
 
+    def _sentem(self) -> list[tuple[str, str]]:
+        """Os controles conectados que sentem, ``(nome, uniq)``."""
+        return [(ajustes.nome_do_controle(c, n), c["uniq"])
+                for n, (ident, c) in enumerate(self._por_id(), 1) if ident not in self.calados]
+
+    def _recusa_de_agora(self, uniq: str) -> str | None:
+        """A frase da porta da última recusa ao controle, quando ela é recente e nada tocou nele
+        depois."""
+        recusa = self.recusado_em.get(uniq)
+        if recusa is None:
+            return None
+        frase, quando = recusa
+        recente = self.relogio() - quando <= RECUSA_RECENTE_S
+        return frase if recente and self.tocou_em.get(uniq, float("-inf")) < quando else None
+
+    def situacao(self) -> dict[str, Any]:
+        """A faixa do alto da janela: esperando um jogo, calado com o motivo (a intensidade em
+        zero, nenhum controle que sente, ou a porta recusando cada um deles) ou tocando, com o
+        nome do jogo."""
+        if not self.em_cena and self.jogo is None:
+            return {"estado": "esperando", "frase": None}
+        calado = None
+        sentem = self._sentem()
+        recusas = [(nome, frase) for nome, uniq in sentem
+                   if (frase := self._recusa_de_agora(uniq)) is not None]
+        if ajustes.forca(self.motor.opcoes) <= 0:
+            calado = CALADO_SEM_INTENSIDADE
+        elif not self.controles:
+            calado = CALADO_SEM_CONTROLE
+        elif not sentem:
+            calado = CALADO_SEM_QUEM_SINTA
+        elif len(recusas) == len(sentem):
+            frases = list(dict.fromkeys(f for _n, f in recusas))
+            calado = (com_maiuscula(frases[0]) if len(frases) == 1
+                      else f"{recusas[0][0]}: {recusas[0][1]}")
+        if calado is not None:
+            return {"estado": "calado", "frase": calado[:TETO_DA_FRASE]}
+        nome = (self.nome_do_jogo or "")[:TETO_DA_FRASE]
+        return {"estado": "tocando", "frase": nome or None}
+
+    def leituras(self) -> list[dict[str, Any]]:
+        """O que cada sentido lê agora, de 0 a 100, ao lado da chave dele na janela: zero com a
+        chave desligada, e cego com a frase quando o ajuste de agora não o usa ou o Hefesto não
+        entrega o que ele lê."""
+        sentidos = self.receita.secao("sentidos")
+        lendo = set(self.sentidos_lendo())
+        saida: list[dict[str, Any]] = []
+        for ident, (_topicos, padrao) in ajustes.SENTIDOS.items():
+            if ident == ajustes.SENTIDO_DA_TELA:
+                continue
+            nomes = {nome for nome, opcao in OPCAO_DO_SENTIDO.items() if opcao == ident}
+            lidos = [n for n, s in sentidos.items() if nome_do_sentido(s["de"]) in nomes]
+            if not ajustes.ligado(self.opcoes, ident, padrao):
+                saida.append({"opcao": ident, "nivel": 0})
+            elif not lidos:
+                saida.append({"opcao": ident, "nivel": 0, "frase": LEITURA_NAO_USA, "cego": True})
+            elif not nomes & lendo:
+                saida.append({"opcao": ident, "nivel": 0, "frase": LEITURA_FORA, "cego": True})
+            elif not FONTES_DA_LEITURA.get(ident):
+                saida.append({"opcao": ident})
+            else:
+                saida.append({"opcao": ident, "nivel": self._ouvido_agora(FONTES_DA_LEITURA[ident])})
+        return saida
+
+    def _ouvido_agora(self, topicos: tuple[str, ...]) -> int:
+        """O mais forte que chegou por ``topicos``, caindo pela metade a cada
+        :data:`MEIA_VIDA_DA_LEITURA_S`, de 0 a 100 em passos de :data:`PASSO_DO_MEDIDOR`."""
+        agora = self.relogio()
+        bruto = max((forca * 0.5 ** (max(0.0, agora - quando) / MEIA_VIDA_DA_LEITURA_S)
+                     for t in topicos if t in self.ouvido
+                     for forca, quando in [self.ouvido[t]]), default=0.0)
+        return round(bruto * 100 / PASSO_DO_MEDIDOR) * PASSO_DO_MEDIDOR
+
+    def ouvir(self, topico: str, dados: dict[str, Any]) -> None:
+        """Guarda o quanto o evento trouxe, para o medidor do sentido que lê o tópico."""
+        forca = intensidade_do_evento(topico, dados)
+        if forca is None:
+            return
+        agora = self.relogio()
+        antes = self._ouvido_agora((topico,)) / 100 if topico in self.ouvido else 0.0
+        self.ouvido[topico] = (max(forca, antes), agora)
+
     def linhas(self) -> list[dict[str, str]]:
-        """As linhas do «Agora»: os sentidos lendo, a memória que espera a chave e o último
-        efeito tocado, com a hora."""
+        """As linhas da faixa do alto: o estilo, o ajuste que vale, quem sente e quem não recebe
+        nada, a tensão da cena em palavras (só no Terror), a memória que espera a chave e a tela."""
         linhas: list[dict[str, str]] = []
         if self.preset is not None and self.receita.universal:
             linhas.append({"rotulo": "Estilo", "valor": self.preset})
-        if lendo := self.sentidos_lendo():
-            linhas.append({"rotulo": "Lendo", "valor": lista_curta(lendo)})
+        linhas.append({"rotulo": "Ajuste", "valor": self.escolhida.rotulo})
+        sentem = self._sentem()
+        if sentem:
+            linhas.append({"rotulo": "Sentem", "valor": lista_curta([n for n, _u in sentem])})
+        fora = [n for n, u in sentem if self._recusa_de_agora(u) is not None]
+        if fora and len(fora) < len(sentem):
+            linhas.append({"rotulo": "Não recebe", "valor": lista_curta(fora)})
+        limiar = self.motor.limiar_do_clima()
+        if self.preset == estilos.TERROR and limiar is not None and self.jogo is not None:
+            linhas.append({"rotulo": "Tensão da cena",
+                           "valor": tensao_da_cena(self.motor.clima(), limiar)})
         if self.jogo is not None and self._le_a_memoria() and not self.memoria_vale:
             linhas.append({"rotulo": "Memória", "valor": ESPERA_A_MEMORIA})
         if self.tela is not None:
             linhas.append({"rotulo": "Tela", "valor": self.tela})
-        if self.ultimo_efeito is not None:
-            nome, quando = self.ultimo_efeito
-            hora = time.strftime("%H:%M:%S", time.localtime(quando))
-            linhas.append({"rotulo": "Último efeito",
-                           "valor": f"{nome[:TETO_DO_VALOR - len(hora) - 2]}, {hora}"})
         return linhas[:TETO_DAS_LINHAS]
 
     def _estado(self) -> dict[str, Any]:
@@ -569,12 +732,13 @@ class Extensao:
         return {"ligado": True, "nivel": self.motor.clima(), "perfil": self.escolhida.rotulo,
                 "aparelhos": self.aparelhos(), "conexoes": [],  # (noqa-acento)
                 "linhas": self.linhas(), "presentes": self.presentes(),
+                "situacao": self.situacao(), "leituras": self.leituras(),
                 **({"limiar": limiar} if limiar is not None else {})}
 
     async def publicar_o_estado(self) -> None:
-        """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no
-        nível; os controles conectados vão como aparelhos, cada um com a chave «Sente os
-        efeitos» na aba Jogo."""
+        """A faixa do alto da janela: a situação, o ajuste que vale e o clima da cena, no nível;
+        o que cada sentido lê; e os controles conectados como aparelhos, cada um com a chave
+        «Sente os efeitos» na aba Controles."""
         estado = self._estado()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.porta.pedir("acessorios.estado", estado)
@@ -660,7 +824,8 @@ class Extensao:
                else "teste: a receita de agora não tem este efeito")
         efeitos = self.receita.secao("efeitos")
         canais = {str(efeitos[nome]["canal"]) for nome in tocados}
-        teste = Teste(set(tocados), canais, alvos)
+        teste = Teste(set(tocados), canais, alvos, {
+            c["uniq"]: ajustes.nome_do_controle(c, n) for n, c in enumerate(self.controles, 1)})
         desligado = (ajustes.forca(self.motor.opcoes) <= 0
                      or canais <= ajustes.canais_calados(self.motor.opcoes))
         for ident, controle in self._por_id():
@@ -782,6 +947,10 @@ class Extensao:
         elif topico == "perfil.jogo" and isinstance(dados, dict):
             jogo = dados.get("jogo")
             antes, self.jogo = self.jogo, jogo if isinstance(jogo, str) and jogo else None
+            em_cena, perfil = dados.get("em_cena"), dados.get("perfil")
+            self.em_cena = em_cena if isinstance(em_cena, bool) else self.jogo is not None
+            self.nome_do_jogo = (perfil.strip() if self.em_cena and isinstance(perfil, str)
+                                 and perfil.strip() else None)
             if self.vendo and antes is not None and self.jogo != antes:
                 await self.parar_de_ver()
             self.memoria_vale = dados.get("memoria") is True
@@ -805,9 +974,6 @@ class Extensao:
                     self.aplicar_o_estilo()
                     await self.publicar_se_mudou()
         elif (topico == "extensao.acao" and isinstance(dados, dict)
-              and dados.get("acao") == ACAO_DE_PROCURAR):  # (noqa-acento)
-            self.procurar_em_fundo(agora=True)
-        elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_LIGAR):  # (noqa-acento)
             await self.sentir(dados.get("alvo"), dados.get("valor"))
         elif (topico == "extensao.acao" and isinstance(dados, dict)
@@ -830,6 +996,8 @@ class Extensao:
             await self.parar_de_ver()
         if topico == "jogo.memoria" and not self.memoria_vale:
             return True
+        if isinstance(topico, str) and isinstance(dados, dict):
+            self.ouvir(topico, dados)
         if isinstance(topico, str) and isinstance(nome, str):
             uniq = params.get("uniq")
             dados = params.get("dados")
@@ -852,10 +1020,8 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     await porta.pedir("mod.ola", {"ficha": ficha})
     biblioteca = Biblioteca(PASTA_DAS_ESTUDADAS, dados, carregar_o_universal, diario)
     opcoes = ler_as_opcoes(dados)
-    escolha = opcoes.get(OPCAO_DA_RECEITA, PELO_JOGO)
-    extensao = Extensao(porta, biblioteca.para(None, escolha if isinstance(escolha, str) else
-                                               PELO_JOGO), biblioteca, dados,
-                        Comunidade(dados) if dados is not None else None)
+    extensao = Extensao(porta, biblioteca.para(None, escolha_da_receita(opcoes)), biblioteca,
+                        dados, Comunidade(dados) if dados is not None else None)
     if fora := topicos_fora_da_porta(extensao.receita):
         diario(f"a porta não entrega {', '.join(fora)}: os sentidos desses tópicos ficam parados")
     await extensao.assinar()

@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 from apoio import DOIS, QUATRO, RAIZ, TRES, UM
 
+import opcoes as ajustes
 import servidor
 from motor.arbitragem import Pedido
 from receita.biblioteca import Biblioteca
@@ -106,6 +107,8 @@ def test_a_memoria_chega_ao_motor_so_com_a_chave_do_hefesto_ligada() -> None:
 
 
 def test_o_estado_leva_as_linhas_no_teto_da_porta_e_os_presentes_da_receita() -> None:
+    """A faixa do alto (16/11/2026): as linhas dizem o ajuste que vale, e o que cada sentido lê
+    vai nas leituras, não numa linha «Lendo»; o último efeito é o que a porta viu chegar."""
     porta = _Porta()
     extensao = servidor.Extensao(porta, servidor.carregar_o_universal())  # type: ignore[arg-type]
     extensao.relogio = lambda: time.mktime((2026, 11, 2, 21, 4, 5, 0, 0, -1))
@@ -113,18 +116,15 @@ def test_o_estado_leva_as_linhas_no_teto_da_porta_e_os_presentes_da_receita() ->
     async def corpo() -> None:
         await extensao.assinar()
         await extensao.publicar_o_estado()
-        coracao = Pedido(UM, "haptica", "-", "coracao", 0.8, 0, 1000.0, 0)  # (noqa-acento)
-        extensao.anotar({coracao.vaga: coracao})
-        extensao.anotar({(UM, "luz", "-"): Pedido(UM, "luz", "-", "vermelho", 0.0, 0,
-                                                  2000.0, 1)})
-        await extensao.publicar_se_mudou()
 
     asyncio.run(corpo())
-    antes, depois = porta.estados()
-    assert _linha(antes, "Lendo") == "Som, vibração, microfone, parado, golpe"
-    assert _linha(antes, "Último efeito") is None
-    assert _linha(depois, "Último efeito") == "Coração, 21:04:05"
-    for estado in (antes, depois):
+    [depois] = porta.estados()
+    assert _linha(depois, "Ajuste") == "Universal"
+    assert _linha(depois, "Lendo") is None and _linha(depois, "Último efeito") is None
+    assert [(x["opcao"], x.get("nivel"), x.get("cego", False)) for x in depois["leituras"]] == [
+        (i, None if i == "sentido_parado" else 0, False)
+        for i in ajustes.SENTIDOS if i != ajustes.SENTIDO_DA_TELA]
+    for estado in (depois,):
         assert len(estado["linhas"]) <= servidor.TETO_DAS_LINHAS
         assert all(len(linha["rotulo"]) <= servidor.TETO_DO_ROTULO
                    and 0 < len(linha["valor"]) <= servidor.TETO_DO_VALOR
@@ -132,6 +132,8 @@ def test_o_estado_leva_as_linhas_no_teto_da_porta_e_os_presentes_da_receita() ->
         aceito = _aceito(estado)
         assert aceito["linhas"] == estado["linhas"]
         assert aceito["presentes"] == estado["presentes"]
+        assert aceito["situacao"] == estado["situacao"] == {"estado": "esperando", "frase": None}
+        assert [x["opcao"] for x in aceito["leituras"]] == [x["opcao"] for x in estado["leituras"]]
     entradas = list(servidor.carregar_o_universal().secao("entradas"))
     assert depois["presentes"] == ["som_no_corpo", "gatilhos_que_vibram", *entradas,
                                    "canal.haptica", "canal.motor", "canal.gatilho", "canal.luz",
@@ -191,9 +193,10 @@ def test_a_receita_que_le_a_memoria_diz_no_agora_que_espera_a_chave() -> None:
     fora, sem_chave, com_chave = porta.estados()
     assert _linha(fora, "Memória") is None
     assert _linha(sem_chave, "Memória") == servidor.ESPERA_A_MEMORIA == "Desligada"
-    assert _linha(sem_chave, "Lendo") == "Vibração"
+    leituras = {x["opcao"]: x for x in sem_chave["leituras"]}
+    assert not leituras["sentido_vibracao"].get("cego")
+    assert leituras["sentido_som"]["frase"] == servidor.LEITURA_NAO_USA
     assert _linha(com_chave, "Memória") is None
-    assert _linha(com_chave, "Lendo") == "Vibração, memória"
     for estado in (fora, sem_chave, com_chave):
         assert _aceito(estado)["linhas"] == estado["linhas"]
 
@@ -223,7 +226,7 @@ def test_a_janela_mostra_so_o_efeito_que_a_receita_tem_e_a_chave_da_memoria() ->
     opcoes_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.opcoes")
     lido = manifesto_do_hefesto.ler_manifesto(RAIZ)
     memoria = [o for o in lido.opcoes if o.tipo == "memoria"]
-    assert [(o.id, o.grupo, o.padrao) for o in memoria] == [("memoria", "Sentidos", None)]
+    assert [(o.id, o.grupo, o.padrao) for o in memoria] == [("memoria", "Sentir", None)]
     assert "linhas" in _manifesto()["agora"]
     padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"] if "padrao" in o}  # (noqa-acento)
 

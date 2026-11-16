@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from apoio import DOIS, QUATRO, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
+from apoio import DOIS, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
 from test_a_receita_minecraft_dungeons_ii import LINHA_DO_GATILHO, _batimento
 from test_a_receita_minecraft_dungeons_ii import _motor as _dungeons
 from test_o_universal import (
@@ -28,7 +28,7 @@ from motor.laco import HZ, Motor
 from motor.saida import Saida
 from receita.formato import ler_receita
 
-ABAS = ["Jogo", "Sentidos", "Efeitos"]
+ABAS = ["Sentir", "Efeitos", "Controles"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -82,25 +82,27 @@ def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None
     do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto")
     lido = do_hefesto.ler_manifesto(RAIZ)
     assert [o.id for o in lido.opcoes] == [o["id"] for o in manifesto["opcoes"]]  # (noqa-acento)
-    assert [a.id for a in lido.acoes] == [servidor.ACAO_DE_PROCURAR, ajustes.ACAO_DE_VER_A_TELA,
-                                          ajustes.ACAO_DE_PARAR_DE_VER, *ajustes.TESTES]
+    assert [a.id for a in lido.acoes] == [ajustes.ACAO_DE_VER_A_TELA, ajustes.ACAO_DE_PARAR_DE_VER,
+                                          *ajustes.TESTES]
 
 
 def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> None:
     opcoes = _opcoes()
     assert opcoes[ajustes.FORCA]["padrao"] == ajustes.FORCA_PADRAO  # (noqa-acento)
-    assert opcoes[ajustes.PARA_QUEM]["escolhas"] == list(ajustes.ESCOLHAS_DE_PARA_QUEM)
-    assert opcoes[ajustes.PARA_QUEM]["padrao"] == ajustes.QUEM_LEVOU  # (noqa-acento)
+    assert ajustes.PARA_QUEM not in opcoes
+    assert (opcoes[ajustes.AJUSTE]["rotulo"], opcoes[ajustes.AJUSTE]["escolhas"],
+            opcoes[ajustes.AJUSTE]["padrao"]) == (  # (noqa-acento)
+        "Ajuste", [ajustes.AUTOMATICO, ajustes.SEMPRE_O_UNIVERSAL], ajustes.AUTOMATICO)
+    assert opcoes[ajustes.FORCA]["rotulo"] == "Intensidade"
     assert ajustes.SENTIDO_DA_TELA not in opcoes
     for ident, (_, padrao) in ajustes.SENTIDOS.items():
         if ident == ajustes.SENTIDO_DA_TELA:
             continue
-        assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Sentidos", padrao)  # (noqa-acento)
+        assert (opcoes[ident]["grupo"], opcoes[ident]["cartao"], opcoes[ident]["padrao"]) == (  # (noqa-acento)
+            "Sentir", "O que ele escuta", padrao)
     for ident in ajustes.CANAIS:
         assert (opcoes[ident]["grupo"], opcoes[ident]["cartao"], opcoes[ident]["padrao"]) == (  # (noqa-acento)
-            "Efeitos", "Canais", True)
-    efeitos = [o["id"] for o in _manifesto()["opcoes"] if o["grupo"] == "Efeitos"]  # (noqa-acento)
-    assert efeitos[:len(ajustes.CANAIS)] == list(ajustes.CANAIS), "os canais no topo de Efeitos"
+            "Sentir", "O que o controle sente", True)
     assert opcoes["peso_da_mira"]["grupo"] == "Efeitos"
 
 
@@ -159,11 +161,12 @@ def test_o_clima_tenso_mais_baixo_liga_o_coracao_mais_cedo() -> None:
     assert not _coracoes(_escrito({"clima": 90}, TENSO, 20_000))
 
 
-def test_o_golpe_vai_para_todos_os_controles_quando_a_janela_pede() -> None:
-    so_quem, todos = (_escrito({ajustes.PARA_QUEM: p}, RAJADA, 2000, QUATRO_CONTROLES)
-                      for p in ajustes.ESCOLHAS_DE_PARA_QUEM)
-    assert {p["uniq"] for _, p in so_quem.de("luz.set")} == {TRES}
-    assert {p["uniq"] for _, p in todos.de("luz.set")} == {UM, DOIS, TRES, QUATRO}
+def test_o_golpe_vai_a_quem_levou_mesmo_com_o_todos_de_antes_no_arquivo() -> None:
+    """A janela sem «O golpe vai para» (16/11/2026): o golpe vai a quem levou, e o «Todos os
+    controles» que ficou no arquivo de antes não o espalha."""
+    for valores in ({}, {ajustes.PARA_QUEM: "Todos os controles"}):
+        escrito = _escrito(valores, RAJADA, 2000, QUATRO_CONTROLES)
+        assert {p["uniq"] for _, p in escrito.de("luz.set")} == {TRES}
 
 
 class _Porta:
@@ -173,21 +176,6 @@ class _Porta:
     async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
         self.pedidos.append((metodo, params))
         return {}
-
-
-def test_o_botao_procurar_receitas_da_aba_geral_procura_na_hora() -> None:
-    extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal())  # type: ignore[arg-type]
-    pedidos: list[bool] = []
-    extensao.procurar_em_fundo = lambda agora=False: pedidos.append(agora)  # type: ignore[method-assign]
-
-    async def corpo() -> None:
-        for acao in ("outra", servidor.ACAO_DE_PROCURAR):
-            await extensao.ao_evento({"method": "evento", "params": {
-                "topico": "extensao.acao", "nome": "extensao.acao", "uniq": None,
-                "dados": {"mod": "modo-imersao", "acao": acao, "alvo": None}}})  # (noqa-acento)
-
-    asyncio.run(corpo())
-    assert pedidos == [True]
 
 
 RECEITAS_DE_FABRICA = [RAIZ / "receitas" / "universal.json",
@@ -376,10 +364,10 @@ def _com_os_controles(dados: Path, *eventos: dict[str, Any]
     return extensao, porta
 
 
-def test_cada_controle_conectado_e_um_cartao_da_aba_jogo_com_a_chave_e_sem_o_uniq(
+def test_cada_controle_conectado_e_um_cartao_da_aba_controles_com_a_chave_e_sem_o_uniq(
         tmp_path: Path) -> None:
     manifesto = _manifesto()
-    assert manifesto["aparelhos_acoes"] == {"grupo": "Jogo", "acoes": [  # (noqa-acento)
+    assert manifesto["aparelhos_acoes"] == {"grupo": "Controles", "acoes": [  # (noqa-acento)
         {"id": "ligar", "rotulo": "Sente os efeitos", "icone": "ligar"}]}
     extensao, porta = _com_os_controles(tmp_path)
     assert [{k: v for k, v in a.items() if k != "controles"}
@@ -414,8 +402,8 @@ def test_o_controle_desligado_na_janela_nao_recebe_nada_e_a_escolha_sobrevive_ao
 
 
 def test_o_motor_nao_escreve_no_controle_calado_e_segue_nos_outros() -> None:
-    for calados, sentem in (({DOIS}, {UM, TRES, QUATRO}), (set(), {UM, DOIS, TRES, QUATRO})):
-        motor = _universal(QUATRO_CONTROLES, {ajustes.PARA_QUEM: ajustes.TODOS})
+    for calados, sentem in (({DOIS}, {TRES}), (set(), {TRES}), ({TRES}, set())):
+        motor = _universal(QUATRO_CONTROLES, {})
         motor.calar(calados)
         porta = EscritasDeMentira(com_haptica=True, com_som=True)
         _correr(motor, porta, 2000, RAJADA)
@@ -430,7 +418,6 @@ def test_o_motor_nao_escreve_no_controle_calado_e_segue_nos_outros() -> None:
 
 def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
         tmp_path: Path) -> None:
-    assert {"nivel", "clima"} <= set(_manifesto()["agora"])
     climas = []
     for ate in (0, 10_000, 20_000):
         motor = _universal(None, {})
@@ -448,8 +435,7 @@ def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
 
 
 def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais_nada() -> None:
-    motor = _universal([{"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}],
-                       {ajustes.PARA_QUEM: ajustes.TODOS})
+    motor = _universal([{"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}], {})
     porta = EscritasDeMentira(com_haptica=True, com_som=True)
     fila = sorted(TENSO, key=lambda e: e[0])
     cala_ms = 15_000
@@ -475,14 +461,15 @@ def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais
     assert [t for t, _, p in porta.escritas if p.get("uniq") == UM and t >= cala_ms]
 
 
-def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_o_controle_vivo() -> None:
+def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_a_faixa_do_alto() -> None:
+    """A janela sem a coluna «Agora» (16/11/2026): o ``agora`` só tem o controle e as linhas, a
+    faixa do alto, sem o nível de 0 a 10 nem a curva do clima."""
     manifesto = _manifesto()
     opcoes = _opcoes()
-    assert manifesto["agora"] == ["controle", "nivel", "clima", "perfil", "linhas"]
+    assert manifesto["agora"] == ["controle", "linhas"]
     cartoes: dict[str, list[str]] = {}
     for o in manifesto["opcoes"]:  # (noqa-acento)
-        if "cartao" in o:
-            assert o["grupo"] == "Efeitos"
+        if o.get("grupo") == "Efeitos" and "cartao" in o:
             cartoes.setdefault(o["cartao"], []).append(o["id"])
     assert cartoes["Coração"] == ["coracao", "tipo_do_coracao"]
     assert cartoes["Impacto nos gatilhos"] == ["impacto_nos_gatilhos", "tipo_do_l2", "tipo_do_r2"]
@@ -492,3 +479,9 @@ def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_o_controle_vivo
                                           "canal_luz", "canal_leds", "canal_som")} == {
         "haptica", "vibracao", "gatilho", "luz", "leds", "som"}
     assert {a["grupo"] for a in manifesto["acoes"] if a["id"].startswith("testar_")} == {"Efeitos"}
+    assert {a["id"]: a["cartao"] for a in manifesto["acoes"] if a["id"].startswith("testar_")} == {
+        "testar_coracao": "Coração", "testar_alivio": "Alívio", "testar_golpe": "Golpe com lado",
+        "testar_susto": "Susto", "testar_gatilhos": "Impacto nos gatilhos"}
+    assert all(a["cartao"] in cartoes for a in manifesto["acoes"] if a["id"].startswith("testar_"))
+    assert {o["cartao"] for o in manifesto["opcoes"] if o.get("marca") == "Terror"} == {
+        "Coração", "Alívio", "Susto", "Clima tenso", "Peso da mira"}

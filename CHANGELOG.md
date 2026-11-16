@@ -1,5 +1,22 @@
 # Mudanças
 
+## 0.5.6 (16/11/2026)
+
+- A janela perde a coluna «Agora»: no alto, uma faixa diz se a extensão está tocando, com o nome do
+  jogo, calada, com o motivo (a Intensidade em zero, nenhum controle que sente, ou a frase da porta
+  que recusa cada um), ou esperando um jogo, e as linhas dizem o estilo, o ajuste que vale, quem
+  sente, quem não recebe nada e, só no Terror, a tensão da cena em palavras (Calma, Atenta, Tensa,
+  Pânico). Saem o nível de 0 a 10 e a curva do clima.
+- Três abas: Sentir (o Ajuste, o Estilo e a Intensidade; cada sentido com o medidor do que ele lê
+  agora; os canais do controle), Efeitos (um cartão por efeito, com o «Testar» no pé; os do Terror
+  marcados) e Controles (um cartão por controle, pela cor do plástico).
+- A «Receita» vira o «Ajuste», em «Automático» ou «Sempre o universal»; a escolha de antes vira a
+  de mesmo sentido. Saem «O golpe vai para» (o golpe vai a quem levou) e «Procurar receitas» (o
+  índice da comunidade segue baixando sozinho a cada jogo que abre).
+- A resposta do «Testar» leva o nome do plástico de cada controle.
+- Pede o Hefesto que conhece o `cartao` das ações, a `marca` das opções e a `situacao` e as
+  `leituras` do estado.
+
 ## 0.5.5 (16/11/2026)
 
 - O Modo imersão toca em todo estilo: o Som no corpo (o grave do som do jogo na vibração fina,

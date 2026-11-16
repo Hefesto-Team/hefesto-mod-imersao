@@ -201,8 +201,8 @@ def test_a_receita_recusada_nao_vale_e_o_diario_diz_a_linha(
 def test_toda_entrada_das_receitas_da_extensao_e_uma_opcao_da_janela() -> None:
     manifesto = json.loads((RAIZ / "hefesto-mod.json").read_text(encoding="utf-8"))
     opcoes = {o["id"]: o for o in manifesto["opcoes"]}  # (noqa-acento)
-    assert opcoes["receita"]["escolhas"] == ["Pelo jogo", "Universal"]
-    assert "perfil" in manifesto["agora"] and "publicar:acessorios.estado" in manifesto[
+    assert opcoes["receita"]["escolhas"] == ["Automático", "Sempre o universal"]
+    assert "linhas" in manifesto["agora"] and "publicar:acessorios.estado" in manifesto[
         "permissoes"]  # (noqa-acento)
     arquivos = [RAIZ / "receitas" / "universal.json",
                 *sorted((RAIZ / "receitas" / "estudadas").glob("*.json"))]

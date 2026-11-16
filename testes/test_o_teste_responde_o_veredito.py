@@ -108,7 +108,8 @@ def _por_uniq(respostas: list[dict[str, Any]]) -> dict[str, tuple[bool, str | No
     [resposta] = respostas
     assert resposta["para"] == "a1"
     linhas = resposta["dados"]["controles"]
-    assert all(set(linha) == {"uniq", "tocou", "motivo"} for linha in linhas)
+    assert all(set(linha) == {"uniq", "nome", "tocou", "motivo"} for linha in linhas)
+    assert all(linha["nome"] and ":" not in linha["nome"] for linha in linhas)
     assert all(linha["motivo"] is None or 0 < len(linha["motivo"]) <= 120 for linha in linhas)
     return {linha["uniq"]: (linha["tocou"], linha["motivo"]) for linha in linhas}
 
@@ -301,5 +302,5 @@ def test_pela_porta_de_verdade_a_resposta_chega_antes_de_um_segundo(
     assert demora < 1.0
     [resposta] = respostas
     assert resposta == {"para": "a7", "dados": {"controles": [
-        {"uniq": UM, "tocou": True, "motivo": None},
-        {"uniq": DOIS, "tocou": False, "motivo": NATIVO}]}}
+        {"uniq": UM, "nome": "Jogador 1", "tocou": True, "motivo": None},
+        {"uniq": DOIS, "nome": "Jogador 2", "tocou": False, "motivo": NATIVO}]}}

@@ -102,7 +102,7 @@ def test_cada_cartao_pela_cor_leva_a_forca_e_o_volume_lado_a_lado(tmp_path: Path
     do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.porta")
     manifesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto").ler_manifesto(
         servidor.AQUI)
-    assert manifesto.aparelhos_controles.grupo == "Jogo"
+    assert manifesto.aparelhos_controles.grupo == "Controles"
     validado = do_hefesto.estado_dos_acessorios("imersao", porta.estados[-1],
                                                 acoes_dos_aparelhos=frozenset({"ligar"}))
     assert len(validado["aparelhos"]) == 4

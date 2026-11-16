@@ -261,8 +261,7 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_com_a_chav
         respostas: list[dict[str, Any]] = []
 
         async def procurar() -> None:
-            procura = {"acao": servidor.ACAO_DE_PROCURAR}  # (noqa-acento)
-            await extensao.ao_evento(_evento("extensao.acao", procura))
+            extensao.procurar_em_fundo(agora=True)
             assert extensao.procurando is not None
             respostas.append(await asyncio.wait_for(extensao.procurando, 5))
 

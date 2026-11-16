@@ -1,5 +1,5 @@
-"""Os ajustes que são da extensão, não da receita: a Força, para quem vai o golpe, os sentidos e
-os canais, e os controles que sentem. A tela não tem chave: ela só se lê depois do clique «Ver a
+"""Os ajustes que são da extensão, não da receita: o Ajuste, a Intensidade, os sentidos e os
+canais, e os controles que sentem. A tela não tem chave: ela só se lê depois do clique «Ver a
 tela», e o estado do clique entra nas opções por :func:`com_a_tela`. Valem para toda receita (a sua, a estudada, a da comunidade e o universal), no tique
 seguinte, lidos do mesmo ``opcoes.json`` que a janela grava."""
 from __future__ import annotations
@@ -29,10 +29,11 @@ TOPICO_DA_TELA = "jogo.tela"
 ID_DO_CONTROLE = re.compile(r"^(?:jogador|controle)-[1-9][0-9]?$")
 FORCA = "forca_geral"
 FORCA_PADRAO = 100.0
+AJUSTE = "receita"
+AUTOMATICO = "Automático"
+SEMPRE_O_UNIVERSAL = "Sempre o universal"
+AJUSTES_DE_ANTES = {"Pelo jogo": AUTOMATICO, "Universal": SEMPRE_O_UNIVERSAL}
 PARA_QUEM = "para_quem"
-QUEM_LEVOU = "Quem levou"
-TODOS = "Todos os controles"
-ESCOLHAS_DE_PARA_QUEM = (QUEM_LEVOU, TODOS)
 CONTROLE_DA_FORCA = "forca"
 CONTROLE_DO_VOLUME = "volume"
 NIVEIS_DO_CONTROLE = (0, 25, 50, 75, 100)
@@ -90,15 +91,24 @@ def com_a_tela(opcoes: dict[str, Any], vendo: bool) -> dict[str, Any]:
 
 
 def migrar(dados: Path) -> bool:
-    """O ``opcoes.json`` de antes da 0.5.0 guardava a chave da tela: ela sai, e a tela fica
-    desligada até o clique. ``True`` quando o arquivo mudou."""
+    """O ``opcoes.json`` de antes: a chave da tela (até a 0.5.0) sai, e a tela fica desligada até
+    o clique; o «O golpe vai para» (até a 0.5.5) sai, e o golpe vai a quem levou; a escolha da
+    «Receita» vira a do «Ajuste» de mesmo sentido. ``True`` quando o arquivo mudou."""
     arquivo = dados / ARQUIVO_DAS_OPCOES
     valores = _ler(arquivo)
-    if SENTIDO_DA_TELA not in valores:
+    novos = {k: v for k, v in valores.items() if k not in (SENTIDO_DA_TELA, PARA_QUEM)}
+    if novos.get(AJUSTE) in AJUSTES_DE_ANTES:
+        novos[AJUSTE] = AJUSTES_DE_ANTES[novos[AJUSTE]]
+    if novos == valores:
         return False
-    del valores[SENTIDO_DA_TELA]
-    _gravar(dados, ARQUIVO_DAS_OPCOES, valores)
+    _gravar(dados, ARQUIVO_DAS_OPCOES, novos)
     return True
+
+
+def sempre_o_universal(opcoes: dict[str, Any]) -> bool:
+    """O «Ajuste» em «Sempre o universal» (ou o «Universal» de antes da migração)."""
+    valor = opcoes.get(AJUSTE)
+    return isinstance(valor, str) and AJUSTES_DE_ANTES.get(valor, valor) == SEMPRE_O_UNIVERSAL
 
 
 def ligado(opcoes: dict[str, Any], ident: str, padrao: bool = True) -> bool:
@@ -143,7 +153,8 @@ def pedido_do_corpo(opcoes: dict[str, Any], forca_do_controle: float = 1.0,
 
 
 def para_todos(opcoes: dict[str, Any]) -> bool:
-    return opcoes.get(PARA_QUEM) == TODOS
+    """O golpe a todos os controles: só a receita que o pede; a janela não tem mais a escolha."""
+    return False
 
 
 def topicos_calados(opcoes: dict[str, Any]) -> frozenset[str]:
