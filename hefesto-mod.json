@@ -52,7 +52,7 @@
       ],
       "padrao": "Pelo jogo",
       "grupo": "Jogo",
-      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+      "dica": "Pelo jogo, vale a receita do jogo aberto; sem receita, a universal"
     },
     {
       "id": "estilo",
@@ -102,7 +102,7 @@
       "rotulo": "Memória neste jogo",
       "tipo": "memoria",
       "grupo": "Sentidos",
-      "dica": "A receita que pede lê da memória do jogo os valores dela; vale ao abrir o jogo de novo"
+      "dica": "A receita que pede lê da memória do jogo os valores que usa; vale ao abrir o jogo de novo"
     },
     {
       "id": "sentido_som",
