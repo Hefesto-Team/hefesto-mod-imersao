@@ -25,7 +25,9 @@ A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice as
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
 aba Jogo da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
 por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
-(:class:`~motor.conta.ContaDoMinuto`). O ``jogo.memoria`` só chega ao motor com a chave «Memória
+(:class:`~motor.conta.ContaDoMinuto`). A porta lê a cor em fundo, depois da conexão, e a renomeia
+sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
+controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor com a chave «Memória
 neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
 """
 from __future__ import annotations
@@ -79,6 +81,7 @@ OPCAO_DA_RECEITA = "receita"
 ACAO_DE_PROCURAR = "procurar"
 RELE_AS_OPCOES_S = 0.5
 RESUMO_A_CADA_S = 60.0
+RELE_OS_CONTROLES_S = 5.0
 PUBLICA_O_CLIMA_S = 0.5
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
@@ -737,6 +740,13 @@ class Extensao:
         self._calar()
         await self.publicar_se_mudou()
 
+    async def rever_os_controles(self, sempre: bool = False) -> None:
+        """A lista de novo quando um controle está sem a cor do plástico, ou ``sempre``."""
+        if sempre or not all(isinstance(c.get("cor"), str) and c["cor"].strip()
+                             for c in self.controles):
+            with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+                await self.atualizar_os_controles()
+
     async def ao_evento(self, mensagem: dict[str, Any]) -> bool:
         """Leva o evento ao motor; ``False`` quando a porta fechou."""
         if mensagem.get("method") == "porta.fechou":
@@ -857,7 +867,13 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     async def resumir_o_minuto() -> None:
         while True:
             await asyncio.sleep(RESUMO_A_CADA_S)
+            await extensao.rever_os_controles(sempre=True)
             extensao.fechar_o_minuto()
+
+    async def esperar_a_cor() -> None:
+        while True:
+            await asyncio.sleep(RELE_OS_CONTROLES_S)
+            await extensao.rever_os_controles()
 
     async def acompanhar_o_clima() -> None:
         while True:
@@ -868,6 +884,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     vigiar = asyncio.create_task(vigiar_as_opcoes())
     clima = asyncio.create_task(acompanhar_o_clima())
     resumo = asyncio.create_task(resumir_o_minuto())
+    cor = asyncio.create_task(esperar_a_cor())
     motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim))
     try:
         await fim.wait()
@@ -880,7 +897,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
                                        ESPERA_O_FIM_DA_TELA_S)
     finally:
         extensao.parar_de_tocar.set()
-        tarefas = [ouvir, vigiar, clima, resumo, motor, *([extensao.tocando] if extensao.tocando else []),
+        tarefas = [ouvir, vigiar, clima, resumo, cor, motor, *([extensao.tocando] if extensao.tocando else []),
                    *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()

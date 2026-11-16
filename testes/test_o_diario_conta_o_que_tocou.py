@@ -3,10 +3,14 @@ tocou, numa linha com os controles pela cor do plástico; o minuto sem jogo não
 from __future__ import annotations
 
 import asyncio
+import shutil
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
-from apoio import DOIS, QUATRO, TRES, UM, EscritasDeMentira, Recusa
+from apoio import DOIS, QUATRO, TRES, UM, EscritasDeMentira, PortaDeMentira, Recusa, ate
 from apoio import vibracao_do_jogo as vibracao
 from test_o_universal import TIQUE, som
 
@@ -164,3 +168,103 @@ def test_o_resumo_para_no_teto_de_linhas(capsys: pytest.CaptureFixture[str],
         _correr(extensao, porta, 50, [])
         linhas += _resumo(extensao, capsys)
     assert len(linhas) == 2 and linhas[-1].endswith("no teto de linhas")
+
+
+class PortaQueLista(PortaQueConta):
+    """A porta que conta os ``controles.lista``: a cor muda nela sem evento, como na de verdade."""
+
+    def __init__(self, controles: list[dict[str, Any]]) -> None:
+        super().__init__(controles)
+        self.listas = 0
+
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.listas += metodo == "controles.lista"
+        return await super().pedir(metodo, params)
+
+
+def _nomes(extensao: servidor.Extensao, porta: PortaQueConta,
+           capsys: pytest.CaptureFixture[str]) -> list[str]:
+    _correr(extensao, porta, 50, [])
+    [linha] = _resumo(extensao, capsys)
+    return [p.split(" tocou")[0] for p in linha.split(": ", 1)[1].split(" | ")]
+
+
+def test_a_cor_que_a_porta_le_depois_da_conexao_chega_ao_diario_e_ao_cartao(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    porta = PortaQueLista([{"uniq": UM, "jogador": 1, "transporte": "usb"}])
+    extensao = _extensao(porta)
+    assert _nomes(extensao, porta, capsys) == ["Jogador 1"]
+    porta.controles = MESA_MISTA[:1]
+    asyncio.run(extensao.rever_os_controles())
+    assert _nomes(extensao, porta, capsys) == ["Cosmic Red"]
+    assert [a["nome"] for a in extensao.aparelhos()] == ["Cosmic Red"]
+
+
+def test_com_toda_cor_conhecida_a_lista_so_se_pede_de_novo_no_minuto(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    porta = PortaQueLista([dict(c) for c in MESA_MISTA])
+    extensao = _extensao(porta)
+    antes = porta.listas
+    asyncio.run(extensao.rever_os_controles())
+    assert porta.listas == antes
+    porta.controles[2]["cor"] = "Midnight Black"
+    asyncio.run(extensao.rever_os_controles(sempre=True))
+    assert porta.listas == antes + 1
+    assert _nomes(extensao, porta, capsys) == [
+        "Cosmic Red", "Starlight Blue", "Midnight Black", "Galactic Purple"]
+
+
+def test_na_mesa_mista_o_controle_sem_cor_fica_pelo_jogador_e_os_outros_pela_cor(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    sem_cor = {"uniq": DOIS, "jogador": 2, "transporte": "bt"}
+    porta = PortaQueLista([MESA_MISTA[0], sem_cor, MESA_MISTA[2]])
+    extensao = _extensao(porta)
+    antes = porta.listas
+    asyncio.run(extensao.rever_os_controles())
+    assert porta.listas == antes + 1
+    assert _nomes(extensao, porta, capsys) == ["Cosmic Red", "Jogador 2", "White"]
+    assert [a["nome"] for a in extensao.aparelhos()] == ["Cosmic Red", "Jogador 2", "White"]
+
+
+@pytest.fixture
+def pasta_curta() -> Iterator[Path]:
+    pasta = Path(tempfile.mkdtemp(prefix="cor-"))
+    try:
+        yield pasta
+    finally:
+        shutil.rmtree(pasta, ignore_errors=True)
+
+
+def test_a_extensao_viva_pede_a_lista_ate_a_cor_chegar_e_de_novo_a_cada_minuto(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(servidor, "RELE_OS_CONTROLES_S", 0.05)
+    monkeypatch.setattr(servidor, "RESUMO_A_CADA_S", 1.0)
+    monkeypatch.setenv("HEFESTO_MOD_SOCKET", str(pasta_curta / "mods.sock"))
+    monkeypatch.setenv("HEFESTO_MOD_FICHA", "ficha-de-mentira")
+    monkeypatch.delenv("HEFESTO_MOD_DADOS", raising=False)
+    porta = PortaDeMentira([{"uniq": UM, "jogador": 1}])
+
+    def nomes() -> list[list[str]]:
+        return [[a["nome"] for a in e["aparelhos"]] for e in porta.de("acessorios.estado")]
+
+    async def rodar() -> int:
+        socket = await asyncio.start_unix_server(porta.atender, path=str(pasta_curta / "mods.sock"))
+        extensoes: list[servidor.Extensao] = []
+        processo = asyncio.create_task(servidor.rodar(extensoes.append))
+        try:
+            await ate(lambda: bool(extensoes))
+            assert nomes()[-1] == ["Jogador 1"]
+            porta.controles = [{"uniq": UM, "jogador": 1, "cor": "Cosmic Red"}]
+            await ate(lambda: nomes()[-1] == ["Cosmic Red"], prazo=0.6)
+            listas = porta.metodos.count("controles.lista")
+            await asyncio.sleep(5 * servidor.RELE_OS_CONTROLES_S)
+            assert porta.metodos.count("controles.lista") == listas
+            porta.controles = [{"uniq": UM, "jogador": 1, "cor": "Midnight Black"}]
+            await ate(lambda: nomes()[-1] == ["Midnight Black"])
+            for escritor in porta.escritores:
+                escritor.close()
+            return await asyncio.wait_for(processo, 5)
+        finally:
+            socket.close()
+
+    assert asyncio.run(rodar()) == 0

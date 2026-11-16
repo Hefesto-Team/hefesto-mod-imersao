@@ -6,6 +6,9 @@
   golpe: a rajada, o pulso e o golpe dado leem os dois caminhos, e o jogo que vibra pelos dois vale
   pelo mais forte. A receita que lê o `sentido.rumble` ou o `sentido.golpe` declara também
   `ler:jogo.haptica`.
+- O diário e o cartão de cada controle na janela falam pela cor do plástico também quando o Hefesto
+  a descobre depois que o controle conecta: a extensão pede a lista de novo a cada 5 s enquanto um
+  controle está sem cor, e a cada minuto, antes da linha do diário. Sem a cor, vale «Jogador N».
 
 ## 0.5.3 (16/11/2026)
 
