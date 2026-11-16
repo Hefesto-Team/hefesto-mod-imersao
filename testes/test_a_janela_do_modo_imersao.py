@@ -37,7 +37,7 @@ from motor.laco import HZ, Motor
 from motor.saida import Saida
 from receita.formato import ler_receita
 
-ABAS = ["Geral", "Controles", "Sentidos", "Efeitos", "Estilos", "Canais", "Receitas"]
+ABAS = ["Jogo", "Sentidos", "Efeitos"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -107,7 +107,10 @@ def test_cada_ajuste_da_extensao_e_uma_opcao_da_janela_com_o_mesmo_padrao() -> N
             continue
         assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Sentidos", padrao)  # (noqa-acento)
     for ident in ajustes.CANAIS:
-        assert (opcoes[ident]["grupo"], opcoes[ident]["padrao"]) == ("Canais", True)  # (noqa-acento)
+        assert (opcoes[ident]["grupo"], opcoes[ident]["cartao"], opcoes[ident]["padrao"]) == (  # (noqa-acento)
+            "Efeitos", "Canais", True)
+    efeitos = [o["id"] for o in _manifesto()["opcoes"] if o["grupo"] == "Efeitos"]  # (noqa-acento)
+    assert efeitos[:len(ajustes.CANAIS)] == list(ajustes.CANAIS), "os canais no topo de Efeitos"
     assert opcoes["peso_da_mira"]["grupo"] == "Efeitos"
 
 
@@ -206,7 +209,7 @@ SO_NO_UNIVERSAL = {"alivio", "peso_da_mira"}
 def test_toda_receita_de_fabrica_le_as_abas_efeitos_e_susto_com_o_padrao_da_janela(
         arquivo: Any) -> None:
     efeitos = {i: o for i, o in _opcoes().items()
-               if o["grupo"] == "Efeitos" and not i.startswith("tipo_")}
+               if o["grupo"] == "Efeitos" and not i.startswith("tipo_") and i not in ajustes.CANAIS}
     declaradas = ler_receita(arquivo.read_bytes()).secao("entradas")
     fora = {"peso_da_mira"} if arquivo.stem == "universal" else SO_NO_UNIVERSAL
     pedidas = set(efeitos) - fora
@@ -469,10 +472,10 @@ def _com_os_controles(dados: Path, *eventos: dict[str, Any]
     return extensao, porta
 
 
-def test_cada_controle_conectado_e_um_cartao_da_aba_controles_com_a_chave_e_sem_o_uniq(
+def test_cada_controle_conectado_e_um_cartao_da_aba_jogo_com_a_chave_e_sem_o_uniq(
         tmp_path: Path) -> None:
     manifesto = _manifesto()
-    assert manifesto["aparelhos_acoes"] == {"grupo": "Controles", "acoes": [  # (noqa-acento)
+    assert manifesto["aparelhos_acoes"] == {"grupo": "Jogo", "acoes": [  # (noqa-acento)
         {"id": "ligar", "rotulo": "Sente os efeitos", "icone": "ligar"}]}
     extensao, porta = _com_os_controles(tmp_path)
     assert [{k: v for k, v in a.items() if k != "controles"}
@@ -571,7 +574,7 @@ def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais
 def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_o_controle_vivo() -> None:
     manifesto = _manifesto()
     opcoes = _opcoes()
-    assert manifesto["agora"] == ["controle", "nivel", "clima", "perfil", "linhas", "ao_vivo"]
+    assert manifesto["agora"] == ["controle", "nivel", "clima", "perfil", "linhas"]
     cartoes: dict[str, list[str]] = {}
     for o in manifesto["opcoes"]:  # (noqa-acento)
         if "cartao" in o:

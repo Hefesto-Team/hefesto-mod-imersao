@@ -4,34 +4,49 @@
 <meta charset="utf-8">
 <title>Estúdio</title>
 <style>
-:root { --fundo: #15161c; --texto: #eceef4; --apagado: #8c90a0; --acento: #6aa8ff; --borda: #2c2f3a; --laranja: #ffb86c; }
-body { margin: 0; padding: 16px; background: var(--fundo); color: var(--texto); font: 15px/1.4 system-ui, sans-serif; }
-button { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer; }
-button.principal { background: var(--acento); color: #0b0c10; border-color: var(--acento); }
+:root { --fundo: var(--app-bg, #21222c); --caixa: var(--elevated, #2b2d3a); --texto: var(--fg, #f8f8f2); --apagado: var(--texto-mudo, #9a9eb8); --acento: var(--purple, #bd93f9); --borda: var(--border-sutil, #343746); --borda-forte: var(--border-forte, #44475a); --laranja: var(--orange, #ffb86c); --sel: var(--sel-bg, rgba(189,147,249,.16)); }
+html, body { height: 100%; }
+body { margin: 0; padding: 10px 12px; box-sizing: border-box; background: var(--fundo); color: var(--texto); font: 12.5px/1.4 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+button { background: var(--caixa); color: var(--texto); border: 1px solid var(--borda-forte); border-radius: 7px; min-height: 28px; padding: 3px 12px; font: inherit; cursor: pointer; }
+button:hover { border-color: var(--acento); }
+button.principal { background: var(--acento); color: #1e1f29; border-color: var(--acento); font-weight: 600; }
 button[hidden], section[hidden] { display: none; }
-#frase { font-size: 28px; font-weight: 600; margin: 16px 0 4px; }
+.barra { display: flex; align-items: center; gap: 8px; flex: none; }
+.vistas { display: inline-flex; border: 1px solid var(--borda-forte); border-radius: 8px; overflow: hidden; }
+.vistas button { border: 0; border-radius: 0; background: transparent; color: var(--apagado); }
+.vistas button.on { background: var(--sel); color: var(--texto); box-shadow: inset 0 -2px 0 var(--acento); }
+.fim { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+#area { flex: 1 1 auto; min-height: 0; border: 1px solid var(--borda); border-radius: 9px; background: var(--caixa); padding: 10px 12px; overflow: auto; display: flex; flex-direction: column; }
+#area > section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#area > section[hidden] { display: none; }
+#frase { font-size: 24px; font-weight: 600; margin: 8px 0 4px; }
 #vez, .apagado { color: var(--apagado); }
-.linha { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-textarea { width: 100%; box-sizing: border-box; font: 13px/1.4 monospace; background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; }
-#desenho { width: 100%; height: auto; max-height: calc(100vh - 120px); }
-#erros-do-grafo, #erros-do-texto { white-space: pre-line; margin-top: 8px; }
-#recado { color: var(--laranja); min-height: 1.4em; margin-top: 8px; }
-select, input { background: var(--borda); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; font: inherit; }
+.linha { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+textarea { flex: 1 1 auto; min-height: 0; width: 100%; box-sizing: border-box; font: 12px/1.4 'JetBrains Mono', monospace; background: var(--fundo); color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; resize: none; }
+#desenho { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; }
+#erros-do-grafo, #erros-do-texto { white-space: pre-line; margin-top: 6px; }
+#recado { color: var(--laranja); }
+#recado:empty { display: none; }
+select, input { background: var(--fundo); color: var(--texto); border: 1px solid var(--borda-forte); border-radius: 7px; min-height: 28px; padding: 2px 8px; font: inherit; }
 </style>
 </head>
 <body>
-<div class="linha">
-  <button id="ensinar" class="principal" data-gesto="ensinar">Ensinar este jogo</button>
-  <button id="ver-blocos" data-gesto="blocos">Blocos</button>
-  <button id="gravar" data-gesto="gravar">Gravar</button>
-  <button id="parar" data-gesto="parar">Parar</button>
-  <button id="tocar" data-gesto="tocar">Tocar</button>
-  <button id="ver-grafo" data-gesto="grafo">Grafo</button>
-  <button id="ver-texto" data-gesto="texto">Texto</button>
-  <button id="procurar" data-gesto="procurar">Procurar receitas</button>
+<div class="barra">
+  <button id="ensinar" class="principal" data-gesto="ensinar" title="O Hefesto pergunta, você joga, e a receita deste jogo se monta">Ensinar este jogo</button>
+  <span class="vistas" role="group" aria-label="A receita">
+    <button id="ver-grafo" class="on" data-gesto="grafo" title="A receita em caixas ligadas">Grafo</button>
+    <button id="ver-blocos" data-gesto="blocos" title="A receita em blocos de quando e faça">Blocos</button>
+    <button id="ver-texto" data-gesto="texto" title="A receita em texto, para exportar e importar">Texto</button>
+  </span>
+  <span class="fim">
+    <span id="linha-do-tempo" class="apagado"></span>
+    <button id="gravar" data-gesto="gravar" title="Grava o que o jogo faz agora">Gravar</button>
+    <button id="parar" data-gesto="parar" title="Para de gravar ou de tocar">Parar</button>
+    <button id="tocar" data-gesto="tocar" title="Toca a gravação no controle">Tocar</button>
+  </span>
 </div>
-<div id="linha-do-tempo" class="apagado"></div>
 <div id="recado" role="status"></div>
+<div id="area">
 <section id="escolha" hidden>
   <div class="linha" id="cacadores"></div>
 </section>
@@ -63,7 +78,7 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
 </section>
 <section id="comunidade" hidden>
   <div id="origem"></div>
-  <div id="espera-a-memoria" class="apagado" hidden>Esta receita lê a memória: ligue «Memória neste jogo» na aba Geral</div>
+  <div id="espera-a-memoria" class="apagado" hidden>Esta receita lê a memória: ligue «Memória neste jogo» na aba Sentidos</div>
 </section>
 <section id="texto" hidden>
   <textarea id="receita-em-texto" spellcheck="false" rows="18"></textarea>
@@ -73,6 +88,7 @@ select, input { background: var(--borda); color: var(--texto); border: 1px solid
     <button id="importar" class="principal" data-gesto="importar">Importar</button>
   </div>
 </section>
+</div>
 <script>
 "use strict";
 const ROTULOS = { valor: "Valor", som: "Som", tela: "Canto da tela" };
@@ -80,8 +96,10 @@ const el = (id) => document.getElementById(id);
 const mandar = (pedido) => window.parent.postMessage(pedido, "*");
 const segundos = (n) => Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " s";
 const frase = (texto) => (texto ? String(texto).charAt(0).toUpperCase() + String(texto).slice(1) : "");
+const VISTA_DO_BOTAO = { grafo: "ver-grafo", blocos: "ver-blocos", texto: "ver-texto" };
 const mostrar = (qual) => {
   for (const id of ["escolha", "caca", "nomear", "blocos", "grafo", "texto", "comunidade"]) el(id).hidden = id !== qual;
+  for (const [vista, botao] of Object.entries(VISTA_DO_BOTAO)) el(botao).classList.toggle("on", vista === qual);
 };
 let vista = null;
 const PARA = { todos: "Todos", quem_levou: "Quem levou" };
@@ -137,7 +155,8 @@ function desenharGrafo(resposta) {
     lugar[no.id] = { x: 10 + no.coluna * 150, y: 10 + linha * 28 };
   }
   const altura = 20 + 28 * Math.max(1, ...Object.values(porColuna));
-  desenho.setAttribute("viewBox", "0 0 760 " + altura);
+  const largura = 150 + 150 * Math.max(0, ...resposta.nos.map((no) => no.coluna));
+  desenho.setAttribute("viewBox", "0 0 " + largura + " " + altura);
   for (const [de, para] of resposta.arestas) {
     const linha = document.createElementNS(SVG, "line");
     Object.entries({ x1: lugar[de].x + 130, y1: lugar[de].y + 10, x2: lugar[para].x, y2: lugar[para].y + 10, stroke: "var(--apagado)" })
@@ -221,11 +240,11 @@ el("ver-texto").addEventListener("click", () => mandar({ tipo: "exportar" }));
 el("exportar").addEventListener("click", () => navigator.clipboard && navigator.clipboard.writeText(el("receita-em-texto").value));
 el("receita-em-texto").addEventListener("input", () => mandar({ tipo: "validar", texto: el("receita-em-texto").value }));
 el("importar").addEventListener("click", () => mandar({ tipo: "importar", texto: el("receita-em-texto").value }));
-el("procurar").addEventListener("click", () => mandar({ tipo: "procurar" }));
 el("montar").addEventListener("click", () => vista && mandar({ tipo: "montar", vista }));
 for (const tipo of ["gravar", "parar", "tocar"]) el(tipo).addEventListener("click", () => mandar({ tipo }));
 el("marcar").addEventListener("click", () => mandar({ tipo: "passo" }));
 el("cancelar").addEventListener("click", () => mandar({ tipo: "cancelar" }));
+mandar({ tipo: "grafo" });
 el("guardar").addEventListener("click", () => mandar({ tipo: "guardar", nome: el("nome").value }));
 </script>
 </body>

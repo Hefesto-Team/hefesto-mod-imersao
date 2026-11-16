@@ -43,6 +43,36 @@
   ],
   "opcoes": [
     {
+      "id": "receita",
+      "rotulo": "Receita",
+      "tipo": "escolha",
+      "escolhas": [
+        "Pelo jogo",
+        "Universal"
+      ],
+      "padrao": "Pelo jogo",
+      "grupo": "Jogo",
+      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+    },
+    {
+      "id": "estilo",
+      "rotulo": "Estilo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Pelo jogo",
+        "Terror",
+        "Tiro",
+        "Corrida",
+        "Luta",
+        "Aventura",
+        "Ritmo",
+        "Geral"
+      ],
+      "padrao": "Pelo jogo",
+      "grupo": "Jogo",
+      "dica": "Pelo jogo, a universal toca o que combina com o estilo do jogo aberto"
+    },
+    {
       "id": "forca_geral",
       "rotulo": "Força",
       "tipo": "deslizante",
@@ -51,7 +81,7 @@
       "passo": 5,
       "padrao": 100,
       "unidade": "%",
-      "grupo": "Geral",
+      "grupo": "Jogo",
       "dica": "Tudo o que a extensão escreve no controle; em 0, nada",
       "zero": "Nada"
     },
@@ -64,7 +94,7 @@
         "Todos os controles"
       ],
       "padrao": "Quem levou",
-      "grupo": "Geral",
+      "grupo": "Jogo",
       "dica": "O dano e o impacto no gatilho vão só ao controle que levou, ou a todos"
     },
     {
@@ -118,6 +148,66 @@
       "grupo": "Sentidos",
       "dica": "O gatilho apertado no instante do pulso do jogo",
       "canal": "gatilho"
+    },
+    {
+      "id": "canal_haptica",
+      "rotulo": "Vibração fina",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O coração, o alívio e o susto no tato",
+      "canal": "haptica",
+      "cartao": "Canais"
+    },
+    {
+      "id": "canal_motor",
+      "rotulo": "Motores",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O golpe com lado",
+      "canal": "vibracao",
+      "cartao": "Canais"
+    },
+    {
+      "id": "canal_gatilho",
+      "rotulo": "Gatilhos",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O impacto nos gatilhos",
+      "canal": "gatilho",
+      "cartao": "Canais"
+    },
+    {
+      "id": "canal_luz",
+      "rotulo": "Barra de luz",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "A luz do dano",
+      "canal": "luz",
+      "cartao": "Canais"
+    },
+    {
+      "id": "canal_leds",
+      "rotulo": "Luzes de jogador",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O lado na luz",
+      "canal": "leds",
+      "cartao": "Canais"
+    },
+    {
+      "id": "canal_som",
+      "rotulo": "Alto-falante",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "dica": "O susto no alto-falante",
+      "canal": "som",
+      "cartao": "Canais"
     },
     {
       "id": "coracao",
@@ -421,7 +511,7 @@
       ],
       "padrao": "Pancada",
       "grupo": "Efeitos",
-      "dica": "A forma do susto no tato, na duração da aba Susto",
+      "dica": "A forma do susto no tato, na duração do susto",
       "aparece_com": {
         "@presente": "tipo_do_susto"
       },
@@ -472,90 +562,6 @@
         "@presente": "tipo_do_r2"
       },
       "cartao": "Impacto nos gatilhos"
-    },
-    {
-      "id": "estilo",
-      "rotulo": "Estilo",
-      "tipo": "escolha",
-      "escolhas": [
-        "Pelo jogo",
-        "Terror",
-        "Tiro",
-        "Corrida",
-        "Luta",
-        "Aventura",
-        "Ritmo",
-        "Geral"
-      ],
-      "padrao": "Pelo jogo",
-      "grupo": "Estilos",
-      "dica": "Pelo jogo, a universal toca o que combina com o estilo do jogo aberto"
-    },
-    {
-      "id": "canal_haptica",
-      "rotulo": "Vibração fina",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "O coração, o alívio e o susto no tato",
-      "canal": "haptica"
-    },
-    {
-      "id": "canal_motor",
-      "rotulo": "Motores",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "O golpe com lado",
-      "canal": "vibracao"
-    },
-    {
-      "id": "canal_gatilho",
-      "rotulo": "Gatilhos",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "O impacto nos gatilhos",
-      "canal": "gatilho"
-    },
-    {
-      "id": "canal_luz",
-      "rotulo": "Barra de luz",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "A luz do dano",
-      "canal": "luz"
-    },
-    {
-      "id": "canal_leds",
-      "rotulo": "Luzes de jogador",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "O lado na luz",
-      "canal": "leds"
-    },
-    {
-      "id": "canal_som",
-      "rotulo": "Alto-falante",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Canais",
-      "dica": "O susto no alto-falante",
-      "canal": "som"
-    },
-    {
-      "id": "receita",
-      "rotulo": "Receita",
-      "tipo": "escolha",
-      "escolhas": [
-        "Pelo jogo",
-        "Universal"
-      ],
-      "padrao": "Pelo jogo",
-      "grupo": "Receitas",
-      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
     }
   ],
   "agora": [
@@ -563,8 +569,7 @@
     "nivel",
     "clima",
     "perfil",
-    "linhas",
-    "ao_vivo"
+    "linhas"
   ],
   "modos_de_aba": [
     {
@@ -581,19 +586,15 @@
     }
   ],
   "abas": [
-    "Geral",
-    "Controles",
+    "Jogo",
     "Sentidos",
-    "Efeitos",
-    "Estilos",
-    "Canais",
-    "Receitas"
+    "Efeitos"
   ],
   "acoes": [
     {
       "id": "procurar",
       "rotulo": "Procurar receitas",
-      "grupo": "Receitas",
+      "grupo": "Jogo",
       "icone": "procurar"
     },
     {
@@ -641,10 +642,10 @@
   "pagina": {
     "arquivo": "estudio/pagina/estudio.html",
     "rotulo": "Ensinar este jogo",
-    "altura_max": 420
+    "altura_max": 720
   },
   "aparelhos_acoes": {
-    "grupo": "Controles",
+    "grupo": "Jogo",
     "acoes": [
       {
         "id": "ligar",
@@ -654,6 +655,6 @@
     ]
   },
   "aparelhos_controles": {
-    "grupo": "Controles"
+    "grupo": "Jogo"
   }
 }

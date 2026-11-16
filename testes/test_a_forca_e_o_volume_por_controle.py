@@ -1,4 +1,4 @@
-"""A Força e o volume de cada controle, chamados pela cor do plástico, lado a lado na aba Controles:
+"""A Força e o volume de cada controle, chamados pela cor do plástico, lado a lado na aba Jogo:
 valem juntos (uma barra não mexe na outra) e vezes a Força geral, de um a quatro controles, na mesa
 mista de cabo e rádio, e ficam guardados no ``controles.json``."""
 from __future__ import annotations
@@ -102,7 +102,7 @@ def test_cada_cartao_pela_cor_leva_a_forca_e_o_volume_lado_a_lado(tmp_path: Path
     do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.porta")
     manifesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto").ler_manifesto(
         servidor.AQUI)
-    assert manifesto.aparelhos_controles.grupo == "Controles"
+    assert manifesto.aparelhos_controles.grupo == "Jogo"
     validado = do_hefesto.estado_dos_acessorios("imersao", porta.estados[-1],
                                                 acoes_dos_aparelhos=frozenset({"ligar"}))
     assert len(validado["aparelhos"]) == 4

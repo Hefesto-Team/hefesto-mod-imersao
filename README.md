@@ -28,32 +28,29 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   vale.
 - As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
   e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
-- A janela tem oito abas, nesta ordem (o `abas` do manifesto). Geral: a Força (multiplica tudo o
-  que sai; em 0, nada) e «O golpe vai para» (quem levou, ou todos os controles). Controles: o
-  cartão de cada controle. Sentidos: cada sentido se desliga, e o desligado desassina o tópico dele;
-  com um jogo em cena, a «Memória neste jogo» do Hefesto. A tela não tem chave: só se lê no clique
-  «Ver a tela» da aba Sentidos (`tela.ver` e o `jogo.tela`), até «Parar de ver», o segundo clique,
-  o jogo que fecha ou a saída da extensão; o Hefesto que não conhece o `tela.ver` vira a linha
-  «Tela» do «Agora». Efeitos: um cartão por efeito (o `cartao` de cada opção), com a força, o tipo
-  e o que mais o efeito tem, e os botões de testar; o Susto leva as duas chaves, o intervalo, a
-  duração (100 a 1500 ms), o volume, a força e o tipo. Cada linha só aparece quando a receita que
-  vale tem o efeito dela (o `@presente` pelos `presentes` do estado). Estilos: o estilo do jogo.
-  Canais: cada canal se desliga. Receitas: «Procurar receitas» e a Receita. «Ensinar este jogo»: a
-  página do Estúdio. Os ajustes de Geral, Sentidos e Canais moram em `opcoes.py` e valem em toda
-  receita.
-- Na aba Controles, cada controle conectado é um cartão com a chave «Sente os efeitos»: o desligado não
-  recebe nada da extensão, e a escolha fica em `controles.json`, pelo número do jogador. Na aba
-  Controles, o cartão de cada um, pela cor do plástico, leva a Força e o Volume dele (0 a 100 %, de
-  25 em 25): valem juntos, vezes a Força geral, a Força em tudo menos o alto-falante e o Volume só
-  nele, e ficam no mesmo `controles.json`. A coluna «Agora» mostra o controle vivo do Hefesto (o
-  desenho do «Mapa dos controles», com as peças que a extensão acabou de mexer acesas, e um chip por
-  controle), o clima da cena (o derivado `tensao`, de 0 a 10) no «Nível» e na curva «Clima», com o
-  limiar da entrada `clima` da receita tracejado, e, nas linhas, os
-  sentidos lendo agora, a memória que espera a chave e o último efeito tocado, com a hora. A cada
-  minuto em que houve jogo, uma linha do diário conta, por controle e pela cor, o que tocou em cada
-  canal e por que algo não tocou (o motivo que a porta devolve, ou o jogo mais forte no canal).
-  Embaixo das colunas, a faixa «Ao vivo» mostra os últimos 30 s, uma linha por canal, na cor do
-  plástico de cada controle.
+- A janela tem quatro abas, nesta ordem (o `abas` do manifesto). Jogo: «Procurar receitas», a
+  Receita, o Estilo do jogo, a Força (multiplica tudo o que sai; em 0, nada), «O golpe vai para»
+  (quem levou, ou todos os controles) e um cartão por controle conectado, pela cor do plástico,
+  com a chave «Sente os efeitos» (o desligado não recebe nada da extensão), a Força e o Volume dele
+  (0 a 100 %, de 25 em 25: valem juntos, vezes a Força geral, a Força em tudo menos o alto-falante
+  e o Volume só nele); a escolha fica em `controles.json`, pelo número do jogador. Sentidos: cada
+  sentido se desliga, e o desligado desassina o tópico dele; com um jogo em cena, a «Memória neste
+  jogo» do Hefesto. A tela não tem chave: só se lê no clique «Ver a tela» (`tela.ver` e o
+  `jogo.tela`), até «Parar de ver», o segundo clique, o jogo que fecha ou a saída da extensão; o
+  Hefesto que não conhece o `tela.ver` vira a linha «Tela» do «Agora». Efeitos: os botões de
+  testar, os seis canais numa fileira de chaves (cada canal se desliga) e um cartão por efeito (o
+  `cartao` de cada opção), com a força, o tipo e o que mais o efeito tem; o Susto leva as duas
+  chaves, o intervalo, a duração (100 a 1500 ms), o volume, a força e o tipo. Cada linha só aparece
+  quando a receita que vale tem o efeito dela (o `@presente` pelos `presentes` do estado). «Ensinar
+  este jogo»: a página do Estúdio, que abre no grafo da receita e ocupa a aba. Os ajustes de Jogo,
+  Sentidos e dos canais moram em `opcoes.py` e valem em toda receita.
+- A coluna «Agora» mostra o controle vivo do Hefesto (o desenho do «Mapa dos controles», com as
+  peças que a extensão acabou de mexer acesas, e um chip por controle), o clima da cena (o derivado
+  `tensao`, de 0 a 10) no «Nível» e na curva «Clima», com o limiar da entrada `clima` da receita
+  tracejado, e, nas linhas, os sentidos lendo agora, a memória que espera a chave e o último efeito
+  tocado, com a hora. A cada minuto em que houve jogo, uma linha do diário conta, por controle e
+  pela cor, o que tocou em cada canal e por que algo não tocou (o motivo que a porta devolve, ou o
+  jogo mais forte no canal).
 - O `jogo.memoria` só chega ao motor com a «Memória neste jogo» ligada (o `memoria` do
   `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
@@ -150,7 +147,7 @@ Moram no repositório `hefesto-receitas-imersao` (as receitas são CC0). A exten
 uma vez por dia, ou no «Procurar receitas», e só o aceita com a assinatura que fecha com a chave
 pública dela; depois baixa só a receita do jogo aberto, que tem de bater com a soma do índice e
 passar no validador. Vale a sua, depois a estudada, depois a da comunidade. A receita que lê a
-memória diz isso na página e no «Agora», e espera a «Memória neste jogo» da aba Geral.
+memória diz isso na página e no «Agora», e espera a «Memória neste jogo» da aba Sentidos.
 
 ## Instalar
 

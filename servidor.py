@@ -11,7 +11,7 @@ sempre) e as entradas das receitas, relidas a cada mudança do arquivo e, no arr
 ``extensao.opcao``. A coluna «Agora» da janela diz de onde veio a receita que vale, o clima da
 cena no nível e, nas linhas, os sentidos lendo e o último efeito tocado; os ``presentes`` (as
 entradas e os canais da receita que vale) escondem a linha do efeito que ela não tem. Cada controle
-conectado é um cartão na aba Geral, e o desligado não recebe efeito; o cartão leva, lado a lado,
+conectado é um cartão na aba Jogo, e o desligado não recebe efeito; o cartão leva, lado a lado,
 a Força e o volume daquele controle, que valem juntos e vezes a Força geral
 (``controles.json``). Além do que a receita lê, assina o que o jogo escreve nos canais em que ela escreve, para o motor medir o caminho
 do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os canais desligados na
@@ -23,7 +23,7 @@ segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o He
 ``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
-aba Geral da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
+aba Jogo da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
 por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
 (:class:`~motor.conta.ContaDoMinuto`). O ``jogo.memoria`` só chega ao motor com a chave «Memória
 neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
@@ -585,7 +585,7 @@ class Extensao:
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no
         nível; os controles conectados vão como aparelhos, cada um com a chave «Sente os
-        efeitos» na aba Geral."""
+        efeitos» na aba Jogo."""
         estado = self._estado()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.porta.pedir("acessorios.estado", estado)
@@ -634,7 +634,7 @@ class Extensao:
         await self.publicar_se_mudou()
 
     async def sentir(self, alvo: Any, valor: Any) -> None:
-        """A chave de um controle na aba Geral: desligada, nenhum efeito chega a ele."""
+        """A chave de um controle na aba Jogo: desligada, nenhum efeito chega a ele."""
         if not isinstance(alvo, str) or not isinstance(valor, bool):
             return
         calados = ajustes.sentir(self.calados, alvo, valor)
@@ -661,7 +661,7 @@ class Extensao:
         await self.publicar_o_estado()
 
     def testar(self, acao: str) -> None:
-        """O botão de testar da aba Tipos: o efeito toca uma vez em cada controle que sente."""
+        """O botão de testar da aba Efeitos: o efeito toca uma vez em cada controle que sente."""
         tocados = self.motor.testar(ajustes.TESTES[acao])
         diario(f"teste: {', '.join(tocados)}" if tocados
                else "teste: a receita de agora não tem este efeito")
