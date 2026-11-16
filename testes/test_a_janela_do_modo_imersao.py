@@ -202,7 +202,7 @@ def test_toda_receita_de_fabrica_le_as_abas_efeitos_e_susto_com_o_padrao_da_jane
                if o["grupo"] == "Efeitos" and not i.startswith("tipo_") and i not in ajustes.CANAIS}
     declaradas = ler_receita(arquivo.read_bytes()).secao("entradas")
     fora = {"peso_da_mira"} if arquivo.stem == "universal" else SO_NO_UNIVERSAL
-    pedidas = set(efeitos) - fora
+    pedidas = set(efeitos) - fora - set(ajustes.CANAL_DO_CORPO)
     assert pedidas <= set(declaradas)
     for ident in set(efeitos) & set(declaradas):
         entrada, opcao = declaradas[ident], efeitos[ident]

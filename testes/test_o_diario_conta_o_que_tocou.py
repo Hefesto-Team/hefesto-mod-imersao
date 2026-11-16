@@ -29,8 +29,8 @@ NATIVO = {"vence": "jogo", "modo": "nativo", "canal": "vibracao"}
 
 class PortaQueConta(EscritasDeMentira):
     """A porta de mentira com os controles e as recusas da porta de verdade: o ``-32011`` do Modo
-    Nativo a partir de ``nativo_desde`` nos controles de ``nativos``, e o ``-32015`` do som nos
-    controles pelo rádio."""
+    Nativo a partir de ``nativo_desde`` nos controles de ``nativos`` (nos motores e no
+    ``corpo.ligar``), e o ``-32015`` do som nos controles pelo rádio."""
 
     def __init__(self, controles: list[dict[str, Any]], nativos: frozenset[str] = frozenset(),
                  nativo_desde: float = 0.0) -> None:
@@ -48,6 +48,9 @@ class PortaQueConta(EscritasDeMentira):
         if (metodo == "vibracao.set" and uniq in self.nativos and self.agora >= self.nativo_desde
                 and (params["forte"] or params["fraco"])):
             raise _Recusa("mais fraco que o jogo", -32011, NATIVO)
+        if metodo == "corpo.ligar" and uniq in self.nativos and self.agora >= self.nativo_desde:
+            raise _Recusa("no Modo Nativo o jogo fala direto com o controle", -32011,
+                          {"canal": "corpo", "modo": "nativo"})
         radio = {c["uniq"] for c in self.controles if c.get("transporte") == "bt"}
         if metodo == "som.tocar" and uniq in radio:
             raise _Recusa("o rádio sem vaga na ponte", -32015, None)
@@ -97,7 +100,8 @@ def test_tres_efeitos_em_dois_controles_e_uma_recusa_dao_uma_linha_com_os_numero
     _correr(extensao, porta, 1200, [(100, som("esquerdo", 0.4, 0.1)),
                                     (700, som("direito", 0.4, 0.7))])
     [linha] = _resumo(extensao, capsys)
-    assert linha.endswith(": Cosmic Red tocou motores 2 | Starlight Blue tocou motores 1; "
+    assert linha.endswith(": Cosmic Red tocou gatilhos que vibram 1, motores 2, som no corpo 1 | "
+                          "Starlight Blue tocou gatilhos que vibram 1, motores 1, som no corpo 1; "
                           "não tocou: nativo 1")
     assert "aa:bb" not in linha.lower()
     assert _resumo(extensao, capsys) == []
@@ -110,6 +114,7 @@ def test_o_minuto_sem_jogo_nao_escreve_e_o_com_jogo_parado_diz_que_nada_tocou(
     _correr(sem_jogo, porta, 600, [(100, som("esquerdo", 0.4, 0.1))])
     assert _resumo(sem_jogo, capsys) == []
     parado = _extensao(porta)
+    parado.motor.opcoes.update({"som_no_corpo": 0, "gatilhos_que_vibram": 0})
     _correr(parado, porta, 300, [])
     assert [linha.split(": ", 1)[1] for linha in _resumo(parado, capsys)] == [
         "Cosmic Red tocou nada"]

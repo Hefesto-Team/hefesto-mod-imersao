@@ -23,10 +23,17 @@ escritas ainda livres no teto. O efeito novo, o zero e a passagem por zero saem 
 A batida do padrão que se repete, desenhada no motor pelo envelope, conta no teto: só liga com
 :data:`VAGA_DO_EVENTO` escritas livres e mais a do zero que a encerra, e a que não cabe se adia,
 nunca o evento.
+
+O Som no corpo e os Gatilhos que vibram vão pelo ``corpo.ligar`` (:meth:`Saida.ligar_o_corpo`), um
+pedido por controle com o prazo :data:`ATE_MS_DO_CORPO`, renovado a cada :data:`RENOVA_MS` e no
+tique em que muda; o controle que sai do pedido recebe o vazio, que o solta. A recusa vai a quem
+pediu e se tenta de novo no prazo da renovação; a porta que não conhece o pedido, ou que não deu a
+permissão ``escrever:corpo``, cala os dois.
 """
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable
@@ -53,6 +60,10 @@ SEM_PONTE = -32015
 MOTIVOS_POR_CODIGO = {MAIS_FRACO: "cedeu", SEM_PONTE: "sem_ponte", SEM_PERMISSAO: "sem_permissao",
                       NAO_ESCREVEU: "anticheat", METODO_DESCONHECIDO: "porta_sem_o_pedido"}
 MOTIVO_DA_PORTA = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
+MODOS_QUE_CALAM = ("nativo", "steam_input")
+ATE_MS_DO_CORPO = 5000
+CANAL_DO_CORPO = "corpo"
+PARTES_DO_CORPO = (("som_no_corpo", "som no corpo"), ("gatilhos", "gatilhos que vibram"))
 
 Pedir = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 Chave = tuple[str, str, str]
@@ -67,8 +78,9 @@ def motivo_da_recusa(codigo: Any, dados: Any) -> str:
         motivo = dados.get("motivo")
         if isinstance(motivo, str) and MOTIVO_DA_PORTA.match(motivo):
             return motivo
-        if dados.get("modo") == "nativo":
-            return "nativo"
+        modo = dados.get("modo")
+        if modo in MODOS_QUE_CALAM:
+            return str(modo)
         vence = dados.get("vence")
         if isinstance(vence, str) and vence.startswith("extensao"):
             return "outra_extensao"
@@ -104,6 +116,10 @@ class Saida:
         self._no_tique: tuple[float, list[tuple[str, str]]] = (-1.0, [])
         self._no_motor: dict[str, frozenset[tuple[Any, ...]]] = {}
         self._motor_em_dia: dict[str, frozenset[tuple[Any, ...]]] = {}
+        self.sem_corpo = False
+        self.corpos: dict[str, tuple[float, dict[str, Any], bool]] = {}
+        self.corpos_do_tique: list[tuple[str, str]] = []
+        self.pedidos_do_corpo: Callable[[], dict[str, dict[str, Any]]] | None = None
 
     def _cabe(self, t_ms: float, uniq: str, reserva: int = 0,
               reserva_total: int | None = None) -> bool:
@@ -187,6 +203,50 @@ class Saida:
 
     def _anotar_a_recusa(self, chave: Chave, codigo: Any, dados: Any) -> None:
         self.recusas_do_tique.append((chave[0], chave[1], motivo_da_recusa(codigo, dados)))
+
+    def tirar_os_corpos(self) -> list[tuple[str, str]]:
+        """Os pedidos do corpo que a porta aceitou desde a última chamada: ``(uniq, parte)``."""
+        corpos, self.corpos_do_tique = self.corpos_do_tique, []
+        return corpos
+
+    async def ligar_o_corpo(self, t_ms: float, desejados: dict[str, dict[str, Any]]) -> None:
+        """O ``corpo.ligar`` de cada controle em ``desejados`` (``{uniq: {som_no_corpo?,
+        gatilhos?}}``) que mudou ou vence a renovação, e o vazio no que saiu do pedido."""
+        if self.sem_corpo:
+            return
+        querem = {uniq for uniq, pedido in desejados.items() if pedido}
+        for uniq in sorted(set(self.corpos) - querem):
+            _t, _pedido, aceito = self.corpos.pop(uniq)
+            if aceito:
+                self.janela.append((t_ms, uniq))
+                with contextlib.suppress(RuntimeError, OSError, asyncio.TimeoutError):
+                    await self._pedir("corpo.ligar", {"uniq": uniq, "ate_ms": ATE_MS_DO_CORPO})
+        for uniq in sorted(querem):
+            pedido = desejados[uniq]
+            antes = self.corpos.get(uniq)
+            if antes is not None and antes[1] == pedido and t_ms - antes[0] < RENOVA_MS:
+                continue
+            if not self._cabe(t_ms, uniq):
+                continue
+            self.janela.append((t_ms, uniq))
+            try:
+                await self._pedir("corpo.ligar", {"uniq": uniq, **pedido,
+                                                  "ate_ms": ATE_MS_DO_CORPO})
+            except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
+                codigo = getattr(exc, "codigo", None)  # (noqa-acento)
+                if codigo in (METODO_DESCONHECIDO, SEM_PERMISSAO):
+                    self.sem_corpo = True
+                    self.corpos.clear()
+                    self._diario(f"a porta não liga o corpo ({exc}): o Som no corpo e os "
+                                 "Gatilhos que vibram ficam calados")
+                    return
+                self.corpos[uniq] = (t_ms, pedido, False)
+                self.recusas_do_tique.append((uniq, CANAL_DO_CORPO, "nao_escreveu" if (
+                    codigo == NAO_ESCREVEU) else motivo_da_recusa(codigo, getattr(exc, "dados", None))))
+                continue
+            self.corpos[uniq] = (t_ms, pedido, True)
+            self.corpos_do_tique.extend((uniq, nome) for parte, nome in PARTES_DO_CORPO
+                                        if parte in pedido)
 
     def tirar_as_recusas(self) -> list[tuple[str, str, str]]:
         """As recusas da porta desde a última chamada: ``(uniq, canal da escrita, motivo)``."""
@@ -327,6 +387,8 @@ class Saida:
         self._motor_em_dia = {uniq: marca for uniq, marca in self._motor_em_dia.items()
                               if uniq in self._no_motor}
         self._tocados &= vivos
+        if self.pedidos_do_corpo is not None:
+            await self.ligar_o_corpo(t_ms, self.pedidos_do_corpo())
 
     @staticmethod
     def _sem_marca(params: dict[str, Any]) -> dict[str, Any]:
@@ -404,4 +466,9 @@ class Saida:
         O zero que a porta recusou antes se tenta uma vez mais: é a última escrita da extensão.
         """
         self.recusados.clear()
-        await self.aplicar(t_ms, {})
+        pedidos, self.pedidos_do_corpo = self.pedidos_do_corpo, None
+        try:
+            await self.aplicar(t_ms, {})
+            await self.ligar_o_corpo(t_ms, {})
+        finally:
+            self.pedidos_do_corpo = pedidos

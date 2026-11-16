@@ -60,6 +60,23 @@ CANAIS: dict[str, str] = {
     "canal_som": "som",
 }
 
+SOM_NO_CORPO = "som_no_corpo"
+GATILHOS_QUE_VIBRAM = "gatilhos_que_vibram"
+TIPO_DOS_GATILHOS = "tipo_dos_gatilhos"
+PADRAO_DO_SOM_NO_CORPO = 70
+PADRAO_DOS_GATILHOS = 70
+TIPOS_DOS_GATILHOS: dict[str, str] = {
+    "Tranco": "tranco",
+    "Batida": "batida",
+    "Onda": "onda",
+    "Coice": "coice",
+    "Pancada do lado": "pancada_do_lado",
+    "Ressoar": "ressoar",
+    "Ricochete": "ricochete",
+}
+TIPO_PADRAO_DOS_GATILHOS = "Tranco"
+CANAL_DO_CORPO: dict[str, str] = {SOM_NO_CORPO: "haptica", GATILHOS_QUE_VIBRAM: "motor"}
+
 TOPICOS_DA_PORTA_COM_CHAVE: dict[str, tuple[str, bool]] = {
     topico: (ident, padrao)
     for ident, (topicos, padrao) in SENTIDOS.items()
@@ -95,6 +112,34 @@ def forca(opcoes: dict[str, Any]) -> float:
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         valor = FORCA_PADRAO
     return min(1.0, max(0.0, float(valor) / 100.0))
+
+
+def _porcento(opcoes: dict[str, Any], ident: str, padrao: int) -> float:
+    valor = opcoes.get(ident, padrao)
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        valor = padrao
+    return min(1.0, max(0.0, float(valor) / 100.0))
+
+
+def pedido_do_corpo(opcoes: dict[str, Any], forca_do_controle: float = 1.0,
+                    sem: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """O ``corpo.ligar`` de um controle, sem o ``uniq`` e o prazo: o Som no corpo e os Gatilhos
+    que vibram, cada um na força dele vezes a Força geral e a do controle. O efeito em ``sem``
+    (o preset do estilo que o cala), em zero ou com o canal dele desligado não vai; vazio, nada."""
+    escala = forca(opcoes) * min(1.0, max(0.0, forca_do_controle))
+    calados = canais_calados(opcoes)
+    pedido: dict[str, Any] = {}
+    corpo = round(escala * _porcento(opcoes, SOM_NO_CORPO, PADRAO_DO_SOM_NO_CORPO), 3)
+    if corpo > 0 and SOM_NO_CORPO not in sem and CANAL_DO_CORPO[SOM_NO_CORPO] not in calados:
+        pedido["som_no_corpo"] = corpo
+    motores = round(escala * _porcento(opcoes, GATILHOS_QUE_VIBRAM, PADRAO_DOS_GATILHOS), 3)
+    if (motores > 0 and GATILHOS_QUE_VIBRAM not in sem
+            and CANAL_DO_CORPO[GATILHOS_QUE_VIBRAM] not in calados):
+        escolhido = opcoes.get(TIPO_DOS_GATILHOS)
+        rotulo = (escolhido if isinstance(escolhido, str) and escolhido in TIPOS_DOS_GATILHOS
+                  else TIPO_PADRAO_DOS_GATILHOS)
+        pedido["gatilhos"] = {"tipo": TIPOS_DOS_GATILHOS[rotulo], "forca": motores}
+    return pedido
 
 
 def para_todos(opcoes: dict[str, Any]) -> bool:

@@ -42,7 +42,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   `cartao` de cada opção), com a força, o tipo e o que mais o efeito tem; o Susto leva as duas
   chaves, o intervalo, a duração (100 a 1500 ms), o volume, a força e o tipo. Cada linha só aparece
   quando a receita que vale tem o efeito dela (o `@presente` pelos `presentes` do estado). Os
-  ajustes de Jogo, Sentidos e dos canais moram em `opcoes.py` e valem em toda receita.
+  ajustes de Jogo, Sentidos e dos canais moram em `opcoes.py` e valem em toda receita, como o Som no
+  corpo e os Gatilhos que vibram, que aparecem sempre.
 - A coluna «Agora» mostra o controle vivo do Hefesto (o desenho do «Mapa dos controles», com as
   peças que a extensão acabou de mexer acesas, e um chip por controle), o clima da cena (o derivado
   `tensao`, de 0 a 10) no «Nível» e na curva «Clima», com o limiar da entrada `clima` da receita
@@ -121,6 +122,15 @@ atacou; a tensão (o batimento do rumble, o dano recente, o silêncio longo e o 
 mão, juntos) toca o coração de 60 a 140 bpm, e o barulho súbito no microfone o acalma; o estalo
 forte com a cena tensa toca o susto, o recorte do próprio estalo do jogo no alto-falante. O perigo
 (a tensão e o dano recente) pesa a mira de 1 a 0,6, e o alívio a devolve.
+
+Em todo estilo, e com toda receita, a extensão liga em cada controle que sente o **Som no corpo**
+(o grave do som do jogo na vibração fina, junto com a TV) e os **Gatilhos que vibram** (apertar o
+L2 vibra o motor esquerdo, e o R2 o direito, no tipo escolhido), pelo `corpo.ligar` da porta
+(permissão `escrever:corpo`), na força de cada um vezes a Força geral e a do controle; o pedido
+vale 5 s e se renova a cada 2,5 s, e o controle calado ou que sai recebe o vazio, que o solta. O
+canal «Vibração fina» desligado cala o Som no corpo, e «Motores», os Gatilhos que vibram. O
+coração, o alívio, o susto e o peso da mira seguem só no Terror (`receita/estilos.py`). No Modo
+Nativo e no Steam Input a porta recusa, e a linha do minuto conta a recusa.
 
 ## As receitas estudadas
 

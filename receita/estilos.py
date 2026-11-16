@@ -6,7 +6,9 @@ tocam (o coração e o alívio, o susto, o impacto nos gatilhos, o peso da mira)
 com lado. Sem estilo, ou com um que o catálogo não tem, vale o preset geral, sem coração e sem
 susto. Num Hefesto que não diz o estilo, nada muda: o universal toca inteiro, como o de terror. A
 opção ``estilo`` da janela troca o preset à mão; «Pelo jogo» é o padrão. As entradas da janela
-continuam valendo por cima: o preset só cala ou suaviza.
+continuam valendo por cima: o preset só cala ou suaviza. O Som no corpo e os Gatilhos que vibram
+(:data:`CORPO`) são da extensão e tocam em todo estilo: nenhum preset os cala, e o coração, o
+alívio, o susto e o peso da mira seguem só no Terror.
 """
 from __future__ import annotations
 
@@ -26,6 +28,7 @@ SUSTO = frozenset({"susto_no_tato", "susto_no_alto_falante"})
 IMPACTO = frozenset({"impacto_no_r2", "impacto_no_l2"})
 MIRA = frozenset({"peso_da_mira"})
 GOLPE = ("motor_esquerdo", "motor_direito")
+CORPO = frozenset({"som_no_corpo", "gatilhos_que_vibram"})
 
 
 def _golpe(forca: float) -> dict[str, float]:

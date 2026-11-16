@@ -133,8 +133,9 @@ def test_o_estado_leva_as_linhas_no_teto_da_porta_e_os_presentes_da_receita() ->
         assert aceito["linhas"] == estado["linhas"]
         assert aceito["presentes"] == estado["presentes"]
     entradas = list(servidor.carregar_o_universal().secao("entradas"))
-    assert depois["presentes"] == [*entradas, "canal.haptica", "canal.motor", "canal.gatilho",
-                                   "canal.luz", "canal.som", "canal.leds", "canal.mira"]
+    assert depois["presentes"] == ["som_no_corpo", "gatilhos_que_vibram", *entradas,
+                                   "canal.haptica", "canal.motor", "canal.gatilho", "canal.luz",
+                                   "canal.som", "canal.leds", "canal.mira"]
 
 
 def test_o_ultimo_efeito_sem_entrada_leva_o_nome_do_canal_e_o_antigo_nao_volta() -> None:

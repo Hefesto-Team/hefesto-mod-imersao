@@ -27,6 +27,9 @@ por controle e pela cor do plástico, o que tocou em cada canal e por que algo n
 sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
 controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor
 com a chave «Memória neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
+O Som no corpo e os Gatilhos que vibram tocam em todo estilo e com toda receita: cada controle que
+sente recebe o ``corpo.ligar`` (:meth:`Extensao.pedidos_do_corpo`), renovado pela saída enquanto a
+extensão vive, e a linha do minuto conta cada pedido aceito e cada recusa.
 """
 from __future__ import annotations
 
@@ -353,6 +356,7 @@ class Extensao:
         self.estilo_dito = False
         self.preset: str | None = None
         self.aplicar_o_estilo()
+        self.saida.pedidos_do_corpo = self.pedidos_do_corpo
 
     @property
     def escolha(self) -> str:
@@ -406,6 +410,29 @@ class Extensao:
         """A conta do minuto, a cada tique da saída: o que tocou e o que não tocou, e por quê."""
         self.conta.tique(vencedores, self.motor.cedidos, self.saida.tirar_as_recusas(),
                          self.jogo is not None)
+        for uniq, parte in self.saida.tirar_os_corpos():
+            self.conta.tocados[(uniq, parte)] += 1
+
+    def pedidos_do_corpo(self) -> dict[str, dict[str, Any]]:
+        """O ``corpo.ligar`` de cada controle conectado que sente, pela Força dele e pelas opções
+        de agora; o preset do estilo não cala nenhum dos dois."""
+        pedidos: dict[str, dict[str, Any]] = {}
+        for ident, controle in self._por_id():
+            if ident in self.calados:
+                continue
+            forca = ajustes.nivel(self.niveis, ajustes.CONTROLE_DA_FORCA, ident) / 100
+            if pedido := ajustes.pedido_do_corpo(self.motor.opcoes, forca,
+                                                 self.motor.sem_do_estilo):
+                pedidos[controle["uniq"]] = pedido
+        return pedidos
+
+    def presentes(self) -> list[str]:
+        """Os ``presentes`` do estado: o Som no corpo e os Gatilhos que vibram, que tocam em todo
+        estilo, e o que a receita de agora tem."""
+        corpo = [n for n in (ajustes.SOM_NO_CORPO, ajustes.GATILHOS_QUE_VIBRAM)
+                 if n not in self.motor.sem_do_estilo]
+        nomes = [*corpo, *presentes_da_receita(self.receita)]
+        return list(dict.fromkeys(nomes))[:TETO_DOS_PRESENTES]
 
     def fechar_o_minuto(self) -> None:
         """O resumo do minuto que acabou vai ao diário, só se houve jogo nele."""
@@ -456,7 +483,7 @@ class Extensao:
         limiar = self.motor.limiar_do_clima()
         return {"ligado": True, "nivel": self.motor.clima(), "perfil": self.escolhida.rotulo,
                 "aparelhos": self.aparelhos(), "conexoes": [],  # (noqa-acento)
-                "linhas": self.linhas(), "presentes": presentes_da_receita(self.receita),
+                "linhas": self.linhas(), "presentes": self.presentes(),
                 **({"limiar": limiar} if limiar is not None else {})}
 
     async def publicar_o_estado(self) -> None:

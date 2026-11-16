@@ -38,6 +38,7 @@
     "escrever:som",
     "escrever:leds",
     "escrever:mira",
+    "escrever:corpo",
     "publicar:acessorios.estado",
     "rede:internet"
   ],
@@ -155,7 +156,7 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
-      "dica": "O coração, o alívio e o susto no tato",
+      "dica": "O Som no corpo, o coração, o alívio e o susto no tato",
       "canal": "haptica",
       "cartao": "Canais"
     },
@@ -165,7 +166,7 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Efeitos",
-      "dica": "O golpe com lado",
+      "dica": "Os Gatilhos que vibram e o golpe com lado",
       "canal": "vibracao",
       "cartao": "Canais"
     },
@@ -208,6 +209,63 @@
       "dica": "O susto no alto-falante",
       "canal": "som",
       "cartao": "Canais"
+    },
+    {
+      "id": "som_no_corpo",
+      "rotulo": "Som no corpo",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 70,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "som_no_corpo"
+      },
+      "dica": "O grave do som do jogo na vibração fina, junto com a TV, em todo estilo",
+      "cartao": "Som no corpo",
+      "canal": "haptica"
+    },
+    {
+      "id": "gatilhos_que_vibram",
+      "rotulo": "Gatilhos que vibram",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 70,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "gatilhos_que_vibram"
+      },
+      "dica": "Apertar o L2 vibra o motor esquerdo, e o R2 o direito, em todo estilo",
+      "cartao": "Gatilhos que vibram",
+      "canal": "vibracao"
+    },
+    {
+      "id": "tipo_dos_gatilhos",
+      "rotulo": "Tipo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Tranco",
+        "Batida",
+        "Onda",
+        "Coice",
+        "Pancada do lado",
+        "Ressoar",
+        "Ricochete"
+      ],
+      "padrao": "Tranco",
+      "grupo": "Efeitos",
+      "dica": "A vibração do motor ao apertar o gatilho; o Coice toca ao soltar",
+      "aparece_com": {
+        "@presente": "gatilhos_que_vibram"
+      },
+      "cartao": "Gatilhos que vibram"
     },
     {
       "id": "coracao",
