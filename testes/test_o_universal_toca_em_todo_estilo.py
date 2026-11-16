@@ -19,7 +19,7 @@ from test_o_universal import TIQUE
 
 import opcoes as ajustes
 import servidor
-from motor.saida import ATE_MS_DO_CORPO, RENOVA_MS
+from motor.saida import ATE_MS_DO_CORPO, RENOVA_MS, motivo_da_recusa
 from receita import estilos
 
 UNIQS = (UM, DOIS, TRES, QUATRO)
@@ -206,6 +206,11 @@ def test_o_modo_nativo_recusa_conta_no_diario_e_tenta_de_novo_so_na_renovacao(
     linha = capsys.readouterr().err
     assert "Cosmic Red tocou gatilhos que vibram 3, som no corpo 3" in linha
     assert "Starlight Blue tocou nada; não tocou: nativo 3" in linha
+
+
+@pytest.mark.parametrize("modo", ["nativo", "steam_input"])
+def test_a_recusa_do_modo_que_cala_diz_o_modo(modo: str) -> None:
+    assert motivo_da_recusa(-32011, {"canal": "corpo", "modo": modo}) == modo
 
 
 def test_a_porta_sem_o_corpo_cala_os_dois_e_diz_uma_vez() -> None:
