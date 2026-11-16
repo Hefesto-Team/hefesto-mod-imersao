@@ -137,7 +137,7 @@ Moram no repositório `hefesto-receitas-imersao` (as receitas são CC0). A exten
 uma vez por dia, ou no «Procurar receitas», e só o aceita com a assinatura que fecha com a chave
 pública dela; depois baixa só a receita do jogo aberto, que tem de bater com a soma do índice e
 passar no validador. Vale a sua, depois a estudada, depois a da comunidade. A receita que lê a
-memória diz isso na página e no «Agora», e espera a «Memória neste jogo» da aba Sentidos.
+memória diz isso no «Agora», e espera a «Memória neste jogo» da aba Sentidos.
 
 ## Instalar
 

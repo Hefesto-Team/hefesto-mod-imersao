@@ -20,13 +20,13 @@ janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela
 segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o Hefesto que não conhece
 ``tela.ver`` vira a linha «Tela» do «Agora», e nada se assina.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
-que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
-aba Jogo da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
+que abre (o índice se baixa uma vez por dia) e no «Procurar receitas» da aba Jogo da janela
+(``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
 por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
 (:class:`~motor.conta.ContaDoMinuto`). A porta lê a cor em fundo, depois da conexão, e a renomeia
 sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
-controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor com a chave «Memória
-neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
+controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor
+com a chave «Memória neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
 """
 from __future__ import annotations
 

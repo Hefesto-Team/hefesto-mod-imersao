@@ -119,7 +119,7 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Sentidos",
-      "dica": "O batimento, a rajada e o dano que o jogo pede ao motor",
+      "dica": "O batimento, a rajada e o dano que o jogo pede à vibração",
       "canal": "vibracao"
     },
     {

@@ -2,12 +2,13 @@
 
 Cada controle tem a vibração que o jogo pede pelos dois caminhos: o motor (``jogo.vibracao``, o par
 ``jogo`` em ``[esq, dir]``) e a háptica por áudio (``jogo.haptica``, a ``intensidade`` em
-``[esq, dir]``, de 0 a 1). O jogo que vibra pelos dois vale pelo mais forte. Uma subida acima de :data:`LIMIAR` abre uma batida e a queda a fecha: a batida de
-até :data:`PULSO_MS` é um ``pulso``; a que passa disso com força de :data:`FORCA_DA_RAJADA` é uma
-``rajada``, e cada rajada sobe o ``dano_recente``. Três subidas seguidas com intervalo de
-batimento cardíaco (:data:`BATIMENTO_MS`) são um ``batimento``, que sobe a ``tensao``. A porta
-repete o evento a cada 250 ms enquanto vibra; sem a repetição por :data:`SEM_REPETICAO_MS`, a
-batida acabou, e o caminho que não repete sai da conta do mais forte.
+``[esq, dir]``, de 0 a 1). O jogo que vibra pelos dois vale pelo mais forte. Uma subida acima de
+:data:`LIMIAR` abre uma batida e a queda a fecha: a batida de até :data:`PULSO_MS` é um ``pulso``;
+a que passa disso com força de :data:`FORCA_DA_RAJADA` é uma ``rajada``, e cada rajada sobe o
+``dano_recente``. Três subidas seguidas com intervalo de batimento cardíaco (:data:`BATIMENTO_MS`)
+são um ``batimento``, que sobe a ``tensao``. A porta repete o evento a cada 250 ms enquanto vibra;
+sem a repetição por :data:`SEM_REPETICAO_MS`, a batida acabou, e o caminho que não repete sai da
+conta do mais forte.
 """
 from __future__ import annotations
 

@@ -2,9 +2,8 @@
 
 O ataque é um botão de ataque (``botoes``) ou um gatilho que passa da metade (``entradas``). Se o
 jogo começa a vibrar naquele controle, pelo motor ou pela háptica, em até :data:`JANELA_MS`, o
-golpe acertou: sai o
-evento ``dado`` com o lado e o ``gatilho`` do ataque (``r2``, ``l2`` ou ``nenhum``), para a receita
-pedir o impacto no gatilho que atacou.
+golpe acertou: sai o evento ``dado`` com o lado e o ``gatilho`` do ataque (``r2``, ``l2`` ou
+``nenhum``), para a receita pedir o impacto no gatilho que atacou.
 """
 from __future__ import annotations
 
