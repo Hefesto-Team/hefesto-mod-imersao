@@ -379,6 +379,9 @@ def test_ler_um_sentido_universal_pede_a_permissao_de_cada_origem_dele() -> None
     with pytest.raises(ReceitaRecusada, match="sem declarar «ler:entradas»"):
         ler_receita(json.dumps(receita))
     permissoes.append("ler:entradas")
+    with pytest.raises(ReceitaRecusada, match="sem declarar «ler:jogo.haptica»"):
+        ler_receita(json.dumps(receita))
+    permissoes.append("ler:jogo.haptica")
     assert ler_receita(json.dumps(receita)).secao("sentidos")["golpe"]["de"] == "sentido.golpe"
 
 

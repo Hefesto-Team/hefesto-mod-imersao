@@ -1,17 +1,19 @@
-"""O golpe dado: o ataque de quem joga seguido do pulso de rumble do próprio jogo.
+"""O golpe dado: o ataque de quem joga seguido do pulso de vibração do próprio jogo.
 
 O ataque é um botão de ataque (``botoes``) ou um gatilho que passa da metade (``entradas``). Se o
-jogo abre uma batida de rumble naquele controle em até :data:`JANELA_MS`, o golpe acertou: sai o
+jogo começa a vibrar naquele controle, pelo motor ou pela háptica, em até :data:`JANELA_MS`, o
+golpe acertou: sai o
 evento ``dado`` com o lado e o ``gatilho`` do ataque (``r2``, ``l2`` ou ``nenhum``), para a receita
 pedir o impacto no gatilho que atacou.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
 from sentidos.base import Derivado, Sentido, numero
-from sentidos.rumble import LIMIAR, nivel_do_jogo
+from sentidos.rumble import LIMIAR, ORIGENS_DO_JOGO, VibracaoDoJogo
 
 JANELA_MS = 150.0
 METADE_DO_GATILHO = 128
@@ -32,9 +34,10 @@ class _Ataque:
 
 class Golpe(Sentido):
     topico = "sentido.golpe"
-    origens = ("botoes", "entradas", "jogo.vibracao")
+    origens = ("botoes", "entradas", *ORIGENS_DO_JOGO)
 
     def __init__(self) -> None:
+        self.jogo = VibracaoDoJogo()
         self.ataques: dict[str, _Ataque] = {}
         self.gatilhos: dict[tuple[str, str], float] = {}
         self.vibrava: dict[str, bool] = {}
@@ -56,18 +59,25 @@ class Golpe(Sentido):
                 self.gatilhos[(uniq, eixo)] = valor
                 if valor >= METADE_DO_GATILHO > antes:
                     self._atacou(uniq, t_ms, *ATAQUES[eixo])
-        elif topico == "jogo.vibracao":
-            par = nivel_do_jogo(dados) if nome != "jogo.fechou" else (0.0, 0.0)
-            if par is None:
+        elif topico in ORIGENS_DO_JOGO:
+            forca = self.jogo.ler(topico, nome, uniq, dados, t_ms)
+            if forca is None:
                 return []
-            vibra = max(par) >= LIMIAR
+            vibra = forca >= LIMIAR
             subiu = vibra and not self.vibrava.get(uniq, False)
             self.vibrava[uniq] = vibra
             ataque = self.ataques.get(uniq)
             if subiu and ataque is not None and t_ms - ataque.t <= JANELA_MS:
                 del self.ataques[uniq]
                 return [self.evento("dado", uniq, lado=ataque.lado, gatilho=ataque.gatilho,
-                                    forca=round(max(par), 3))]
+                                    forca=round(forca, 3))]
+        return []
+
+    def tique(self, t_ms: float, controles: Iterable[str],
+              vibrando: frozenset[str]) -> list[Derivado]:
+        for uniq, vibrava in self.vibrava.items():
+            if vibrava:
+                self.vibrava[uniq] = self.jogo.forca(uniq, t_ms) >= LIMIAR
         return []
 
     def _atacou(self, uniq: str, t_ms: float, lado: str, gatilho: str) -> None:

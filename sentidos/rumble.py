@@ -1,12 +1,13 @@
 """O rumble do jogo no tempo: pulso curto, rajada e batimento, sem estudo do jogo.
 
-Cada controle tem a vibração que o jogo pede (``jogo.vibracao``, o par ``jogo`` em
-``[esq, dir]``). Uma subida acima de :data:`LIMIAR` abre uma batida e a queda a fecha: a batida de
+Cada controle tem a vibração que o jogo pede pelos dois caminhos: o motor (``jogo.vibracao``, o par
+``jogo`` em ``[esq, dir]``) e a háptica por áudio (``jogo.haptica``, a ``intensidade`` em
+``[esq, dir]``, de 0 a 1). O jogo que vibra pelos dois vale pelo mais forte. Uma subida acima de :data:`LIMIAR` abre uma batida e a queda a fecha: a batida de
 até :data:`PULSO_MS` é um ``pulso``; a que passa disso com força de :data:`FORCA_DA_RAJADA` é uma
 ``rajada``, e cada rajada sobe o ``dano_recente``. Três subidas seguidas com intervalo de
 batimento cardíaco (:data:`BATIMENTO_MS`) são um ``batimento``, que sobe a ``tensao``. A porta
 repete o evento a cada 250 ms enquanto vibra; sem a repetição por :data:`SEM_REPETICAO_MS`, a
-batida acabou.
+batida acabou, e o caminho que não repete sai da conta do mais forte.
 """
 from __future__ import annotations
 
@@ -42,6 +43,48 @@ def nivel_do_jogo(dados: dict[str, Any]) -> tuple[float, float] | None:
     return min(1.0, max(0.0, esq / 255)), min(1.0, max(0.0, dir_ / 255))
 
 
+def nivel_da_haptica(dados: dict[str, Any]) -> tuple[float, float] | None:
+    """O par ``(esquerdo, direito)`` de 0 a 1 da háptica por áudio do jogo; ``None`` sem o par."""
+    par = dados.get("intensidade")
+    if not isinstance(par, list) or len(par) != 2:
+        return None
+    esq, dir_ = numero(par[0]), numero(par[1])
+    if esq is None or dir_ is None:
+        return None
+    return min(1.0, max(0.0, esq)), min(1.0, max(0.0, dir_))
+
+
+ORIGENS_DO_JOGO = ("jogo.vibracao", "jogo.haptica")
+
+
+class VibracaoDoJogo:
+    """A força que o jogo pede a cada controle, pelo motor e pela háptica: vale a mais forte.
+
+    O caminho sem evento por :data:`SEM_REPETICAO_MS` sai da conta; o ``jogo.fechou`` zera os dois.
+    """
+
+    def __init__(self) -> None:
+        self.vistas: dict[tuple[str, str], tuple[float, float]] = {}
+
+    def ler(self, topico: str, nome: str, uniq: str, dados: dict[str, Any],
+            t_ms: float) -> float | None:
+        """A força de agora depois do evento; ``None`` quando o evento não diz o nível."""
+        if nome == "jogo.fechou":
+            for origem in ORIGENS_DO_JOGO:
+                self.vistas.pop((uniq, origem), None)
+            return 0.0
+        par = nivel_da_haptica(dados) if topico == "jogo.haptica" else nivel_do_jogo(dados)
+        if par is None:
+            return None
+        self.vistas[(uniq, topico)] = (max(par), t_ms)
+        return self.forca(uniq, t_ms)
+
+    def forca(self, uniq: str, t_ms: float) -> float:
+        vistas = (self.vistas.get((uniq, origem)) for origem in ORIGENS_DO_JOGO)
+        return max((forca for forca, visto in filter(None, vistas)
+                    if t_ms - visto <= SEM_REPETICAO_MS), default=0.0)
+
+
 @dataclass
 class _Batida:
     inicio: float | None = None
@@ -53,9 +96,10 @@ class _Batida:
 
 class Rumble(Sentido):
     topico = "sentido.rumble"
-    origens = ("jogo.vibracao",)
+    origens = ORIGENS_DO_JOGO
 
     def __init__(self) -> None:
+        self.jogo = VibracaoDoJogo()
         self.batidas: dict[str, _Batida] = {}
         self.tensao = 0.0
         self.batimento_em: float | None = None
@@ -66,12 +110,9 @@ class Rumble(Sentido):
             t_ms: float) -> list[Derivado]:
         if uniq is None:
             return []
-        if nome == "jogo.fechou":
-            return self._fechar(uniq, t_ms)
-        par = nivel_do_jogo(dados)
-        if par is None:
+        forca = self.jogo.ler(topico, nome, uniq, dados, t_ms)
+        if forca is None:
             return []
-        forca = max(par)
         batida = self.batidas.setdefault(uniq, _Batida())
         if forca < LIMIAR:
             return self._fechar(uniq, t_ms)

@@ -58,9 +58,10 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   porta ainda não entrega vai ao diário, e o sentido dele fica parado.
 - Os sentidos universais (`sentidos/`) leem a porta e o tempo e publicam no próprio tópico, que a
   receita lê como lê a porta: `sentido.som` (o estalo do jogo, com o lado), `sentido.rumble`
-  (pulso, rajada e batimento; os níveis `tensao` e `dano_recente`), `sentido.microfone` (o
+  (pulso, rajada e batimento do motor e da háptica do jogo, pelo mais forte dos dois; os níveis
+  `tensao` e `dano_recente`), `sentido.microfone` (o
   `silencio` longo e o `sobressalto`), `sentido.tela` (o `dano_recente`), `sentido.golpe` (o ataque
-  seguido do pulso do jogo em até 150 ms) e `sentido.quietude` (o controle parado, sem contar o
+  seguido do pulso do jogo, pelo motor ou pela háptica, em até 150 ms) e `sentido.quietude` (o controle parado, sem contar o
   giro que o próprio motor causa, e o controle largado na mesa). Ler um sentido pede a permissão
   de cada origem dele.
 - O laço roda a 60 Hz. Um estado sobe pela condição, desce com histerese e fica de pé um tempo

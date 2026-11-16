@@ -1,5 +1,12 @@
 # Mudanças
 
+## 0.5.4 (16/11/2026)
+
+- O jogo que vibra pela háptica, e não pelo motor (o Sackboy), chega ao dano, ao batimento e ao
+  golpe: a rajada, o pulso e o golpe dado leem os dois caminhos, e o jogo que vibra pelos dois vale
+  pelo mais forte. A receita que lê o `sentido.rumble` ou o `sentido.golpe` declara também
+  `ler:jogo.haptica`.
+
 ## 0.5.3 (16/11/2026)
 
 - A janela ganha o controle vivo: o desenho do «Mapa dos controles» na coluna «Agora», com as peças
