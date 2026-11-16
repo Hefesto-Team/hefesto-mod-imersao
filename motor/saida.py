@@ -101,6 +101,8 @@ class Saida:
         self._pelo_motor = pelo_motor or (lambda vencedores: vencedores)
         self.recusados: dict[Chave, dict[str, Any]] = {}
         self.recusas_do_tique: list[tuple[str, str, str]] = []
+        self.aceitas_do_tique: list[tuple[str, str]] = []
+        self.frases_do_tique: list[tuple[str, str, str]] = []
         self.escrito: dict[Chave, tuple[float, dict[str, Any]]] = {}
         self.janela: deque[tuple[float, str]] = deque()
         self.sem_haptica = False
@@ -175,7 +177,7 @@ class Saida:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
             if not (metodo == "haptica.tocar" and (codigo == METODO_DESCONHECIDO
                                                    or NAO_REGISTRADO in str(exc))):
-                self._anotar_a_recusa(chave, codigo, getattr(exc, "dados", None))
+                self._anotar_a_recusa(chave, codigo, getattr(exc, "dados", None), str(exc))
             if codigo == MAIS_FRACO:
                 self._desfazer(chave, antes)
                 self.recusados[chave] = params
@@ -199,10 +201,22 @@ class Saida:
                 self._diario("a porta não acende as luzes de jogador: o lado na luz fica calado")
                 return False
             self._diario(f"{metodo} recusado: {exc}")
+        else:
+            if not zero:
+                self.aceitas_do_tique.append((uniq, chave[1]))
         return True
 
-    def _anotar_a_recusa(self, chave: Chave, codigo: Any, dados: Any) -> None:
+    def _anotar_a_recusa(self, chave: Chave, codigo: Any, dados: Any, frase: str = "") -> None:
         self.recusas_do_tique.append((chave[0], chave[1], motivo_da_recusa(codigo, dados)))
+        if frase:
+            self.frases_do_tique.append((chave[0], chave[1], frase))
+
+    def tirar_os_desfechos(self) -> tuple[list[tuple[str, str]], list[tuple[str, str, str]]]:
+        """As escritas que a porta aceitou desde a última chamada, ``(uniq, canal da escrita)``,
+        e as recusadas com a frase dela, ``(uniq, canal da escrita, frase)``."""
+        aceitas, self.aceitas_do_tique = self.aceitas_do_tique, []
+        frases, self.frases_do_tique = self.frases_do_tique, []
+        return aceitas, frases
 
     def tirar_os_corpos(self) -> list[tuple[str, str]]:
         """Os pedidos do corpo que a porta aceitou desde a última chamada: ``(uniq, parte)``."""

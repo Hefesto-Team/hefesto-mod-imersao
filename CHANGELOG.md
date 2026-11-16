@@ -1,5 +1,19 @@
 # Mudanças
 
+## 0.5.5 (16/11/2026)
+
+- O Modo imersão toca em todo estilo: o Som no corpo (o grave do som do jogo na vibração fina,
+  junto com a TV) e os Gatilhos que vibram (apertar o L2 vibra o motor esquerdo, e o R2 o direito,
+  no tipo escolhido) valem em todo jogo e com toda receita, em cada controle que sente, pelo
+  `corpo.ligar` da porta. A aba Efeitos ganha os dois cartões, com a força de cada um (70 % de
+  padrão) e o tipo dos gatilhos. O coração, o alívio, o susto e o peso da mira seguem só no Terror.
+  A linha do minuto conta cada pedido aceito e cada recusa.
+- Os botões de testar dizem o que aconteceu: a extensão responde ao clique com uma linha por
+  controle, tocou ou não tocou, com o motivo em palavras («no Modo Nativo o jogo fala direto com o
+  controle», «o controle está desligado na extensão», «o efeito está desligado na janela»).
+- Pede o Hefesto que conhece o `corpo.ligar` (permissão `escrever:corpo`) e o `responde` das
+  ações; a permissão nova pede o «sim» de quem usa ao atualizar.
+
 ## 0.5.4 (16/11/2026)
 
 - O jogo que vibra pela háptica, e não pelo motor (o Sackboy), chega ao dano, ao batimento e ao

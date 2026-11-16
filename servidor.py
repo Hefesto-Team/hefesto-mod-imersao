@@ -27,6 +27,9 @@ por controle e pela cor do plástico, o que tocou em cada canal e por que algo n
 sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
 controle está sem cor, e sempre antes da linha do minuto. O ``jogo.memoria`` só chega ao motor
 com a chave «Memória neste jogo» do Hefesto ligada, que o ``perfil.trocou`` traz em ``memoria``.
+Os botões de testar da aba Efeitos declaram ``responde``: a extensão devolve à janela, em até
+:data:`ESPERA_O_TESTE_S`, uma linha por controle, ``{controles: [{uniq, tocou, motivo}]}``, com a
+frase da recusa da porta ou o motivo da extensão em palavras (:class:`Teste`).
 O Som no corpo e os Gatilhos que vibram tocam em todo estilo e com toda receita: cada controle que
 sente recebe o ``corpo.ligar`` (:meth:`Extensao.pedidos_do_corpo`), renovado pela saída enquanto a
 extensão vive, e a linha do minuto conta cada pedido aceito e cada recusa.
@@ -56,7 +59,7 @@ from comunidade import Comunidade  # noqa: E402
 from motor.arbitragem import Pedido, Vaga  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.conta import ContaDoMinuto  # noqa: E402
-from motor.laco import Motor  # noqa: E402
+from motor.laco import REGRA_DO_TESTE, Motor  # noqa: E402
 from motor.laco import rodar as rodar_o_laco  # noqa: E402
 from motor.saida import Saida  # noqa: E402
 from receita import estilos  # noqa: E402
@@ -112,6 +115,19 @@ TELA_SEM_O_PEDIDO = "Este Hefesto não lê"
 TELA_RECUSADA = "Recusada"
 METODO_DESCONHECIDO = -32601
 ESPERA_O_FIM_DA_TELA_S = 1.0
+ESPERA_O_TESTE_S = 0.7
+TETO_DO_MOTIVO = 120
+ESCRITAS_DO_CANAL = {
+    "motor": frozenset({"vibracao"}), "haptica": frozenset({"haptica", "vibracao"}),
+    "gatilho": frozenset({"gatilho"}), "som": frozenset({"som"}), "luz": frozenset({"luz"}),
+    "leds": frozenset({"leds"}), "mira": frozenset({"mira"}),
+}
+MOTIVO_CALADO = "o controle está desligado na extensão"
+MOTIVO_SEM_O_EFEITO = "a receita de agora não tem este efeito"
+MOTIVO_DESLIGADO = "o efeito está desligado na janela"
+MOTIVO_SEM_FORCA = "a força deste controle está em zero"
+MOTIVO_CEDEU = "o jogo vibra mais forte neste controle agora"
+MOTIVO_NAO_CHEGOU = "o efeito não chegou a este controle"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -262,6 +278,53 @@ def nome_do_efeito(receita: Receita, efeito: str) -> str:
     return ROTULOS_DOS_CANAIS.get(str(canal), efeito)
 
 
+class Teste:
+    """O veredito de um clique de testar, controle a controle: tocou quando a porta aceitou a
+    escrita do efeito testado, e não tocou com a frase da recusa dela ou o motivo da extensão."""
+
+    def __init__(self, efeitos: set[str], canais: set[str], alvos: list[str]) -> None:
+        self.efeitos = frozenset(efeitos)
+        self.escritas = frozenset().union(*(ESCRITAS_DO_CANAL.get(c, frozenset({c}))
+                                            for c in canais))
+        self.alvos = list(dict.fromkeys(alvos))
+        self.veredito: dict[str, tuple[bool, str | None]] = {}
+        self.vistos: set[str] = set()
+        self.pronto = asyncio.Event()
+
+    def decidir(self, uniq: str, tocou: bool, motivo: str | None = None) -> None:
+        if uniq in self.alvos and uniq not in self.veredito:
+            self.veredito[uniq] = (tocou, None if tocou else (motivo or "")[:TETO_DO_MOTIVO])
+        if all(u in self.veredito for u in self.alvos):
+            self.pronto.set()
+
+    def _do_teste(self, pedidos: dict[Vaga, Pedido], uniq: str) -> bool:
+        return any(p.uniq == uniq and p.regra == REGRA_DO_TESTE and p.efeito in self.efeitos
+                   and p.forca > 0 for p in pedidos.values())
+
+    def ver(self, vencedores: dict[Vaga, Pedido], cedidos: dict[Vaga, Pedido],
+            aceitas: list[tuple[str, str]], frases: list[tuple[str, str, str]]) -> None:
+        """Um tique da saída: o efeito testado que venceu e foi escrito, ou recusado."""
+        for uniq in [u for u in self.alvos if u not in self.veredito]:
+            if self._do_teste(cedidos, uniq) and not self._do_teste(vencedores, uniq):
+                self.decidir(uniq, False, MOTIVO_CEDEU)
+                continue
+            if not self._do_teste(vencedores, uniq):
+                continue
+            self.vistos.add(uniq)
+            frase = next((f for u, c, f in frases if u == uniq and c in self.escritas), None)
+            if frase is not None:
+                self.decidir(uniq, False, frase)
+            elif any(u == uniq and c in self.escritas for u, c in aceitas):
+                self.decidir(uniq, True)
+
+    def fechar(self) -> list[dict[str, Any]]:
+        """A resposta: o efeito que venceu sem recusa está no controle, mesmo sem escrita nova."""
+        for uniq in self.alvos:
+            self.decidir(uniq, uniq in self.vistos, MOTIVO_NAO_CHEGOU)
+        return [{"uniq": u, "tocou": self.veredito[u][0], "motivo": self.veredito[u][1]}
+                for u in self.alvos]
+
+
 class SaidaQueAnota(Saida):
     """A :class:`~motor.saida.Saida` que conta à extensão o que vence em cada tique."""
 
@@ -357,6 +420,8 @@ class Extensao:
         self.preset: str | None = None
         self.aplicar_o_estilo()
         self.saida.pedidos_do_corpo = self.pedidos_do_corpo
+        self.testes: list[Teste] = []
+        self.respondendo: set[asyncio.Task[None]] = set()
 
     @property
     def escolha(self) -> str:
@@ -408,6 +473,9 @@ class Extensao:
 
     def contar(self, vencedores: dict[Vaga, Pedido]) -> None:
         """A conta do minuto, a cada tique da saída: o que tocou e o que não tocou, e por quê."""
+        aceitas, frases = self.saida.tirar_os_desfechos()
+        for teste in self.testes:
+            teste.ver(vencedores, self.motor.cedidos, aceitas, frases)
         self.conta.tique(vencedores, self.motor.cedidos, self.saida.tirar_as_recusas(),
                          self.jogo is not None)
         for uniq, parte in self.saida.tirar_os_corpos():
@@ -564,11 +632,45 @@ class Extensao:
             await self.assinar()
         await self.publicar_o_estado()
 
-    def testar(self, acao: str) -> None:
-        """O botão de testar da aba Efeitos: o efeito toca uma vez em cada controle que sente."""
+    def testar(self, acao: str) -> Teste:
+        """O botão de testar da aba Efeitos: o efeito toca uma vez em cada controle que sente, e
+        o :class:`Teste` guarda o veredito de cada controle conectado."""
+        alvos = [c["uniq"] for c in self.controles]
+        self.saida.recusados = {k: v for k, v in self.saida.recusados.items()
+                                if k[0] not in alvos}
         tocados = self.motor.testar(ajustes.TESTES[acao])
         diario(f"teste: {', '.join(tocados)}" if tocados
                else "teste: a receita de agora não tem este efeito")
+        efeitos = self.receita.secao("efeitos")
+        canais = {str(efeitos[nome]["canal"]) for nome in tocados}
+        teste = Teste(set(tocados), canais, alvos)
+        desligado = (ajustes.forca(self.motor.opcoes) <= 0
+                     or canais <= ajustes.canais_calados(self.motor.opcoes))
+        for ident, controle in self._por_id():
+            uniq = controle["uniq"]
+            if ident in self.calados:
+                teste.decidir(uniq, False, MOTIVO_CALADO)
+            elif not tocados:
+                teste.decidir(uniq, False, MOTIVO_SEM_O_EFEITO)
+            elif desligado:
+                teste.decidir(uniq, False, MOTIVO_DESLIGADO)
+            elif ajustes.nivel(self.niveis, ajustes.CONTROLE_DA_FORCA, ident) <= 0:
+                teste.decidir(uniq, False, MOTIVO_SEM_FORCA)
+        return teste
+
+    async def responder_o_teste(self, teste: Teste, para: str) -> None:
+        """A ``extensao.resposta`` do clique: espera o veredito de cada controle até
+        :data:`ESPERA_O_TESTE_S` e devolve ``{controles: [{uniq, tocou, motivo}]}``. O teste já
+        está em :attr:`testes` desde o clique: o tique seguinte é o que escreve."""
+        try:
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(teste.pronto.wait(), ESPERA_O_TESTE_S)
+        finally:
+            self.testes.remove(teste)
+        controles = teste.fechar()
+        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
+            await self.porta.pedir("extensao.resposta", {"para": para,
+                                                         "dados": {"controles": controles}})
 
     async def ver_a_tela(self) -> None:
         """O clique «Ver a tela»: ``tela.ver`` e, aceito, a assinatura do ``jogo.tela``. O
@@ -697,7 +799,12 @@ class Extensao:
             await self.nivelar(str(dados.get("acao")), dados.get("alvo"), dados.get("valor"))  # (noqa-acento)
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") in ajustes.TESTES):  # (noqa-acento)
-            self.testar(str(dados.get("acao")))  # (noqa-acento)
+            teste = self.testar(str(dados.get("acao")))  # (noqa-acento)
+            if isinstance(para := dados.get("id"), str) and para:
+                self.testes.append(teste)
+                tarefa = asyncio.create_task(self.responder_o_teste(teste, para))
+                self.respondendo.add(tarefa)
+                tarefa.add_done_callback(self.respondendo.discard)
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_VER_A_TELA):  # (noqa-acento)
             await self.ver_a_tela()
@@ -793,7 +900,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
                 await asyncio.wait_for(extensao.porta.pedir("tela.parar", {}),
                                        ESPERA_O_FIM_DA_TELA_S)
     finally:
-        tarefas = [ouvir, vigiar, clima, resumo, cor, motor,
+        tarefas = [ouvir, vigiar, clima, resumo, cor, motor, *extensao.respondendo,
                    *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()

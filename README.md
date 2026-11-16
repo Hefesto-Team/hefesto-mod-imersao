@@ -38,7 +38,7 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   jogo» do Hefesto. A tela não tem chave: só se lê no clique «Ver a tela» (`tela.ver` e o
   `jogo.tela`), até «Parar de ver», o segundo clique, o jogo que fecha ou a saída da extensão; o
   Hefesto que não conhece o `tela.ver` vira a linha «Tela» do «Agora». Efeitos: os botões de
-  testar, os seis canais numa fileira de chaves (cada canal se desliga) e um cartão por efeito (o
+  testar (cada um responde à janela, controle a controle, se tocou ou por que não), os seis canais numa fileira de chaves (cada canal se desliga) e um cartão por efeito (o
   `cartao` de cada opção), com a força, o tipo e o que mais o efeito tem; o Susto leva as duas
   chaves, o intervalo, a duração (100 a 1500 ms), o volume, a força e o tipo. Cada linha só aparece
   quando a receita que vale tem o efeito dela (o `@presente` pelos `presentes` do estado). Os
