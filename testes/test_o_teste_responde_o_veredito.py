@@ -182,6 +182,18 @@ def test_sem_o_laco_a_resposta_sai_no_prazo_dizendo_que_nao_chegou() -> None:
     assert vereditos == {UM: (False, servidor.MOTIVO_NAO_CHEGOU)}
 
 
+@pytest.mark.parametrize("acao", ["testar_golpe", "testar_coracao", "testar_gatilhos"])  # (noqa-acento)
+def test_o_teto_da_extensao_cheio_nao_responde_que_tocou(acao: str) -> None:
+    async def encher(extensao: servidor.Extensao) -> None:
+        extensao.saida.janela.extend((3 * TIQUE, UM) for _ in range(12))
+
+    porta = PortaQueRecusa(_mesa(2))
+    vereditos = _por_uniq(_testar(porta, acao, encher, ticks=1))
+    assert vereditos == {UM: (False, servidor.MOTIVO_TETO), DOIS: (True, None)}
+    assert not [p for _, m, p in porta.escritas if p.get("uniq") == UM
+                and m in ("vibracao.set", "haptica.tocar", "gatilho.set")]
+
+
 def test_o_hefesto_que_nao_manda_o_id_so_toca_e_nada_responde() -> None:
     porta = PortaQueRecusa(_mesa(2))
     assert _testar(porta, "testar_golpe", ident=None) == []

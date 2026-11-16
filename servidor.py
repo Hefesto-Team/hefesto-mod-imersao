@@ -128,6 +128,7 @@ MOTIVO_DESLIGADO = "o efeito está desligado na janela"
 MOTIVO_SEM_FORCA = "a força deste controle está em zero"
 MOTIVO_CEDEU = "o jogo vibra mais forte neste controle agora"
 MOTIVO_NAO_CHEGOU = "o efeito não chegou a este controle"
+MOTIVO_TETO = "o teto de efeitos deste controle está cheio"
 CAMINHO_POR_CANAL = (
     ("motor", "jogo.vibracao"), ("haptica", "jogo.vibracao"), ("haptica", "jogo.haptica"),
     ("gatilho", "jogo.gatilho"),
@@ -289,6 +290,7 @@ class Teste:
         self.alvos = list(dict.fromkeys(alvos))
         self.veredito: dict[str, tuple[bool, str | None]] = {}
         self.vistos: set[str] = set()
+        self.adiados: set[str] = set()
         self.pronto = asyncio.Event()
 
     def decidir(self, uniq: str, tocou: bool, motivo: str | None = None) -> None:
@@ -302,25 +304,32 @@ class Teste:
                    and p.forca > 0 for p in pedidos.values())
 
     def ver(self, vencedores: dict[Vaga, Pedido], cedidos: dict[Vaga, Pedido],
-            aceitas: list[tuple[str, str]], frases: list[tuple[str, str, str]]) -> None:
-        """Um tique da saída: o efeito testado que venceu e foi escrito, ou recusado."""
+            aceitas: list[tuple[str, str]], frases: list[tuple[str, str, str]],
+            adiadas: list[tuple[str, str]]) -> None:
+        """Um tique da saída: o efeito testado que venceu e foi escrito, recusado ou adiado pelo
+        teto da extensão."""
         for uniq in [u for u in self.alvos if u not in self.veredito]:
             if self._do_teste(cedidos, uniq) and not self._do_teste(vencedores, uniq):
                 self.decidir(uniq, False, MOTIVO_CEDEU)
                 continue
             if not self._do_teste(vencedores, uniq):
                 continue
-            self.vistos.add(uniq)
             frase = next((f for u, c, f in frases if u == uniq and c in self.escritas), None)
             if frase is not None:
                 self.decidir(uniq, False, frase)
             elif any(u == uniq and c in self.escritas for u, c in aceitas):
                 self.decidir(uniq, True)
+            elif any(u == uniq and c in self.escritas for u, c in adiadas):
+                self.adiados.add(uniq)
+            else:
+                self.vistos.add(uniq)
 
     def fechar(self) -> list[dict[str, Any]]:
-        """A resposta: o efeito que venceu sem recusa está no controle, mesmo sem escrita nova."""
+        """A resposta: o efeito que venceu sem recusa e sem adiar está no controle, mesmo sem
+        escrita nova; o que o teto da extensão adiou e não saiu não tocou."""
         for uniq in self.alvos:
-            self.decidir(uniq, uniq in self.vistos, MOTIVO_NAO_CHEGOU)
+            self.decidir(uniq, uniq in self.vistos and uniq not in self.adiados,
+                         MOTIVO_TETO if uniq in self.adiados else MOTIVO_NAO_CHEGOU)
         return [{"uniq": u, "tocou": self.veredito[u][0], "motivo": self.veredito[u][1]}
                 for u in self.alvos]
 
@@ -473,9 +482,9 @@ class Extensao:
 
     def contar(self, vencedores: dict[Vaga, Pedido]) -> None:
         """A conta do minuto, a cada tique da saída: o que tocou e o que não tocou, e por quê."""
-        aceitas, frases = self.saida.tirar_os_desfechos()
+        aceitas, frases, adiadas = self.saida.tirar_os_desfechos()
         for teste in self.testes:
-            teste.ver(vencedores, self.motor.cedidos, aceitas, frases)
+            teste.ver(vencedores, self.motor.cedidos, aceitas, frases, adiadas)
         self.conta.tique(vencedores, self.motor.cedidos, self.saida.tirar_as_recusas(),
                          self.jogo is not None)
         for uniq, parte in self.saida.tirar_os_corpos():

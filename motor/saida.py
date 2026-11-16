@@ -103,6 +103,7 @@ class Saida:
         self.recusas_do_tique: list[tuple[str, str, str]] = []
         self.aceitas_do_tique: list[tuple[str, str]] = []
         self.frases_do_tique: list[tuple[str, str, str]] = []
+        self.adiadas_do_tique: list[tuple[str, str]] = []
         self.escrito: dict[Chave, tuple[float, dict[str, Any]]] = {}
         self.janela: deque[tuple[float, str]] = deque()
         self.sem_haptica = False
@@ -167,6 +168,7 @@ class Saida:
                         params: dict[str, Any], zero: bool = False, reserva: int = 0) -> bool:
         uniq = chave[0]
         if not zero and not self._cabe(t_ms, uniq, reserva):
+            self.adiadas_do_tique.append((uniq, chave[1]))
             return False
         self.janela.append((t_ms, uniq))
         antes = self.escrito.get(chave)
@@ -211,12 +213,15 @@ class Saida:
         if frase:
             self.frases_do_tique.append((chave[0], chave[1], frase))
 
-    def tirar_os_desfechos(self) -> tuple[list[tuple[str, str]], list[tuple[str, str, str]]]:
+    def tirar_os_desfechos(self) -> tuple[list[tuple[str, str]], list[tuple[str, str, str]],
+                                          list[tuple[str, str]]]:
         """As escritas que a porta aceitou desde a última chamada, ``(uniq, canal da escrita)``,
-        e as recusadas com a frase dela, ``(uniq, canal da escrita, frase)``."""
+        as recusadas com a frase dela, ``(uniq, canal da escrita, frase)``, e as que o teto da
+        extensão adiou, ``(uniq, canal da escrita)``."""
         aceitas, self.aceitas_do_tique = self.aceitas_do_tique, []
         frases, self.frases_do_tique = self.frases_do_tique, []
-        return aceitas, frases
+        adiadas, self.adiadas_do_tique = self.adiadas_do_tique, []
+        return aceitas, frases, adiadas
 
     def tirar_os_corpos(self) -> list[tuple[str, str]]:
         """Os pedidos do corpo que a porta aceitou desde a última chamada: ``(uniq, parte)``."""
