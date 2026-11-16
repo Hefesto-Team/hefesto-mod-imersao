@@ -1,4 +1,4 @@
-"""O manifesto pede o que a receita e o Estúdio usam e o Hefesto aceita, e a porta os assina."""
+"""O manifesto pede o que as receitas usam e o Hefesto aceita, e a porta os assina."""
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +14,6 @@ from apoio import RAIZ, UM, EscritasDeMentira, PortaDeMentira, ate
 from test_o_universal import _correr, _universal, microfone, na_mao, som
 
 import servidor
-from estudio import linha_do_tempo
 from receita.formato import ler_receita
 
 
@@ -29,7 +28,7 @@ def _receitas() -> list[Path]:
 
 
 def _o_que_se_le() -> set[str]:
-    lidos = set(servidor.TOPICOS_DO_ESTUDIO) | set(linha_do_tempo.TOPICOS_GRAVADOS)
+    lidos: set[str] = set()
     for arquivo in _receitas():
         receita = ler_receita(arquivo.read_bytes())
         lidos |= servidor._lidos(receita) | servidor.topicos_do_caminho(receita)
@@ -44,7 +43,7 @@ def _canais_escritos() -> set[str]:
     return {"vibracao" if c == "motor" else c for c in canais}
 
 
-def test_todo_topico_que_a_receita_e_o_estudio_leem_esta_no_manifesto_e_na_porta() -> None:
+def test_todo_topico_que_a_receita_le_esta_no_manifesto_e_na_porta() -> None:
     permissoes = set(_manifesto()["permissoes"])  # (noqa-acento)
     lidos = _o_que_se_le()
     assert {"jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade"} <= lidos

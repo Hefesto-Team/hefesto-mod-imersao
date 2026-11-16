@@ -224,7 +224,6 @@ def test_a_receita_que_le_a_memoria_nao_traz_chave_propria(tmp_path: Path) -> No
     resultado = aqui.procurar(JOGO, agora=True)
     assert resultado["memoria"] is True
     assert not {"memoria_ligada", "anticheat"} & set(resultado)
-    assert comunidade.TIPOS_DA_COMUNIDADE == ("procurar",)
     assert not hasattr(aqui, "ligar_a_memoria")
     assert not list(tmp_path.rglob("memoria.json"))
 
@@ -248,7 +247,7 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_com_a_chav
     porta = _Porta()
     repositorio = Repositorio({ARQUIVO: _receita(memoria=True)}, anticheat=(JOGO,))
 
-    async def corpo() -> tuple[list[str], list[Any]]:
+    async def corpo() -> tuple[list[str], list[Any], list[dict[str, Any]]]:
         biblioteca = Biblioteca(RAIZ / "receitas" / "estudadas", tmp_path,
                                 servidor.carregar_o_universal)
         extensao = servidor.Extensao(porta, servidor.carregar_o_universal(),  # type: ignore[arg-type]
@@ -259,20 +258,26 @@ def test_o_jogo_que_abre_traz_a_receita_e_a_memoria_so_chega_ao_motor_com_a_chav
         origens = [extensao.escolhida.origem]
         vistos: list[Any] = []
         extensao.motor.evento = lambda *a: vistos.append(a)  # type: ignore[method-assign]
-        await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 10}))
-        await extensao.ao_evento(_evento("extensao.mensagem", {
-            "id": 1, "dados": {"tipo": "procurar"}}))
-        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": True}))
-        await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 11}))
-        await extensao.ao_evento(_evento("extensao.mensagem", {
-            "id": 2, "dados": {"tipo": "procurar"}}))
-        origens.append(extensao.escolhida.origem)
-        return origens, vistos
+        respostas: list[dict[str, Any]] = []
 
-    origens, vistos = asyncio.run(corpo())
+        async def procurar() -> None:
+            procura = {"acao": servidor.ACAO_DE_PROCURAR}  # (noqa-acento)
+            await extensao.ao_evento(_evento("extensao.acao", procura))
+            assert extensao.procurando is not None
+            respostas.append(await asyncio.wait_for(extensao.procurando, 5))
+
+        await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 10}))
+        await procurar()
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": True}))
+        await asyncio.wait_for(extensao.procurando, 5)
+        await extensao.ao_evento(_evento("jogo.memoria", {"vida_lida": 11}))
+        await procurar()
+        origens.append(extensao.escolhida.origem)
+        return origens, vistos, respostas
+
+    origens, vistos, respostas = asyncio.run(corpo())
     assert origens == ["comunidade", "comunidade"]
     assert [v[3] for v in vistos if v[0] == "jogo.memoria"] == [{"vida_lida": 11}]
-    respostas = [p["dados"] for m, p in porta.pedidos if m == "extensao.resposta"]
     assert [(r["tipo"], r["memoria"], r["memoria_ligada"]) for r in respostas] == [
         ("procurado", True, False), ("procurado", True, True)]
     assert respostas[0]["origem"] == "Receita da comunidade"

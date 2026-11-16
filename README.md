@@ -28,7 +28,7 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   vale.
 - As `entradas` da receita são as opções da janela «Configurar»: o motor lê o `opcoes.json` salvo
   e o arrasto ao vivo. A opção «Receita» em «Universal» ignora a receita do jogo.
-- A janela tem quatro abas, nesta ordem (o `abas` do manifesto). Jogo: «Procurar receitas», a
+- A janela tem três abas, nesta ordem (o `abas` do manifesto). Jogo: «Procurar receitas», a
   Receita, o Estilo do jogo, a Força (multiplica tudo o que sai; em 0, nada), «O golpe vai para»
   (quem levou, ou todos os controles) e um cartão por controle conectado, pela cor do plástico,
   com a chave «Sente os efeitos» (o desligado não recebe nada da extensão), a Força e o Volume dele
@@ -41,9 +41,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   testar, os seis canais numa fileira de chaves (cada canal se desliga) e um cartão por efeito (o
   `cartao` de cada opção), com a força, o tipo e o que mais o efeito tem; o Susto leva as duas
   chaves, o intervalo, a duração (100 a 1500 ms), o volume, a força e o tipo. Cada linha só aparece
-  quando a receita que vale tem o efeito dela (o `@presente` pelos `presentes` do estado). «Ensinar
-  este jogo»: a página do Estúdio, que abre no grafo da receita e ocupa a aba. Os ajustes de Jogo,
-  Sentidos e dos canais moram em `opcoes.py` e valem em toda receita.
+  quando a receita que vale tem o efeito dela (o `@presente` pelos `presentes` do estado). Os
+  ajustes de Jogo, Sentidos e dos canais moram em `opcoes.py` e valem em toda receita.
 - A coluna «Agora» mostra o controle vivo do Hefesto (o desenho do «Mapa dos controles», com as
   peças que a extensão acabou de mexer acesas, e um chip por controle), o clima da cena (o derivado
   `tensao`, de 0 a 10) no «Nível» e na curva «Clima», com o limiar da entrada `clima` da receita
@@ -131,16 +130,6 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
   pelo batimento do rumble, o susto, o lado pelo som, a barra vermelha na rajada e o impacto do
   golpe, que só troca o gatilho do jogo quando é mais forte, e pesa a mira de 1 a 0,6 no perigo.
   Sem memória.
-
-## O Estúdio
-
-O botão «Ensinar este jogo» (página em `estudio/pagina/`) guia com frases curtas, e o botão do meio
-do controle marca o gesto. O caçador do valor (só com a «Memória neste jogo» ligada), o do som e
-o do canto da tela guardam o que muda com o gesto e descartam o que muda sem ele; o achado vira um
-`estado` na sua receita, com o nome que você der. «Blocos» mostra a receita como QUANDO e FAÇA, e
-«Gravar» e «Tocar» repetem cinco minutos de jogo com a receita de agora, sem abrir o jogo.
-«Grafo» desenha a receita do sentido ao efeito e marca o nó com erro (ciclo, órfão, tipo errado);
-«Texto» mostra o JSON, validado a cada tecla, com «Exportar» e «Importar».
 
 ## As receitas da comunidade
 

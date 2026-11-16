@@ -117,21 +117,6 @@ def topico_ligado(topico: str, opcoes: dict[str, Any] | None = None) -> bool:
     return ligado(opcoes or {}, ident, padrao) if ident else True
 
 
-def consentir(dados: Path, topico: str) -> bool:
-    """Ensinar a receita pelo tópico é o gesto que o consente: o sentido dele passa a ligado no
-    ``opcoes.json`` (arquivo novo e ``rename``, em ``0600``, as outras opções intactas).
-    ``True`` quando a chave mudou; desligá-la depois volta a calar a receita."""
-    ident, padrao = TOPICOS_DA_PORTA_COM_CHAVE.get(topico, ("", True))
-    if not ident or ident == SENTIDO_DA_TELA:
-        return False
-    valores = _ler(dados / ARQUIVO_DAS_OPCOES)
-    if ligado(valores, ident, padrao):
-        return False
-    valores[ident] = True
-    _gravar(dados, ARQUIVO_DAS_OPCOES, valores)
-    return True
-
-
 def id_do_controle(jogador: Any, posicao: int) -> str:
     """O ``id`` do controle na janela: o número do jogador, ou a posição na lista sem ele. Nunca
     o ``uniq``, que diria qual controle é."""

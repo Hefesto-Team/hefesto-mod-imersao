@@ -18,9 +18,7 @@ do controle e a máscara do lançamento (``jogo.identidade``). Os sentidos e os 
 janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela só se lê no clique
 «Ver a tela» da aba Sentidos: ele pede ``tela.ver`` e assina ``jogo.tela``, até «Parar de ver», o
 segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o Hefesto que não conhece
-``tela.ver`` vira a linha «Tela» do «Agora», e nada se assina. O
-:class:`~estudio.cacador.Estudio` fala com a página pelo ``extensao.mensagem`` e responde pelo
-``extensao.resposta``; enquanto caça, ouve o ``jogo.som`` e toma o botão do meio como marca do gesto.
+``tela.ver`` vira a linha «Tela» do «Agora», e nada se assina.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
 que abre (o índice se baixa uma vez por dia), no «Procurar receitas» da página e no botão da
 aba Jogo da janela (``extensao.acao``). A cada minuto em que houve jogo, uma linha do diário conta,
@@ -51,12 +49,7 @@ if str(AQUI) not in sys.path:
 
 import opcoes as ajustes  # noqa: E402
 import sentidos as universais  # noqa: E402
-from comunidade import TIPOS_DA_COMUNIDADE, Comunidade  # noqa: E402
-from estudio import linha_do_tempo  # noqa: E402
-from estudio.blocos import TIPOS_DO_MONTADOR, Montador  # noqa: E402
-from estudio.cacador import Estudio  # noqa: E402
-from estudio.grafo import TIPOS_DO_EDITOR, Editor  # noqa: E402
-from estudio.linha_do_tempo import TIPOS_DO_GRAVADOR, Gravador  # noqa: E402
+from comunidade import Comunidade  # noqa: E402
 from motor.arbitragem import Pedido, Vaga  # noqa: E402
 from motor.caminho import CANAIS as CANAIS_DO_JOGO  # noqa: E402
 from motor.conta import ContaDoMinuto  # noqa: E402
@@ -88,11 +81,6 @@ TOPICOS_DA_PORTA = (
     "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
     "jogo.memoria", "jogo.estilo",
 )
-TOPICOS_DO_ESTUDIO = ("botoes", "jogo.som")
-BOTAO_DA_MARCA = "ps"
-RESPOSTAS_QUE_GRAVAM = ("guardado", "montado", "importado")
-FALHAS_DO_ESTUDIO = (RuntimeError, OSError, ValueError, asyncio.TimeoutError)
-FRASE_DA_FALHA = "não deu agora"
 TETO_DAS_LINHAS = 6
 TETO_DO_ROTULO = 20
 TETO_DO_VALOR = 40
@@ -351,15 +339,6 @@ class Extensao:
                                    contar=self.contar)
         self.conta = ContaDoMinuto()
         self.assinados: set[str] = set()
-        self.do_estudio: set[str] = set()
-        self.estudio = Estudio(porta.pedir, dados / "receitas" if dados else None, ler_receita)
-        self.montador = Montador(dados / "receitas" if dados else None, ler_receita,
-                                 lambda: (self.jogo, self.receita.dados), lambda: self.motor.opcoes)
-        self.editor = Editor(dados / "receitas" if dados else None,
-                             lambda: (self.jogo, self.receita.dados))
-        self.gravador = Gravador()
-        self.tocando: asyncio.Task[None] | None = None
-        self.parar_de_tocar = asyncio.Event()
         self.comunidade = comunidade
         self.procurando: asyncio.Task[dict[str, Any]] | None = None
         self.memoria_vale = False
@@ -390,111 +369,10 @@ class Extensao:
         if faltam:
             await self.porta.pedir("eventos.assinar", {"topicos": faltam})
             self.assinados |= set(faltam)
-        sobram = sorted(t for t in self.assinados - self.do_estudio
-                        if not ajustes.topico_ligado(t, self.opcoes))
+        sobram = sorted(t for t in self.assinados if not ajustes.topico_ligado(t, self.opcoes))
         if sobram:
             await self.porta.pedir("eventos.desassinar", {"topicos": sobram})
             self.assinados -= set(sobram)
-
-    async def assinar_o_estudio(self, topicos: tuple[str, ...] = TOPICOS_DO_ESTUDIO) -> None:
-        """O Estúdio ouve o som do jogo e o botão do meio enquanto caça, e o que grava."""
-        for topico in topicos:
-            if topico in self.assinados:
-                continue
-            with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
-                await self.porta.pedir("eventos.assinar", {"topicos": [topico]})
-                self.assinados.add(topico)
-                self.do_estudio.add(topico)
-
-    async def responder_ao_estudio(self, resposta: dict[str, Any] | None,
-                                   pedido: Any = None) -> None:
-        """A resposta do Estúdio volta à página pela porta (``extensao.resposta``)."""
-        if resposta is None:
-            return
-        params: dict[str, Any] = {"dados": resposta}
-        if pedido is not None:
-            params["id"] = pedido
-        with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
-            await self.porta.pedir("extensao.resposta", params)
-
-    async def ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any],
-                         uniq: Any = None) -> None:
-        """Os eventos que o Estúdio usa; a falha de um pedido para a caça e responde à página,
-        sem calar a porta para o resto da extensão."""
-        try:
-            await self._ao_estudio(topico, nome, dados, uniq, time.monotonic() * 1000.0)
-        except FALHAS_DO_ESTUDIO as exc:
-            diario(f"o Estúdio parou: {exc}")
-            self.estudio.cancelar()
-            pedido = dados.get("id") if topico == "extensao.mensagem" else None
-            await self.responder_ao_estudio({"tipo": "erro", "frase": FRASE_DA_FALHA}, pedido)
-
-    async def _ao_estudio(self, topico: str, nome: Any, dados: dict[str, Any],
-                          uniq: Any, agora_ms: float) -> None:
-        if topico == "extensao.mensagem":
-            pedido = dados.get("dados", dados)
-            if isinstance(pedido, dict):
-                tipo = pedido.get("tipo")
-                if tipo in TIPOS_DO_MONTADOR:
-                    resposta = self.montador.mensagem(pedido)
-                elif tipo in TIPOS_DO_EDITOR:
-                    resposta = self.editor.mensagem(pedido)
-                elif tipo in TIPOS_DA_COMUNIDADE:
-                    resposta = await self.ao_comunidade(str(tipo), pedido)
-                elif tipo in TIPOS_DO_GRAVADOR:
-                    resposta = await self.ao_gravador(str(tipo), agora_ms)
-                else:
-                    if tipo == "comecar":
-                        await self.assinar_o_estudio()
-                    resposta = await self.estudio.mensagem(pedido, agora_ms)
-                if resposta.get("tipo") in RESPOSTAS_QUE_GRAVAM:
-                    await self.reler_as_opcoes()
-                await self.responder_ao_estudio(resposta, dados.get("id"))
-        if self.gravador.gravando and isinstance(nome, str):
-            self.gravador.ouvir(topico, nome, uniq if isinstance(uniq, str) else None, dados,
-                                agora_ms)
-        if topico == "jogo.som":
-            self.estudio.ouvir(dados, agora_ms)
-        elif (topico == "botoes" and nome == "button.down" and self.estudio.ativo
-              and BOTAO_DA_MARCA in (dados.get("botao"), dados.get("button"))):
-            await self.responder_ao_estudio(await self.estudio.marca(agora_ms))
-
-    async def ao_gravador(self, tipo: str, agora_ms: float) -> dict[str, Any]:
-        """«Gravar», «Parar» e «Tocar» da linha do tempo."""
-        if tipo == "gravar":
-            await self.assinar_o_estudio(tuple(t for t in linha_do_tempo.TOPICOS_GRAVADOS
-                                               if t != ajustes.TOPICO_DA_TELA))
-            self.gravador.gravar(agora_ms)
-            return {"tipo": "gravando", "segundos": linha_do_tempo.DURACAO_MS / 1000}
-        if tipo == "parar":
-            self.parar_de_tocar.set()
-            if not self.gravador.gravando:
-                return {"tipo": "parado"}
-            gravada = self.gravador.parar()
-            if self.dados is not None and self.jogo is not None:
-                with contextlib.suppress(OSError):
-                    linha_do_tempo.gravar_no_disco(self.dados, self.jogo, gravada)
-            return {"tipo": "gravado", "marcos": len(gravada.marcos),
-                    "segundos": round(gravada.duracao_ms / 1000, 1)}
-        linha = self.gravador.linha if self.gravador.linha.marcos else (
-            linha_do_tempo.ler_do_disco(self.dados, self.jogo)
-            if self.dados is not None and self.jogo is not None else None)
-        if linha is None or not linha.marcos:
-            return {"tipo": "erro", "frase": "grave antes de tocar"}
-        if self.tocando is not None and not self.tocando.done():
-            self.parar_de_tocar.set()
-            await asyncio.gather(self.tocando, return_exceptions=True)
-        self.parar_de_tocar = asyncio.Event()
-        self.tocando = asyncio.create_task(self._tocar_ate_o_fim(linha, self.parar_de_tocar))
-        return {"tipo": "tocando", "segundos": round(linha.duracao_ms / 1000, 1)}
-
-    async def _tocar_ate_o_fim(self, linha: linha_do_tempo.LinhaDoTempo,
-                               parar: asyncio.Event) -> None:
-        """Toca a linha e, no fim dela, a página volta a mostrar a linha parada."""
-        await linha_do_tempo.tocar(linha, self.motor.evento, parar)
-        if not parar.is_set():
-            await self.responder_ao_estudio({"tipo": "tocado",
-                                             "segundos": round(linha.duracao_ms / 1000, 1)})
 
     async def procurar(self, agora: bool = False) -> dict[str, Any]:
         """A receita da comunidade do jogo aberto; a nova vale no tique seguinte."""
@@ -513,10 +391,6 @@ class Extensao:
     def procurar_em_fundo(self, agora: bool = False) -> None:
         if self.comunidade is not None and (self.procurando is None or self.procurando.done()):
             self.procurando = asyncio.create_task(self.procurar(agora))
-
-    async def ao_comunidade(self, tipo: str, pedido: dict[str, Any]) -> dict[str, Any]:
-        """«Procurar receitas» da página."""
-        return await self.procurar(agora=True)
 
     def anotar(self, vencedores: dict[Vaga, Pedido]) -> None:
         """O último efeito que começou a tocar, com a hora em que começou."""
@@ -764,9 +638,7 @@ class Extensao:
             antes, self.jogo = self.jogo, jogo if isinstance(jogo, str) and jogo else None
             if self.vendo and antes is not None and self.jogo != antes:
                 await self.parar_de_ver()
-            self.estudio.jogo = self.jogo
             self.memoria_vale = dados.get("memoria") is True
-            self.estudio.memoria_ligada = self.memoria_vale
             await self.escolher()
             await self.publicar_se_mudou()
             if self.jogo is not None:
@@ -805,8 +677,6 @@ class Extensao:
         elif (topico == "extensao.acao" and isinstance(dados, dict)
               and dados.get("acao") == ajustes.ACAO_DE_PARAR_DE_VER):  # (noqa-acento)
             await self.parar_de_ver()
-        if isinstance(topico, str) and isinstance(dados, dict):
-            await self.ao_estudio(topico, nome, dados, params.get("uniq"))
         if topico == "jogo.memoria" and not self.memoria_vale:
             return True
         if isinstance(topico, str) and isinstance(nome, str):
@@ -896,8 +766,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
                 await asyncio.wait_for(extensao.porta.pedir("tela.parar", {}),
                                        ESPERA_O_FIM_DA_TELA_S)
     finally:
-        extensao.parar_de_tocar.set()
-        tarefas = [ouvir, vigiar, clima, resumo, cor, motor, *([extensao.tocando] if extensao.tocando else []),
+        tarefas = [ouvir, vigiar, clima, resumo, cor, motor,
                    *([extensao.procurando] if extensao.procurando else [])]
         for tarefa in tarefas:
             tarefa.cancel()

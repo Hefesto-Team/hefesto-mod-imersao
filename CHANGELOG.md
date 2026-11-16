@@ -9,6 +9,8 @@
 - O diário e o cartão de cada controle na janela falam pela cor do plástico também quando o Hefesto
   a descobre depois que o controle conecta: a extensão pede a lista de novo a cada 5 s enquanto um
   controle está sem cor, e a cada minuto, antes da linha do diário. Sem a cor, vale «Jogador N».
+- O Estúdio sai da extensão: a janela fica com três abas, Jogo, Sentidos e Efeitos, sem «Ensinar
+  este jogo». As receitas estudadas, as da comunidade e a sua receita já gravada continuam valendo.
 
 ## 0.5.3 (16/11/2026)
 

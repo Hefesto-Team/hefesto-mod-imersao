@@ -362,6 +362,3 @@ class Comunidade:
                     "detalhe": str(exc)}
         return {"tipo": "procurado", "achou": True, "nova": nova, "nome": entrada.nome,
                 "memoria": entrada.memoria}
-
-
-TIPOS_DA_COMUNIDADE = ("procurar",)
