@@ -576,9 +576,11 @@ class Extensao:
         return linhas[:TETO_DAS_LINHAS]
 
     def _estado(self) -> dict[str, Any]:
+        limiar = self.motor.limiar_do_clima()
         return {"ligado": True, "nivel": self.motor.clima(), "perfil": self.escolhida.rotulo,
                 "aparelhos": self.aparelhos(), "conexoes": [],  # (noqa-acento)
-                "linhas": self.linhas(), "presentes": presentes_da_receita(self.receita)}
+                "linhas": self.linhas(), "presentes": presentes_da_receita(self.receita),
+                **({"limiar": limiar} if limiar is not None else {})}
 
     async def publicar_o_estado(self) -> None:
         """A coluna «Agora» da janela: de onde veio a receita que vale e o clima da cena, no

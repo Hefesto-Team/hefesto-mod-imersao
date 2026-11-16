@@ -34,6 +34,7 @@ DURACAO_MINIMA_MS = 250.0
 REGRA_DO_TESTE = -1
 PRIORIDADE_DO_TESTE = 100
 DERIVADO_DO_CLIMA = "tensao"  # (noqa-acento)
+ENTRADA_DO_CLIMA = "clima"
 _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
 
@@ -527,6 +528,13 @@ class Motor:
     def clima(self) -> int:
         """A tensão da cena agora, de 0 a 10: o derivado do clima da receita, ou 0 sem ele."""
         return round(10 * min(1.0, max(0.0, self.valores.get(DERIVADO_DO_CLIMA, 0.0))))
+
+    def limiar_do_clima(self) -> int | None:
+        """Onde a cena fica tensa, de 0 a 10, na escala do :meth:`clima`: a entrada «clima» da
+        receita, já com a escolha da janela; ``None`` quando a receita não a tem."""
+        if ENTRADA_DO_CLIMA not in self.receita.secao("entradas"):
+            return None
+        return round(min(100.0, max(0.0, self._ler_entrada(ENTRADA_DO_CLIMA))) / 10)
 
     def passo(self, t_ms: float) -> dict[Vaga, Pedido]:
         """Um tique: lê os eventos, calcula a cena, roda as regras e decide cada vaga."""

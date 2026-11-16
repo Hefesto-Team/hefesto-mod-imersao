@@ -1,5 +1,17 @@
 # Mudanças
 
+## 0.5.3 (16/11/2026)
+
+- A janela ganha o controle vivo: o desenho do «Mapa dos controles» na coluna «Agora», com as peças
+  que a extensão acabou de mexer acesas no controle escolhido (um chip por controle, pela cor do
+  plástico), a curva do clima com o limiar da receita e, embaixo, a faixa «Ao vivo» dos últimos
+  30 s, uma linha por canal.
+- As abas ficam Geral, Controles, Sentidos, Efeitos, Estilos, Canais, Receitas e «Ensinar este
+  jogo». Em Efeitos, cada efeito é um cartão com a força, o tipo e o que mais ele tem; a aba
+  «Tipos» sai, e o tipo vai ao cartão do efeito.
+- Pede o Hefesto que conhece o controle vivo, o `cartao`, o `canal` e o `abas` do manifesto. Um
+  Hefesto mais velho recusa a instalação e diz por quê.
+
 ## 0.5.2 (14/11/2026)
 
 - A universal segue o estilo do jogo: deixa de tocar o terror em todo jogo. Num jogo de terror,

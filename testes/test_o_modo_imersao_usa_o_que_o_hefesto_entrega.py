@@ -222,7 +222,7 @@ def test_a_janela_mostra_so_o_efeito_que_a_receita_tem_e_a_chave_da_memoria() ->
     opcoes_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.opcoes")
     lido = manifesto_do_hefesto.ler_manifesto(RAIZ)
     memoria = [o for o in lido.opcoes if o.tipo == "memoria"]
-    assert [(o.id, o.grupo, o.padrao) for o in memoria] == [("memoria", "Geral", None)]
+    assert [(o.id, o.grupo, o.padrao) for o in memoria] == [("memoria", "Sentidos", None)]
     assert "linhas" in _manifesto()["agora"]
     padroes = {o["id"]: o["padrao"] for o in _manifesto()["opcoes"] if "padrao" in o}  # (noqa-acento)
 

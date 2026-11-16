@@ -37,7 +37,7 @@ from motor.laco import HZ, Motor
 from motor.saida import Saida
 from receita.formato import ler_receita
 
-ABAS = ["Geral", "Sentidos", "Tipos", "Efeitos", "Susto", "Canais"]
+ABAS = ["Geral", "Controles", "Sentidos", "Efeitos", "Estilos", "Canais", "Receitas"]
 TENSO = [(t, microfone(UM, 0.01)) for t in range(0, 20_000, 500)] + na_mao(UM, 20_000)
 SUSTO = [*TENSO, (18_000, som("direito", 0.45, 1234.5))]
 GOLPE = [(100, entradas(UM, 200)), (200, rumble(UM, 180)), (300, rumble(UM, 0))]
@@ -80,8 +80,12 @@ def _coracoes(porta: EscritasDeMentira) -> list[float]:
 
 def test_as_abas_seguem_a_ordem_do_desenho_e_o_hefesto_aceita_a_janela() -> None:
     manifesto = _manifesto()
-    grupos = [a["grupo"] for a in manifesto["acoes"]] + [o["grupo"] for o in manifesto["opcoes"]]  # (noqa-acento)
-    assert list(dict.fromkeys(grupos)) == ABAS
+    grupos = ([a["grupo"] for a in manifesto["acoes"]] + [o["grupo"] for o in manifesto["opcoes"]]  # (noqa-acento)
+              + [manifesto["aparelhos_acoes"]["grupo"], manifesto["aparelhos_controles"]["grupo"]])
+    assert manifesto["abas"] == ABAS
+    assert set(grupos) == set(ABAS)
+    assert [o["grupo"] for o in manifesto["opcoes"]] == sorted(  # (noqa-acento)
+        (o["grupo"] for o in manifesto["opcoes"]), key=ABAS.index)  # (noqa-acento)
     assert manifesto["pagina"]["rotulo"] == "Ensinar este jogo"  # (noqa-acento)
     assert (RAIZ / manifesto["pagina"]["arquivo"]).is_file()  # (noqa-acento)
     assert all(o.get("dica") for o in manifesto["opcoes"])  # (noqa-acento)
@@ -201,7 +205,8 @@ SO_NO_UNIVERSAL = {"alivio", "peso_da_mira"}
 @pytest.mark.parametrize("arquivo", RECEITAS_DE_FABRICA, ids=lambda a: a.stem)
 def test_toda_receita_de_fabrica_le_as_abas_efeitos_e_susto_com_o_padrao_da_janela(
         arquivo: Any) -> None:
-    efeitos = {i: o for i, o in _opcoes().items() if o["grupo"] in ("Efeitos", "Susto")}
+    efeitos = {i: o for i, o in _opcoes().items()
+               if o["grupo"] == "Efeitos" and not i.startswith("tipo_")}
     declaradas = ler_receita(arquivo.read_bytes()).secao("entradas")
     fora = {"peso_da_mira"} if arquivo.stem == "universal" else SO_NO_UNIVERSAL
     pedidas = set(efeitos) - fora
@@ -422,7 +427,8 @@ def test_a_cor_mora_nos_efeitos_e_o_intervalo_no_susto_com_o_padrao_de_antes() -
     cor, intervalo = opcoes["cor_do_dano"], opcoes["intervalo_do_susto"]
     assert (cor["tipo"], cor["padrao"], cor["grupo"]) == ("cor", "#ff0000", "Efeitos")  # (noqa-acento)
     assert cor["aparece_com"] == {"luz_do_dano": True, "@presente": "cor_do_dano"}
-    assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Susto")  # (noqa-acento)
+    assert (intervalo["padrao"], intervalo["unidade"], intervalo["grupo"]) == (5, "s", "Efeitos")  # (noqa-acento)
+    assert (cor["cartao"], intervalo["cartao"]) == ("Luz do dano", "Susto")
 
 
 class _PortaDosControles(_Porta):
@@ -463,10 +469,10 @@ def _com_os_controles(dados: Path, *eventos: dict[str, Any]
     return extensao, porta
 
 
-def test_cada_controle_conectado_e_um_cartao_da_aba_geral_com_a_chave_e_sem_o_uniq(
+def test_cada_controle_conectado_e_um_cartao_da_aba_controles_com_a_chave_e_sem_o_uniq(
         tmp_path: Path) -> None:
     manifesto = _manifesto()
-    assert manifesto["aparelhos_acoes"] == {"grupo": "Geral", "acoes": [  # (noqa-acento)
+    assert manifesto["aparelhos_acoes"] == {"grupo": "Controles", "acoes": [  # (noqa-acento)
         {"id": "ligar", "rotulo": "Sente os efeitos", "icone": "ligar"}]}
     extensao, porta = _com_os_controles(tmp_path)
     assert [{k: v for k, v in a.items() if k != "controles"}
@@ -517,7 +523,7 @@ def test_o_motor_nao_escreve_no_controle_calado_e_segue_nos_outros() -> None:
 
 def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
         tmp_path: Path) -> None:
-    assert _manifesto()["agora"] == ["perfil", "nivel", "linhas"]
+    assert {"nivel", "clima"} <= set(_manifesto()["agora"])
     climas = []
     for ate in (0, 10_000, 20_000):
         motor = _universal(None, {})
@@ -531,6 +537,7 @@ def test_o_clima_da_cena_vai_ao_nivel_do_agora_e_so_se_republica_quando_muda(
     asyncio.run(extensao.publicar_se_mudou())
     asyncio.run(extensao.publicar_se_mudou())
     assert [e["nivel"] for e in janela.estados()] == [0, 6]
+    assert {e["limiar"] for e in janela.estados()} == {round(_padroes()["clima"] / 10)}
 
 
 def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais_nada() -> None:
@@ -559,3 +566,22 @@ def test_o_controle_calado_no_meio_do_efeito_solta_o_que_tinha_e_nao_recebe_mais
     assert depois and all(p.get("forca") == 0.0 and p.get("ate_ms") == 0 for p in depois)
     assert len(depois) == len({p["lado"] for p in depois})
     assert [t for t, _, p in porta.escritas if p.get("uniq") == UM and t >= cala_ms]
+
+
+def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_o_controle_vivo() -> None:
+    manifesto = _manifesto()
+    opcoes = _opcoes()
+    assert manifesto["agora"] == ["controle", "nivel", "clima", "perfil", "linhas", "ao_vivo"]
+    cartoes: dict[str, list[str]] = {}
+    for o in manifesto["opcoes"]:  # (noqa-acento)
+        if "cartao" in o:
+            assert o["grupo"] == "Efeitos"
+            cartoes.setdefault(o["cartao"], []).append(o["id"])
+    assert cartoes["Coração"] == ["coracao", "tipo_do_coracao"]
+    assert cartoes["Impacto nos gatilhos"] == ["impacto_nos_gatilhos", "tipo_do_l2", "tipo_do_r2"]
+    assert cartoes["Susto"][:2] == ["susto_no_alto_falante", "susto_no_tato"]
+    assert opcoes["coracao"]["rotulo"] == opcoes["coracao"]["cartao"] == "Coração"
+    assert {opcoes[i]["canal"] for i in ("canal_haptica", "canal_motor", "canal_gatilho",
+                                          "canal_luz", "canal_leds", "canal_som")} == {
+        "haptica", "vibracao", "gatilho", "luz", "leds", "som"}
+    assert {a["grupo"] for a in manifesto["acoes"] if a["id"].startswith("testar_")} == {"Efeitos"}

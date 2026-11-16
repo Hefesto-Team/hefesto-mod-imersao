@@ -1,7 +1,7 @@
 {
   "id": "imersao",
   "nome": "Modo imersão",
-  "versao": "0.5.2",
+  "versao": "0.5.3",
   "api": ">=2,<3",
   "licenca": "GPL-3.0-or-later",
   "descricao": "O jogo chega ao controle como no console: a receita de cada jogo lê o que acontece na cena e responde com a vibração, os gatilhos e a luz. Sem receita, vale o modo universal.",
@@ -56,16 +56,422 @@
       "zero": "Nada"
     },
     {
-      "id": "receita",
-      "rotulo": "Receita",
+      "id": "para_quem",
+      "rotulo": "O golpe vai para",
       "tipo": "escolha",
       "escolhas": [
-        "Pelo jogo",
-        "Universal"
+        "Quem levou",
+        "Todos os controles"
       ],
-      "padrao": "Pelo jogo",
+      "padrao": "Quem levou",
       "grupo": "Geral",
-      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
+      "dica": "O dano e o impacto no gatilho vão só ao controle que levou, ou a todos"
+    },
+    {
+      "id": "memoria",
+      "rotulo": "Memória neste jogo",
+      "tipo": "memoria",
+      "grupo": "Sentidos",
+      "dica": "A receita que pede lê da memória do jogo os valores dela; vale ao abrir o jogo de novo"
+    },
+    {
+      "id": "sentido_som",
+      "rotulo": "Som do jogo",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "Os estalos do som do jogo, com o lado, sem receber o áudio",
+      "canal": "som"
+    },
+    {
+      "id": "sentido_vibracao",
+      "rotulo": "Vibração do jogo",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O batimento, a rajada e o dano que o jogo pede ao motor",
+      "canal": "vibracao"
+    },
+    {
+      "id": "sentido_microfone",
+      "rotulo": "Microfone",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "Só o nível do microfone do controle, nunca a voz",
+      "canal": "microfone"
+    },
+    {
+      "id": "sentido_parado",
+      "rotulo": "Controle parado",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O controle imóvel na mão soma ao clima tenso",
+      "canal": "mira"
+    },
+    {
+      "id": "sentido_golpe",
+      "rotulo": "Golpe no gatilho",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Sentidos",
+      "dica": "O gatilho apertado no instante do pulso do jogo",
+      "canal": "gatilho"
+    },
+    {
+      "id": "coracao",
+      "rotulo": "Coração",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "coracao"
+      },
+      "dica": "O batimento na vibração fina quando a cena fica tensa",
+      "cartao": "Coração",
+      "canal": "haptica"
+    },
+    {
+      "id": "alivio",
+      "rotulo": "Alívio",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "alivio"
+      },
+      "dica": "O batimento lento quando a tensão passa",
+      "cartao": "Alívio",
+      "canal": "haptica"
+    },
+    {
+      "id": "golpe_com_lado",
+      "rotulo": "Golpe com lado",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 70,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Desligado",
+      "aparece_com": {
+        "@presente": "golpe_com_lado"
+      },
+      "dica": "O motor do lado do estalo forte",
+      "cartao": "Golpe com lado",
+      "canal": "haptica"
+    },
+    {
+      "id": "lado_na_luz",
+      "rotulo": "Lado na luz",
+      "tipo": "ligado",
+      "padrao": false,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "lado_na_luz"
+      },
+      "dica": "As luzes de jogador acendem do lado do golpe por um instante",
+      "cartao": "Lado na luz",
+      "canal": "leds"
+    },
+    {
+      "id": "luz_do_dano",
+      "rotulo": "Luz do dano",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "luz_do_dano"
+      },
+      "dica": "A barra de luz fica vermelha no dano",
+      "cartao": "Luz do dano",
+      "canal": "luz"
+    },
+    {
+      "id": "cor_do_dano",
+      "rotulo": "Cor",
+      "tipo": "cor",
+      "padrao": "#ff0000",
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "luz_do_dano": true,
+        "@presente": "cor_do_dano"
+      },
+      "dica": "A cor da barra de luz no dano",
+      "cartao": "Luz do dano"
+    },
+    {
+      "id": "impacto_nos_gatilhos",
+      "rotulo": "Impacto nos gatilhos",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "impacto_nos_gatilhos"
+      },
+      "dica": "O gatilho treme no golpe dado com ele",
+      "cartao": "Impacto nos gatilhos",
+      "canal": "gatilho"
+    },
+    {
+      "id": "clima",
+      "rotulo": "Clima tenso",
+      "tipo": "deslizante",
+      "minimo": 10,
+      "maximo": 90,
+      "passo": 5,
+      "padrao": 35,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "clima"
+      },
+      "dica": "Quanto menor, mais cedo a cena fica tensa e o coração bate",
+      "cartao": "Clima tenso"
+    },
+    {
+      "id": "peso_da_mira",
+      "rotulo": "Peso da mira",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "canal.mira"
+      },
+      "dica": "O perigo deixa a mira do giroscópio mais pesada por instantes",
+      "cartao": "Peso da mira",
+      "canal": "mira"
+    },
+    {
+      "id": "susto_no_alto_falante",
+      "rotulo": "Alto-falante",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "susto_no_alto_falante"
+      },
+      "dica": "O estalo do jogo no alto-falante, no susto com a cena tensa",
+      "cartao": "Susto",
+      "canal": "som"
+    },
+    {
+      "id": "susto_no_tato",
+      "rotulo": "Tato",
+      "tipo": "ligado",
+      "padrao": true,
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "susto_no_tato"
+      },
+      "dica": "Um tranco na vibração fina, no susto com a cena tensa",
+      "cartao": "Susto",
+      "canal": "haptica"
+    },
+    {
+      "id": "intervalo_do_susto",
+      "rotulo": "Intervalo",
+      "tipo": "deslizante",
+      "minimo": 1,
+      "maximo": 30,
+      "passo": 1,
+      "padrao": 5,
+      "unidade": "s",
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "intervalo_do_susto"
+      },
+      "dica": "O tempo mínimo entre um susto e o próximo",
+      "cartao": "Susto"
+    },
+    {
+      "id": "duracao_do_susto",
+      "rotulo": "Duração",
+      "tipo": "deslizante",
+      "minimo": 100,
+      "maximo": 1500,
+      "passo": 50,
+      "padrao": 300,
+      "unidade": "ms",
+      "grupo": "Efeitos",
+      "aparece_com": {
+        "@presente": "duracao_do_susto"
+      },
+      "dica": "Quanto dura o pico do susto, no tato e no alto-falante",
+      "cartao": "Susto"
+    },
+    {
+      "id": "volume_do_susto",
+      "rotulo": "Volume",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Mudo",
+      "aparece_com": {
+        "@presente": "volume_do_susto"
+      },
+      "dica": "O volume do estalo do susto no alto-falante do controle",
+      "cartao": "Susto"
+    },
+    {
+      "id": "forca_do_susto",
+      "rotulo": "Força",
+      "tipo": "deslizante",
+      "minimo": 0,
+      "maximo": 100,
+      "passo": 5,
+      "padrao": 100,
+      "unidade": "%",
+      "grupo": "Efeitos",
+      "zero": "Nada",
+      "aparece_com": {
+        "@presente": "forca_do_susto"
+      },
+      "dica": "A força do tranco do susto na vibração fina",
+      "cartao": "Susto"
+    },
+    {
+      "id": "tipo_do_coracao",
+      "rotulo": "Tipo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Batida",
+      "grupo": "Efeitos",
+      "dica": "A forma de cada batida do coração no tato",
+      "aparece_com": {
+        "@presente": "tipo_do_coracao"
+      },
+      "cartao": "Coração"
+    },
+    {
+      "id": "tipo_do_alivio",
+      "rotulo": "Tipo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Batida",
+      "grupo": "Efeitos",
+      "dica": "A forma do alívio, a batida calma depois do perigo",
+      "aparece_com": {
+        "@presente": "tipo_do_alivio"
+      },
+      "cartao": "Alívio"
+    },
+    {
+      "id": "tipo_do_golpe",
+      "rotulo": "Tipo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Contínuo",
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Contínuo",
+      "grupo": "Efeitos",
+      "dica": "A forma do golpe nos motores; Contínuo é o golpe inteiro, sem forma",
+      "aparece_com": {
+        "@presente": "tipo_do_golpe"
+      },
+      "cartao": "Golpe com lado"
+    },
+    {
+      "id": "tipo_do_susto",
+      "rotulo": "Tipo",
+      "tipo": "escolha",
+      "escolhas": [
+        "Batida",
+        "Pancada",
+        "Pulso",
+        "Tremor",
+        "Estalo",
+        "Onda"
+      ],
+      "padrao": "Pancada",
+      "grupo": "Efeitos",
+      "dica": "A forma do susto no tato, na duração da aba Susto",
+      "aparece_com": {
+        "@presente": "tipo_do_susto"
+      },
+      "cartao": "Susto"
+    },
+    {
+      "id": "tipo_do_l2",
+      "rotulo": "L2",
+      "tipo": "escolha",
+      "escolhas": [
+        "Vibração",
+        "Resistência",
+        "Disparo",
+        "Arco",
+        "Galope",
+        "Metralhadora",
+        "Rampa de força",
+        "Curva de força",
+        "Vibração por posição"
+      ],
+      "padrao": "Vibração",
+      "grupo": "Efeitos",
+      "dica": "O efeito do impacto no L2, da lista da aba Gatilhos",
+      "aparece_com": {
+        "@presente": "tipo_do_l2"
+      },
+      "cartao": "Impacto nos gatilhos"
+    },
+    {
+      "id": "tipo_do_r2",
+      "rotulo": "R2",
+      "tipo": "escolha",
+      "escolhas": [
+        "Vibração",
+        "Resistência",
+        "Disparo",
+        "Arco",
+        "Galope",
+        "Metralhadora",
+        "Rampa de força",
+        "Curva de força",
+        "Vibração por posição"
+      ],
+      "padrao": "Vibração",
+      "grupo": "Efeitos",
+      "dica": "O efeito do impacto no R2, da lista da aba Gatilhos",
+      "aparece_com": {
+        "@presente": "tipo_do_r2"
+      },
+      "cartao": "Impacto nos gatilhos"
     },
     {
       "id": "estilo",
@@ -82,391 +488,8 @@
         "Geral"
       ],
       "padrao": "Pelo jogo",
-      "grupo": "Geral",
+      "grupo": "Estilos",
       "dica": "Pelo jogo, a universal toca o que combina com o estilo do jogo aberto"
-    },
-    {
-      "id": "para_quem",
-      "rotulo": "O golpe vai para",
-      "tipo": "escolha",
-      "escolhas": [
-        "Quem levou",
-        "Todos os controles"
-      ],
-      "padrao": "Quem levou",
-      "grupo": "Geral",
-      "dica": "O dano e o impacto no gatilho vão só ao controle que levou, ou a todos"
-    },
-    {
-      "id": "memoria",
-      "rotulo": "Memória neste jogo",
-      "tipo": "memoria",
-      "grupo": "Geral",
-      "dica": "A receita que pede lê da memória do jogo os valores dela; vale ao abrir o jogo de novo"
-    },
-    {
-      "id": "sentido_som",
-      "rotulo": "Som do jogo",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Sentidos",
-      "dica": "Os estalos do som do jogo, com o lado, sem receber o áudio"
-    },
-    {
-      "id": "sentido_vibracao",
-      "rotulo": "Vibração do jogo",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Sentidos",
-      "dica": "O batimento, a rajada e o dano que o jogo pede ao motor"
-    },
-    {
-      "id": "sentido_microfone",
-      "rotulo": "Microfone",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Sentidos",
-      "dica": "Só o nível do microfone do controle, nunca a voz"
-    },
-    {
-      "id": "sentido_parado",
-      "rotulo": "Controle parado",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Sentidos",
-      "dica": "O controle imóvel na mão soma ao clima tenso"
-    },
-    {
-      "id": "sentido_golpe",
-      "rotulo": "Golpe no gatilho",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Sentidos",
-      "dica": "O gatilho apertado no instante do pulso do jogo"
-    },
-    {
-      "id": "coracao",
-      "rotulo": "Coração",
-      "tipo": "deslizante",
-      "minimo": 0,
-      "maximo": 100,
-      "passo": 5,
-      "padrao": 100,
-      "unidade": "%",
-      "grupo": "Efeitos",
-      "zero": "Desligado",
-      "aparece_com": {
-        "@presente": "coracao"
-      },
-      "dica": "O batimento na vibração fina quando a cena fica tensa"
-    },
-    {
-      "id": "alivio",
-      "rotulo": "Alívio",
-      "tipo": "deslizante",
-      "minimo": 0,
-      "maximo": 100,
-      "passo": 5,
-      "padrao": 100,
-      "unidade": "%",
-      "grupo": "Efeitos",
-      "zero": "Desligado",
-      "aparece_com": {
-        "@presente": "alivio"
-      },
-      "dica": "O batimento lento quando a tensão passa"
-    },
-    {
-      "id": "golpe_com_lado",
-      "rotulo": "Golpe com lado",
-      "tipo": "deslizante",
-      "minimo": 0,
-      "maximo": 100,
-      "passo": 5,
-      "padrao": 70,
-      "unidade": "%",
-      "grupo": "Efeitos",
-      "zero": "Desligado",
-      "aparece_com": {
-        "@presente": "golpe_com_lado"
-      },
-      "dica": "O motor do lado do estalo forte"
-    },
-    {
-      "id": "lado_na_luz",
-      "rotulo": "Lado na luz",
-      "tipo": "ligado",
-      "padrao": false,
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "@presente": "lado_na_luz"
-      },
-      "dica": "As luzes de jogador acendem do lado do golpe por um instante"
-    },
-    {
-      "id": "luz_do_dano",
-      "rotulo": "Luz do dano",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "@presente": "luz_do_dano"
-      },
-      "dica": "A barra de luz fica vermelha no dano"
-    },
-    {
-      "id": "cor_do_dano",
-      "rotulo": "Cor do dano",
-      "tipo": "cor",
-      "padrao": "#ff0000",
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "luz_do_dano": true,
-        "@presente": "cor_do_dano"
-      },
-      "dica": "A cor da barra de luz no dano"
-    },
-    {
-      "id": "impacto_nos_gatilhos",
-      "rotulo": "Impacto nos gatilhos",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "@presente": "impacto_nos_gatilhos"
-      },
-      "dica": "O gatilho treme no golpe dado com ele"
-    },
-    {
-      "id": "clima",
-      "rotulo": "Clima tenso a partir de",
-      "tipo": "deslizante",
-      "minimo": 10,
-      "maximo": 90,
-      "passo": 5,
-      "padrao": 35,
-      "unidade": "%",
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "@presente": "clima"
-      },
-      "dica": "Quanto menor, mais cedo a cena fica tensa e o coração bate"
-    },
-    {
-      "id": "peso_da_mira",
-      "rotulo": "Peso da mira",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Efeitos",
-      "aparece_com": {
-        "@presente": "canal.mira"
-      },
-      "dica": "O perigo deixa a mira do giroscópio mais pesada por instantes"
-    },
-    {
-      "id": "susto_no_alto_falante",
-      "rotulo": "Susto no alto-falante",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Susto",
-      "aparece_com": {
-        "@presente": "susto_no_alto_falante"
-      },
-      "dica": "O estalo do jogo no alto-falante, no susto com a cena tensa"
-    },
-    {
-      "id": "susto_no_tato",
-      "rotulo": "Susto no tato",
-      "tipo": "ligado",
-      "padrao": true,
-      "grupo": "Susto",
-      "aparece_com": {
-        "@presente": "susto_no_tato"
-      },
-      "dica": "Um tranco na vibração fina, no susto com a cena tensa"
-    },
-    {
-      "id": "intervalo_do_susto",
-      "rotulo": "Intervalo do susto",
-      "tipo": "deslizante",
-      "minimo": 1,
-      "maximo": 30,
-      "passo": 1,
-      "padrao": 5,
-      "unidade": "s",
-      "grupo": "Susto",
-      "aparece_com": {
-        "@presente": "intervalo_do_susto"
-      },
-      "dica": "O tempo mínimo entre um susto e o próximo"
-    },
-    {
-      "id": "duracao_do_susto",
-      "rotulo": "Duração do susto",
-      "tipo": "deslizante",
-      "minimo": 100,
-      "maximo": 1500,
-      "passo": 50,
-      "padrao": 300,
-      "unidade": "ms",
-      "grupo": "Susto",
-      "aparece_com": {
-        "@presente": "duracao_do_susto"
-      },
-      "dica": "Quanto dura o pico do susto, no tato e no alto-falante"
-    },
-    {
-      "id": "volume_do_susto",
-      "rotulo": "Volume do susto",
-      "tipo": "deslizante",
-      "minimo": 0,
-      "maximo": 100,
-      "passo": 5,
-      "padrao": 100,
-      "unidade": "%",
-      "grupo": "Susto",
-      "zero": "Mudo",
-      "aparece_com": {
-        "@presente": "volume_do_susto"
-      },
-      "dica": "O volume do estalo do susto no alto-falante do controle"
-    },
-    {
-      "id": "forca_do_susto",
-      "rotulo": "Força do susto",
-      "tipo": "deslizante",
-      "minimo": 0,
-      "maximo": 100,
-      "passo": 5,
-      "padrao": 100,
-      "unidade": "%",
-      "grupo": "Susto",
-      "zero": "Nada",
-      "aparece_com": {
-        "@presente": "forca_do_susto"
-      },
-      "dica": "A força do tranco do susto na vibração fina"
-    },
-    {
-      "id": "tipo_do_coracao",
-      "rotulo": "Coração",
-      "tipo": "escolha",
-      "escolhas": [
-        "Batida",
-        "Pancada",
-        "Pulso",
-        "Tremor",
-        "Estalo",
-        "Onda"
-      ],
-      "padrao": "Batida",
-      "grupo": "Tipos",
-      "dica": "A forma de cada batida do coração no tato",
-      "aparece_com": {
-        "@presente": "tipo_do_coracao"
-      }
-    },
-    {
-      "id": "tipo_do_alivio",
-      "rotulo": "Alívio",
-      "tipo": "escolha",
-      "escolhas": [
-        "Batida",
-        "Pancada",
-        "Pulso",
-        "Tremor",
-        "Estalo",
-        "Onda"
-      ],
-      "padrao": "Batida",
-      "grupo": "Tipos",
-      "dica": "A forma do alívio, a batida calma depois do perigo",
-      "aparece_com": {
-        "@presente": "tipo_do_alivio"
-      }
-    },
-    {
-      "id": "tipo_do_golpe",
-      "rotulo": "Golpe com lado",
-      "tipo": "escolha",
-      "escolhas": [
-        "Contínuo",
-        "Batida",
-        "Pancada",
-        "Pulso",
-        "Tremor",
-        "Estalo",
-        "Onda"
-      ],
-      "padrao": "Contínuo",
-      "grupo": "Tipos",
-      "dica": "A forma do golpe nos motores; Contínuo é o golpe inteiro, sem forma",
-      "aparece_com": {
-        "@presente": "tipo_do_golpe"
-      }
-    },
-    {
-      "id": "tipo_do_susto",
-      "rotulo": "Susto no tato",
-      "tipo": "escolha",
-      "escolhas": [
-        "Batida",
-        "Pancada",
-        "Pulso",
-        "Tremor",
-        "Estalo",
-        "Onda"
-      ],
-      "padrao": "Pancada",
-      "grupo": "Tipos",
-      "dica": "A forma do susto no tato, na duração da aba Susto",
-      "aparece_com": {
-        "@presente": "tipo_do_susto"
-      }
-    },
-    {
-      "id": "tipo_do_l2",
-      "rotulo": "Impacto no L2",
-      "tipo": "escolha",
-      "escolhas": [
-        "Vibração",
-        "Resistência",
-        "Disparo",
-        "Arco",
-        "Galope",
-        "Metralhadora",
-        "Rampa de força",
-        "Curva de força",
-        "Vibração por posição"
-      ],
-      "padrao": "Vibração",
-      "grupo": "Tipos",
-      "dica": "O efeito do impacto no L2, da lista da aba Gatilhos",
-      "aparece_com": {
-        "@presente": "tipo_do_l2"
-      }
-    },
-    {
-      "id": "tipo_do_r2",
-      "rotulo": "Impacto no R2",
-      "tipo": "escolha",
-      "escolhas": [
-        "Vibração",
-        "Resistência",
-        "Disparo",
-        "Arco",
-        "Galope",
-        "Metralhadora",
-        "Rampa de força",
-        "Curva de força",
-        "Vibração por posição"
-      ],
-      "padrao": "Vibração",
-      "grupo": "Tipos",
-      "dica": "O efeito do impacto no R2, da lista da aba Gatilhos",
-      "aparece_com": {
-        "@presente": "tipo_do_r2"
-      }
     },
     {
       "id": "canal_haptica",
@@ -474,7 +497,8 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "O coração, o alívio e o susto no tato"
+      "dica": "O coração, o alívio e o susto no tato",
+      "canal": "haptica"
     },
     {
       "id": "canal_motor",
@@ -482,7 +506,8 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "O golpe com lado"
+      "dica": "O golpe com lado",
+      "canal": "vibracao"
     },
     {
       "id": "canal_gatilho",
@@ -490,7 +515,8 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "O impacto nos gatilhos"
+      "dica": "O impacto nos gatilhos",
+      "canal": "gatilho"
     },
     {
       "id": "canal_luz",
@@ -498,7 +524,8 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "A luz do dano"
+      "dica": "A luz do dano",
+      "canal": "luz"
     },
     {
       "id": "canal_leds",
@@ -506,7 +533,8 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "O lado na luz"
+      "dica": "O lado na luz",
+      "canal": "leds"
     },
     {
       "id": "canal_som",
@@ -514,13 +542,29 @@
       "tipo": "ligado",
       "padrao": true,
       "grupo": "Canais",
-      "dica": "O susto no alto-falante"
+      "dica": "O susto no alto-falante",
+      "canal": "som"
+    },
+    {
+      "id": "receita",
+      "rotulo": "Receita",
+      "tipo": "escolha",
+      "escolhas": [
+        "Pelo jogo",
+        "Universal"
+      ],
+      "padrao": "Pelo jogo",
+      "grupo": "Receitas",
+      "dica": "Pelo jogo, vale a receita do jogo aberto; sem ela, a universal"
     }
   ],
   "agora": [
-    "perfil",
+    "controle",
     "nivel",
-    "linhas"
+    "clima",
+    "perfil",
+    "linhas",
+    "ao_vivo"
   ],
   "modos_de_aba": [
     {
@@ -536,11 +580,20 @@
       ]
     }
   ],
+  "abas": [
+    "Geral",
+    "Controles",
+    "Sentidos",
+    "Efeitos",
+    "Estilos",
+    "Canais",
+    "Receitas"
+  ],
   "acoes": [
     {
       "id": "procurar",
       "rotulo": "Procurar receitas",
-      "grupo": "Geral",
+      "grupo": "Receitas",
       "icone": "procurar"
     },
     {
@@ -557,31 +610,31 @@
     {
       "id": "testar_coracao",
       "rotulo": "Testar o coração",
-      "grupo": "Tipos",
+      "grupo": "Efeitos",
       "icone": "testar"
     },
     {
       "id": "testar_alivio",
       "rotulo": "Testar o alívio",
-      "grupo": "Tipos",
+      "grupo": "Efeitos",
       "icone": "testar"
     },
     {
       "id": "testar_golpe",
       "rotulo": "Testar o golpe",
-      "grupo": "Tipos",
+      "grupo": "Efeitos",
       "icone": "testar"
     },
     {
       "id": "testar_susto",
       "rotulo": "Testar o susto",
-      "grupo": "Tipos",
+      "grupo": "Efeitos",
       "icone": "testar"
     },
     {
       "id": "testar_gatilhos",
       "rotulo": "Testar os gatilhos",
-      "grupo": "Tipos",
+      "grupo": "Efeitos",
       "icone": "testar"
     }
   ],
@@ -591,7 +644,7 @@
     "altura_max": 420
   },
   "aparelhos_acoes": {
-    "grupo": "Geral",
+    "grupo": "Controles",
     "acoes": [
       {
         "id": "ligar",
