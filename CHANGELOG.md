@@ -9,6 +9,9 @@
   de novo: a luz e o impacto no gatilho saem com o prazo do efeito, e o Hefesto que devolve o que
   havia o faz sozinho. O impacto já não apaga o gatilho do perfil ao terminar quando o Hefesto o
   devolve.
+- Sem jogo aberto, a extensão deixa o processador em paz: o laço dorme até acontecer algo (um evento, uma
+  mudança na janela ou a renovação do som no corpo) e volta aos 60 por segundo com um jogo em cena, em
+  qualquer controle. A escolha da receita não relê as receitas que não mudaram no disco.
 
 ## 0.5.6 (16/11/2026)
 

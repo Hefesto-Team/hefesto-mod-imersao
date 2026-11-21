@@ -8,6 +8,11 @@ recebem cada evento da porta e o tique, e o que eles derivam entra no mesmo tiqu
 :class:`~motor.caminho.Caminho` mede em que canal o jogo escreve, e o vencedor de um canal ocupado
 só sai quando é mais forte que o jogo; quando a porta não toca háptica, a saída o diz por
 :meth:`Motor.pelo_motor`, e a háptica passa a disputar com o motor do jogo.
+
+Sem jogo em cena (o ``perfil.jogo`` diz, no todo e em cada controle), sem efeito vivo e com todo
+derivado em zero, :func:`rodar` repousa (:meth:`Motor.repousa`): dorme até o primeiro evento, a mudança
+que o motor sinaliza com :meth:`Motor.acordar` ou o prazo da saída. Antes do primeiro
+``perfil.jogo`` o laço não repousa.
 """
 from __future__ import annotations
 
@@ -30,6 +35,7 @@ from receita import impressao as impressoes
 from receita.formato import COR, DURA_DO_RECORTE_MS, Receita
 
 HZ = 60
+QUASE_ZERO = 1e-3
 DURACAO_MINIMA_MS = 250.0
 REGRA_DO_TESTE = -1
 PRIORIDADE_DO_TESTE = 100
@@ -108,6 +114,9 @@ class Motor:
         self.calados: frozenset[str] = frozenset()
         self.niveis: dict[str, tuple[float, float]] = {}
         self.jogo: str | None = None
+        self.em_cena = False
+        self.despertador: asyncio.Event | None = None
+        self._soube_do_jogo = False
         self.mira_recusada: dict[str, float] = {}
         self._fila: list[_Evento] = []
         self.caminho = Caminho()
@@ -135,10 +144,17 @@ class Motor:
     def trocar(self, receita: Receita) -> None:
         """A receita nova vale no tique seguinte; o que a velha escrevia a saída devolve ao jogo."""
         self._proxima = receita
+        self.acordar()
+
+    def acordar(self) -> None:
+        """Tira o laço do repouso: algo mudou que o próximo tique tem de ver."""
+        if self.despertador is not None:
+            self.despertador.set()
 
     def ajustar(self, opcoes: dict[str, Any]) -> None:
         """Os valores das opções da janela; a entrada sem valor volta ao padrão da receita."""
         self.opcoes = dict(opcoes)
+        self.acordar()
 
     def estilo(self, sem: frozenset[str] = frozenset(),
                escalas: dict[str, float] | None = None) -> None:
@@ -147,6 +163,7 @@ class Motor:
         não muda."""
         self.sem_do_estilo = frozenset(sem)
         self.escala_do_estilo = dict(escalas or {})
+        self.acordar()
         for ativa in self.ativas:
             if self._fora_do_estilo(ativa.efeito) and ativa.regra != REGRA_DO_TESTE:
                 ativa.fim_ms = self.agora_ms
@@ -158,17 +175,21 @@ class Motor:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
         self.jogadores = {c["uniq"]: int(c.get("jogador") or 0) for c in lista
                           if isinstance(c.get("uniq"), str)}
+        self.acordar()
 
     def calar(self, uniqs: set[str] | frozenset[str]) -> None:
         """Os controles que a janela desmarcou: nenhum efeito chega a eles."""
         self.calados = frozenset(uniqs)
+        self.acordar()
 
     def nivelar(self, niveis: dict[str, tuple[float, float]]) -> None:
         """A Força e o volume de cada controle, de 0 a 1, pelo ``uniq``; sem ele, os dois em 1."""
         self.niveis = dict(niveis)
+        self.acordar()
 
     def evento(self, topico: str, nome: str, uniq: str | None, dados: dict[str, Any]) -> None:
         self._fila.append(_Evento(topico, nome, uniq, dados if isinstance(dados, dict) else {}))
+        self.acordar()
 
     def recusado(self, chave: Vaga, params: dict[str, Any], dados: Any) -> None:
         """A porta recusou a escrita da :class:`~motor.saida.Saida` em ``chave``: com ``-32011``,
@@ -377,6 +398,7 @@ class Motor:
             self.ativas.append(Ativacao(REGRA_DO_TESTE, nome, tuple(sorted(self.jogadores)),
                                         quando, fim))
             tocados.append(nome)
+        self.acordar()
         return tocados
 
     def _rodar_as_regras(self, t_ms: float) -> None:
@@ -553,6 +575,8 @@ class Motor:
             leitura.disparou = False
         fila, self._fila = self._fila, []
         for evento in fila:
+            if evento.topico == "perfil.jogo":
+                self._ler_o_jogo(evento.dados)
             jogo = evento.dados.get("jogo") if evento.topico == "perfil.jogo" else self.jogo
             if jogo != self.jogo:
                 self.jogo = jogo if isinstance(jogo, str) else None
@@ -584,6 +608,25 @@ class Motor:
         self.vencedores = vencedores
         return vencedores
 
+    def _ler_o_jogo(self, dados: dict[str, Any]) -> None:
+        """Há jogo em cena quando o ``perfil.jogo`` diz, no todo ou em qualquer controle da mesa."""
+        self._soube_do_jogo = True
+        jogo, em_cena = dados.get("jogo"), dados.get("em_cena")
+        cena = em_cena if isinstance(em_cena, bool) else isinstance(jogo, str) and bool(jogo)
+        controles = dados.get("controles")
+        no_controle = isinstance(controles, list) and any(
+            isinstance(c, dict) and (c.get("em_cena") is True or (
+                isinstance(c.get("jogo"), str) and bool(c["jogo"]))) for c in controles)
+        self.em_cena = bool(cena) or no_controle
+
+    def repousa(self) -> bool:
+        """Sem jogo em cena (dito pelo Hefesto), sem efeito vivo, sem evento por ler e com todo
+        derivado e todo estado em zero, o tique seguinte não tem o que mudar."""
+        return (self._soube_do_jogo and not self.em_cena and not self.jogo and not self.ativas
+                and not self._fila and self._proxima is None
+                and all(abs(v) < QUASE_ZERO for v in self.valores.values())
+                and not any(e.ligado for e in self.estados.values()))
+
     def vibrando(self, t_ms: float) -> frozenset[str]:
         """Os controles que a extensão faz vibrar no instante: o padrão só vibra nos golpes dele."""
         return frozenset(p.uniq for p in self.vencedores.values() if p.forca > 0 and (
@@ -592,14 +635,40 @@ class Motor:
                 p.params.get("escala_ms")) > 0)))
 
 
+async def _dormir(parar: asyncio.Event, acordar: asyncio.Event, ate_s: float | None) -> None:
+    esperas = {asyncio.ensure_future(parar.wait()), asyncio.ensure_future(acordar.wait())}
+    try:
+        await asyncio.wait(esperas, timeout=ate_s, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for espera in esperas:
+            espera.cancel()
+        await asyncio.gather(*esperas, return_exceptions=True)
+
+
 async def rodar(motor: Motor, saida: Saida, parar: asyncio.Event,
-                relogio: Callable[[], float] = time.monotonic, hz: int = HZ) -> None:
-    """O laço: um passo do motor e a saída a cada ``1/hz`` segundo, até ``parar``."""
+                relogio: Callable[[], float] = time.monotonic, hz: int = HZ,
+                pode_repousar: Callable[[], bool] | None = None) -> None:
+    """O laço: um passo do motor e a saída a cada ``1/hz`` segundo, até ``parar``.
+
+    Em repouso (:meth:`Motor.repousa`, nada pendente na saída e ``pode_repousar``) o laço dorme até
+    o primeiro evento, a próxima mudança que o motor sinaliza (:meth:`Motor.acordar`) ou o prazo da
+    saída (:meth:`~motor.saida.Saida.prazo_ms`, a renovação do ``corpo.ligar``).
+    """
     intervalo = 1.0 / hz
+    acordar = asyncio.Event()
+    motor.despertador = acordar
     proximo = relogio()
     while not parar.is_set():
+        acordar.clear()
         t_ms = relogio() * 1000.0
         await saida.aplicar(t_ms, motor.passo(t_ms))
+        if motor.repousa() and (pode_repousar is None or pode_repousar()):
+            prazo = saida.prazo_ms(t_ms)
+            if prazo is None or prazo > 0:
+                if not acordar.is_set():
+                    await _dormir(parar, acordar, None if prazo is None else prazo / 1000.0)
+                proximo = relogio()
+                continue
         proximo += intervalo
         espera = proximo - relogio()
         if espera < 0:
@@ -609,4 +678,5 @@ async def rodar(motor: Motor, saida: Saida, parar: asyncio.Event,
             await asyncio.wait_for(parar.wait(), espera)
         except asyncio.TimeoutError:
             pass
+    motor.despertador = None
     await saida.soltar_tudo(relogio() * 1000.0)

@@ -549,6 +549,38 @@ class Saida:
                 self._dizer(chave, f"mira.peso recusado: {exc}", motivo_da_recusa(
                     codigo, getattr(exc, "dados", None)))
 
+    def prazo_ms(self, t_ms: float) -> float | None:
+        """Em quantos ms a saída tem o que fazer sem evento nenhum: ``0`` já (escrita viva, recusa
+        por tentar de novo ou ``corpo.ligar`` por mudar), a renovação mais próxima do
+        ``corpo.ligar`` de cada controle, ou ``None`` quando não há prazo."""
+        if self._no_teto or self._falhou or any(
+                self._viva_no_controle(chave, params) for chave, (_, params) in self.escrito.items()):
+            return 0.0
+        if self.sem_corpo or self.pedidos_do_corpo is None:
+            return None
+        querem = {uniq: pedido for uniq, pedido in self.pedidos_do_corpo().items() if pedido}
+        if set(self.corpos) - querem.keys():
+            return 0.0
+        prazo: float | None = None
+        for uniq, pedido in querem.items():
+            antes = self.corpos.get(uniq)
+            if antes is None or antes[1] != pedido:
+                return 0.0
+            resta = max(0.0, antes[0] + RENOVA_MS - t_ms)
+            prazo = resta if prazo is None else min(prazo, resta)
+        return prazo
+
+    @staticmethod
+    def _viva_no_controle(chave: Chave, params: dict[str, Any]) -> bool:
+        canal = chave[1]
+        if canal == "vibracao":
+            return bool(params["fraco"] or params["forte"])
+        if canal == "gatilho":
+            return params["modo"] != "Off"
+        if canal == "haptica":
+            return bool(params["forca"])
+        return canal == "mira"
+
     async def soltar_tudo(self, t_ms: float) -> None:
         """O zero em tudo que ficou escrito: a extensão que sai não deixa o controle vibrando.
 

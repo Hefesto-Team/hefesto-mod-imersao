@@ -8,9 +8,14 @@ arquivo não conta. A receita de quem joga sem ``jogo.chave`` vale em todo jogo 
 como valia o ``receita.json`` antes de existir receita por jogo. Sem nenhuma, ou com «Universal» na
 opção ``receita``, vale o universal. A receita recusada vai ao diário com a linha do erro e não
 conta.
+
+O arquivo validado (ou recusado) se guarda pelo caminho, o instante de modificação e o tamanho: a
+escolha de uma receita não relê nem valida de novo o que não mudou no disco, e o arquivo que muda
+é lido outra vez. A recusa vai ao diário uma vez por versão do arquivo.
 """
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,6 +63,7 @@ class Biblioteca:
         self.dados = dados
         self._universal = universal
         self._diario = diario or (lambda _frase: None)
+        self._guardadas: dict[Path, tuple[tuple[int, int], Receita | None]] = {}
 
     def pastas(self) -> dict[str, list[Path]]:
         """Os arquivos de cada origem, em ordem de nome."""
@@ -72,18 +78,29 @@ class Biblioteca:
     def _lidas(self, origem: str, arquivos: list[Path]) -> Iterator[tuple[Path, Receita]]:
         for arquivo in arquivos:
             try:
-                receita = ler_receita(arquivo.read_bytes())
+                estado = arquivo.stat()
+                marca = (estado.st_mtime_ns, estado.st_size)
+                guardada = self._guardadas.get(arquivo)
+                if guardada is not None and guardada[0] == marca:
+                    receita = guardada[1]
+                else:
+                    receita = None
+                    try:
+                        receita = ler_receita(arquivo.read_bytes())
+                    except ReceitaRecusada as exc:
+                        self._diario(f"a receita {arquivo} foi recusada e não vale:\n{exc}")
+                    self._guardadas[arquivo] = (marca, receita)
             except OSError:
                 continue
-            except ReceitaRecusada as exc:
-                self._diario(f"a receita {arquivo} foi recusada e não vale:\n{exc}")
-                continue
-            yield arquivo, receita
+            if receita is not None:
+                yield arquivo, receita
 
     def para(self, chave: str | None, escolha: str = PELO_JOGO) -> Escolhida:
         """A receita do jogo ``chave`` (``None`` fora de jogo) pela precedência das origens."""
         if escolha != UNIVERSAL_SEMPRE:
             pastas = self.pastas()
+            vivos = {arquivo for arquivos in pastas.values() for arquivo in arquivos}
+            self._guardadas = {k: v for k, v in self._guardadas.items() if k in vivos}
             geral: Escolhida | None = None
             for origem in ORIGENS:
                 for arquivo, receita in self._lidas(origem, pastas[origem]):
@@ -99,6 +116,7 @@ class Biblioteca:
 
 def _jsons(pasta: Path) -> list[Path]:
     try:
-        return sorted(p for p in pasta.iterdir() if p.suffix == ".json" and p.is_file())
+        with os.scandir(pasta) as itens:
+            return sorted(Path(i.path) for i in itens if i.name.endswith(".json") and i.is_file())
     except OSError:
         return []

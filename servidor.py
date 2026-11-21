@@ -908,10 +908,12 @@ class Extensao:
 
     async def reler_as_opcoes(self) -> None:
         """O ``opcoes.json`` mudou: as entradas valem já, e a opção da receita pode trocá-la."""
+        antes = self.escolha
         self.opcoes = ajustes.com_a_tela(ler_as_opcoes(self.dados), self.vendo)
         self.motor.ajustar(self.opcoes)
         self.aplicar_o_estilo()
-        await self.escolher()
+        if self.escolha != antes:
+            await self.escolher()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.assinar()
         await self.publicar_se_mudou()
@@ -1072,7 +1074,8 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
     clima = asyncio.create_task(acompanhar_o_clima())
     resumo = asyncio.create_task(resumir_o_minuto())
     cor = asyncio.create_task(esperar_a_cor())
-    motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim))
+    motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim,
+                                             pode_repousar=lambda: not extensao.testes))
     try:
         await fim.wait()
         with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
