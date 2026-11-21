@@ -1,5 +1,11 @@
 # Mudanças
 
+## Na próxima versão
+
+- O impacto, o susto e a luz que caem no teto de efeitos do controle não se perdem: saem logo que há
+  vaga, em cada controle. O que a porta recusa por outro motivo se tenta de novo só a cada 2,5 s, e
+  o diário diz a recusa uma vez por efeito, com o motivo «teto» quando foi o teto.
+
 ## 0.5.6 (16/11/2026)
 
 - A janela perde a coluna «Agora»: no alto, uma faixa diz se a extensão está tocando, com o nome do
