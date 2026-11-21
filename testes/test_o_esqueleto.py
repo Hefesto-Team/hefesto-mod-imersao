@@ -3,6 +3,7 @@ falando com a porta de mentira num socket."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import shutil
@@ -170,3 +171,178 @@ def test_sem_a_porta_no_ambiente_o_processo_recusa(monkeypatch: pytest.MonkeyPat
         monkeypatch.delenv(nome, raising=False)
     assert asyncio.run(servidor.rodar()) == 2
     assert os.environ.get("HEFESTO_MOD_SOCKET") is None
+
+
+TAREFAS_DE_FUNDO = ("ouvir", "vigiar", "clima", "resumo", "cor", "motor")
+
+
+def _falhar_na_tarefa(nome: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Faz a tarefa ``nome`` de ``servidor.rodar`` levantar na primeira vez que chega a ela."""
+    def a_tarefa() -> str:
+        atual = asyncio.current_task()
+        return atual.get_name() if atual is not None else ""
+
+    def cair(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError(f"queda forçada em {nome}")
+
+    monkeypatch.setattr(servidor, "PUBLICA_O_CLIMA_S", 0.01)
+    monkeypatch.setattr(servidor, "RESUMO_A_CADA_S", 0.01)
+    monkeypatch.setattr(servidor, "RELE_OS_CONTROLES_S", 0.01)
+    if nome == "vigiar":
+        monkeypatch.setattr(servidor, "_marca_das_opcoes", cair)
+    elif nome == "motor":
+        async def laco(*_args: Any, **_kwargs: Any) -> None:
+            cair()
+
+        monkeypatch.setattr(servidor, "rodar_o_laco", laco)
+    elif nome == "ouvir":
+        monkeypatch.setattr(servidor.Extensao, "ao_evento", cair)
+    else:
+        for metodo in ("publicar_se_mudou", "rever_os_controles"):
+            original = getattr(servidor.Extensao, metodo)
+
+            async def depende(eu: Any, *args: Any, _o: Any = original, _m: str = metodo,
+                              **kwargs: Any) -> Any:
+                if a_tarefa() == nome:
+                    cair()
+                return await _o(eu, *args, **kwargs)
+
+            monkeypatch.setattr(servidor.Extensao, metodo, depende)
+
+
+@pytest.mark.parametrize("nome", TAREFAS_DE_FUNDO)
+def test_a_tarefa_de_fundo_que_cai_encerra_a_extensao_com_o_traceback_no_diario(
+        nome: str, pasta_curta: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str]) -> None:
+    porta = PortaDeMentira()
+    _subir(pasta_curta, porta, monkeypatch, None)
+    _falhar_na_tarefa(nome, monkeypatch)
+
+    async def correr() -> int:
+        socket = await asyncio.start_unix_server(porta.atender, path=str(pasta_curta / "mods.sock"))
+        extensoes: list[servidor.Extensao] = []
+        processo = asyncio.create_task(servidor.rodar(extensoes.append))
+        try:
+            await ate(lambda: bool(extensoes))
+            if nome == "ouvir":
+                extensoes[0].porta.eventos.put_nowait({"method": "evento", "params": {
+                    "topico": "botoes", "nome": "button.down", "uniq": UM, "dados": {}}})
+            try:
+                return await asyncio.wait_for(asyncio.shield(processo), 2)
+            except asyncio.TimeoutError:
+                pytest.fail(f"a extensão seguiu viva com a tarefa {nome} caída")
+        finally:
+            for escritor in porta.escritores:
+                escritor.close()
+            socket.close()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(processo, 5)
+
+    assert asyncio.run(correr()) == 1
+    diario = capsys.readouterr().err
+    assert f"a tarefa {nome} caiu" in diario and f"queda forçada em {nome}" in diario
+    assert "Traceback" in diario
+
+
+def test_a_porta_fechada_com_a_tarefa_ouvir_morta_encerra_o_processo_e_nao_deixa_pedido_preso(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    porta = PortaDeMentira()
+    _subir(pasta_curta, porta, monkeypatch, None)
+    monkeypatch.setattr(servidor, "PRAZO_DO_PEDIDO_S", 0.05)
+
+    async def corpo(extensao: servidor.Extensao) -> None:
+        for escritor in porta.escritores:
+            escritor.close()
+        await ate(lambda: extensao.porta.fechada)
+        assert extensao.porta._esperando == {}
+
+    assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
+
+
+async def _servir(pasta: Path, resposta: Any) -> Any:
+    return await asyncio.start_unix_server(resposta, path=str(pasta / "linha.sock"))
+
+
+def test_o_leitor_que_morre_por_qualquer_causa_marca_a_porta_como_fechada() -> None:
+    class Leitor:
+        async def readline(self) -> bytes:
+            raise RuntimeError("leitor quebrado")
+
+    class Escritor:
+        def close(self) -> None:
+            pass
+
+    async def correr() -> tuple[bool, dict[str, Any]]:
+        porta = servidor.Porta(Leitor(), Escritor())  # type: ignore[arg-type]
+        with pytest.raises(RuntimeError, match="leitor quebrado"):
+            await porta._lendo
+        return porta.fechada, porta.eventos.get_nowait()
+
+    fechada, mensagem = asyncio.run(correr())
+    assert fechada and mensagem == {"method": "porta.fechou"}
+
+
+def test_a_linha_de_mais_de_1_mib_nao_derruba_o_leitor_da_porta(pasta_curta: Path) -> None:
+    async def correr() -> tuple[bool, list[Any]]:
+        async def atender(leitor: asyncio.StreamReader, escritor: asyncio.StreamWriter) -> None:
+            escritor.write(b"x" * (3 << 20) + b"\n")
+            escritor.write(json.dumps({"method": "evento", "params": {"topico": "conexao"}}
+                                      ).encode() + b"\n")
+            await escritor.drain()
+            await leitor.read()
+
+        socket = await _servir(pasta_curta, atender)
+        porta = await servidor.Porta.abrir(str(pasta_curta / "linha.sock"))
+        try:
+            mensagem = await asyncio.wait_for(porta.eventos.get(), 3)
+            return porta.fechada, [mensagem]
+        finally:
+            porta.fechar()
+            socket.close()
+
+    fechada, mensagens = asyncio.run(correr())
+    assert not fechada
+    assert mensagens[0]["params"]["topico"] == "conexao"
+
+
+def test_o_pedido_que_estoura_o_prazo_sai_da_fila_de_espera(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(servidor, "PRAZO_DO_PEDIDO_S", 0.05)
+
+    async def correr() -> dict[int, Any]:
+        async def calado(leitor: asyncio.StreamReader, escritor: asyncio.StreamWriter) -> None:
+            await leitor.read()
+
+        socket = await _servir(pasta_curta, calado)
+        porta = await servidor.Porta.abrir(str(pasta_curta / "linha.sock"))
+        try:
+            with pytest.raises(asyncio.TimeoutError):
+                await porta.pedir("mod.ola", {})
+            return dict(porta._esperando)
+        finally:
+            porta.fechar()
+            socket.close()
+
+    assert asyncio.run(correr()) == {}
+
+
+@pytest.mark.parametrize("valor", [[], {}, 3, None, ["terror"]])
+def test_o_estilo_que_nao_e_texto_no_opcoes_nao_derruba_a_extensao(
+        valor: Any, pasta_curta: Path) -> None:
+    from receita import estilos
+
+    dados = pasta_curta / "dados"
+    dados.mkdir()
+    (dados / servidor.ARQUIVO_DAS_OPCOES).write_text(json.dumps({estilos.OPCAO: valor}),
+                                                      encoding="utf-8")
+    extensao = servidor.Extensao(PortaMuda(), servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                 None, dados)
+    assert extensao.preset is None
+    extensao.estilo_dito = True
+    extensao.aplicar_o_estilo()
+    assert extensao.preset == estilos.GERAL
+
+
+class PortaMuda:
+    async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "ok"}

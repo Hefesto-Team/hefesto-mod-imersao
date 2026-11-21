@@ -12,6 +12,9 @@
 - Sem jogo aberto, a extensão deixa o processador em paz: o laço dorme até acontecer algo (um evento, uma
   mudança na janela ou a renovação do som no corpo) e volta aos 60 por segundo com um jogo em cena, em
   qualquer controle. A escolha da receita não relê as receitas que não mudaram no disco.
+- A extensão que perde uma tarefa interna não fica de pé sem tocar: ela sai com o erro no diário, e o
+  Hefesto a sobe de novo. Uma linha enorme da porta ou um estilo torto no arquivo de opções não a
+  derrubam.
 
 ## 0.5.6 (16/11/2026)
 

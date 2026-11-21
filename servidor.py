@@ -46,7 +46,8 @@ import signal
 import sys
 import threading
 import time
-from collections.abc import Callable
+import traceback
+from collections.abc import Callable, Coroutine
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,7 @@ RELE_AS_OPCOES_S = 0.5
 RESUMO_A_CADA_S = 60.0
 RELE_OS_CONTROLES_S = 5.0
 PUBLICA_O_CLIMA_S = 0.5
+PRAZO_DO_PEDIDO_S = 10.0
 TOPICOS_DA_PORTA = (
     "conexao", "perfil.jogo", "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "entradas",  # (noqa-acento)
     "botoes", "movimento", "jogo.som", "microfone.nivel", "jogo.tela", "jogo.identidade",
@@ -187,8 +189,16 @@ class Porta:
         return cls(leitor, escritor)
 
     async def _ler(self) -> None:
-        with contextlib.suppress(ConnectionError):
-            while linha := await self._leitor.readline():
+        """Lê uma mensagem por linha até a porta fechar; a linha acima do limite do leitor e a que
+        não é JSON de objeto se descartam, e qualquer saída do laço marca a porta como fechada."""
+        try:
+            while True:
+                try:
+                    linha = await self._leitor.readline()
+                except ValueError:
+                    continue
+                if not linha:
+                    break
                 try:
                     mensagem = json.loads(linha)
                 except ValueError:
@@ -201,23 +211,30 @@ class Porta:
                     espera.set_result(mensagem)
                 elif "method" in mensagem:
                     await self.eventos.put(mensagem)
-        self.fechada = True
-        for espera in self._esperando.values():
-            if not espera.done():
-                espera.set_exception(ConnectionError("a porta fechou"))
-        await self.eventos.put({"method": "porta.fechou"})
+        except ConnectionError:
+            pass
+        finally:
+            self.fechada = True
+            for espera in self._esperando.values():
+                if not espera.done():
+                    espera.set_exception(ConnectionError("a porta fechou"))
+            self.eventos.put_nowait({"method": "porta.fechou"})
 
     async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
         """O ``result`` do pedido; o ``error`` da porta vira :class:`RecusaDaPorta`."""
         if self.fechada:
             raise ConnectionError("a porta fechou")
         self._proximo += 1
+        ident = self._proximo
         espera: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
-        self._esperando[self._proximo] = espera
-        linha = {"jsonrpc": "2.0", "id": self._proximo, "method": metodo, "params": params}
-        self._escritor.write(json.dumps(linha).encode() + b"\n")
-        await self._escritor.drain()
-        resposta = await asyncio.wait_for(espera, 10)
+        self._esperando[ident] = espera
+        linha = {"jsonrpc": "2.0", "id": ident, "method": metodo, "params": params}
+        try:
+            self._escritor.write(json.dumps(linha).encode() + b"\n")
+            await self._escritor.drain()
+            resposta = await asyncio.wait_for(espera, PRAZO_DO_PEDIDO_S)
+        finally:
+            self._esperando.pop(ident, None)
         if "error" in resposta:
             erro = resposta["error"] if isinstance(resposta["error"], dict) else {}
             codigo = erro.get("code")
@@ -899,7 +916,7 @@ class Extensao:
         """O preset do universal: o escolhido na janela, ou o do estilo que o Hefesto diz. Sem
         escolha à mão e sem o estilo dito (o Hefesto que não o publica), o padrão da receita."""
         escolha = self.opcoes.get(estilos.OPCAO, estilos.PELO_JOGO)
-        if escolha not in estilos.PRESETS and not self.estilo_dito:
+        if not (isinstance(escolha, str) and escolha in estilos.PRESETS) and not self.estilo_dito:
             self.preset = None
             self.motor.estilo()
             return
@@ -1069,16 +1086,36 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
             await asyncio.sleep(PUBLICA_O_CLIMA_S)
             await extensao.publicar_se_mudou()
 
-    ouvir = asyncio.create_task(ouvir_a_porta())
-    vigiar = asyncio.create_task(vigiar_as_opcoes())
-    clima = asyncio.create_task(acompanhar_o_clima())
-    resumo = asyncio.create_task(resumir_o_minuto())
-    cor = asyncio.create_task(esperar_a_cor())
-    motor = asyncio.create_task(rodar_o_laco(extensao.motor, extensao.saida, fim,
-                                             pode_repousar=lambda: not extensao.testes))
+    saida_do_processo = 0
+
+    def criar(nome: str, corpo: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+        """Toda tarefa de fundo nasce aqui: a que cai com exceção deixa o traceback no diário e
+        arma o fim com código de saída 1, para o Hefesto relançar a extensão."""
+        tarefa = asyncio.create_task(corpo, name=nome)
+
+        def terminou(feita: asyncio.Task[None]) -> None:
+            nonlocal saida_do_processo
+            erro = None if feita.cancelled() else feita.exception()
+            if erro is None:
+                return
+            diario(f"a tarefa {nome} caiu e a extensão sai:\n" + "".join(
+                traceback.format_exception(type(erro), erro, erro.__traceback__)))
+            saida_do_processo = 1
+            fim.set()
+
+        tarefa.add_done_callback(terminou)
+        return tarefa
+
+    ouvir = criar("ouvir", ouvir_a_porta())
+    vigiar = criar("vigiar", vigiar_as_opcoes())
+    clima = criar("clima", acompanhar_o_clima())
+    resumo = criar("resumo", resumir_o_minuto())
+    cor = criar("cor", esperar_a_cor())
+    motor = criar("motor", rodar_o_laco(extensao.motor, extensao.saida, fim,
+                                        pode_repousar=lambda: not extensao.testes))
     try:
         await fim.wait()
-        with contextlib.suppress(ConnectionError, asyncio.TimeoutError, RuntimeError):
+        with contextlib.suppress(Exception):
             await asyncio.wait_for(motor, 2.0)
         extensao.fechar_o_minuto()
         if extensao.vendo:
@@ -1095,7 +1132,7 @@ async def rodar(ao_nascer: Callable[[Extensao], None] | None = None) -> int:
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 laco.remove_signal_handler(sinal)
         porta.fechar()
-    return 0
+    return saida_do_processo
 
 
 def _marca_das_opcoes(dados: Path | None) -> tuple[int, int] | None:
