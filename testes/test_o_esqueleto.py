@@ -347,3 +347,33 @@ def test_o_estilo_que_nao_e_texto_no_opcoes_nao_derruba_a_extensao(
 class PortaMuda:
     async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
         return {"status": "ok"}
+
+
+def test_o_teste_pendente_mantem_o_laco_da_extensao_acordado_sem_jogo(
+        pasta_curta: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    porta = PortaDeMentira()
+    _subir(pasta_curta, porta, monkeypatch, None)
+    passos: list[float] = []
+
+    async def corpo(extensao: servidor.Extensao) -> None:
+        original = extensao.motor.passo
+
+        def contando(t_ms: float) -> Any:
+            passos.append(t_ms)
+            return original(t_ms)
+
+        monkeypatch.setattr(extensao.motor, "passo", contando)
+        extensao.motor.evento("perfil.jogo", "perfil.trocou", None, {"jogo": None,
+                                                                     "em_cena": False})
+        await ate(extensao.motor.repousa)
+        await asyncio.sleep(0.1)
+        parado = len(passos)
+        await asyncio.sleep(0.2)
+        assert len(passos) - parado <= 2, "sem jogo e sem nada pendente o laço repousa"
+        extensao.testes.append(servidor.Teste(set(), set(), []))
+        extensao.motor.acordar()
+        await asyncio.sleep(0.25)
+        assert len(passos) - parado >= 8, "com o teste pendente o laço da extensão segue a 60 Hz"
+        extensao.testes.clear()
+
+    assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
