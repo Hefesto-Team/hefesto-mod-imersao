@@ -8,11 +8,20 @@ from __future__ import annotations
 import asyncio
 import itertools
 import json
+import random
 from collections.abc import Sequence
 from typing import Any
 
 import pytest
-from apoio import DOIS, QUATRO_CONTROLES, UM, EscritasDeMentira, vibracao_do_jogo
+from apoio import (
+    DOIS,
+    QUATRO,
+    QUATRO_CONTROLES,
+    TRES,
+    UM,
+    EscritasDeMentira,
+    vibracao_do_jogo,
+)
 
 from motor import efeitos
 from motor import saida as saida_do_motor
@@ -91,7 +100,8 @@ def test_o_estado_que_sobe_e_desce_gera_os_efeitos_na_ordem_e_no_tempo() -> None
     assert _perto(feitas[1][0], 600) and _perto(feitas[2][0], 600), \
         "abaixo da histerese aos 400 ms, o estado só desce aos 500 ms de ligado"
     assert _perto(feitas[3][0], 1000)
-    assert escritas.de("luz.set")[0][1] == {"uniq": UM, "rgb": [0, 255, 0], "brilho": 1.0}
+    assert escritas.de("luz.set")[0][1] == {"uniq": UM, "rgb": [0, 255, 0], "brilho": 1.0,
+                                            "ate_ms": 300}
 
 
 def _cruz(uniq: str = UM) -> Evento:
@@ -276,7 +286,7 @@ def test_o_gatilho_sai_pelo_nome_do_trigger_set_e_solta_no_off() -> None:
     })
     _correr(motor, saida, escritas, 500, [(0, _cruz())])
     assert [p for _, p in escritas.de("gatilho.set")] == [
-        {"uniq": UM, "lado": "direito", "modo": "Weapon", "params": [2, 6, 255]},
+        {"uniq": UM, "lado": "direito", "modo": "Weapon", "params": [2, 6, 255], "ate_ms": 300},
         {"uniq": UM, "lado": "direito", "modo": "Off", "params": []}]
 
 
@@ -319,3 +329,75 @@ def test_o_laco_roda_perto_de_60_hz_e_solta_tudo_ao_parar() -> None:
     asyncio.run(correr())
     assert 15 <= passos <= 40, passos
     assert [p["forte"] for _, p in escritas.de("vibracao.set")] == [255, 0]
+
+
+_DANO = {
+    **_CRUZ,
+    "efeitos": {"vermelho": {"canal": "luz", "cor": "#ff0000", "brilho": 1.0, "dura_ms": 400},
+                "impacto": {"canal": "gatilho", "modo": "arma", "lado": "r2", "inicio": 2,
+                            "fim": 6, "forca": 8, "dura_ms": 150}},
+    "regras": [{"quando": "cruz", "entao": ["vermelho", "impacto"]}],
+}
+UNIQS = (UM, DOIS, TRES, QUATRO)
+
+
+def test_dois_danos_iguais_separados_por_30_s_escrevem_a_luz_duas_vezes_com_o_prazo_do_efeito(
+) -> None:
+    motor, saida, escritas = _motor(_DANO, QUATRO_CONTROLES)
+    _correr(motor, saida, escritas, 31000, [(0, _cruz()), (30000, _cruz())])
+    for uniq in UNIQS:
+        luzes = [(t, p) for t, p in escritas.de("luz.set") if p["uniq"] == uniq]
+        assert [round(t) for t, _ in luzes] == [0, 30000]
+        assert [p.get("ate_ms") for _, p in luzes] == [400, 400]
+    assert not [c for c in saida.escrito if c[1] == "luz"]
+
+
+@pytest.mark.parametrize("devolve", [True, False])
+def test_o_impacto_leva_o_prazo_e_so_a_porta_que_nao_devolve_recebe_o_off_do_fim(
+        devolve: bool) -> None:
+    """D-2111-A-PORTA-QUE-DEVOLVE-SE-RECONHECE-PELA-RESPOSTA-AO-PEDIDO-COM-PRAZO: o impacto leva o
+    prazo, e o ``Off`` do fim só sai quando a porta não respondeu ``devolve``."""
+    motor, saida, escritas = _motor(_DANO, QUATRO_CONTROLES, devolve=devolve)
+    _correr(motor, saida, escritas, 1000, [(0, _cruz())])
+    for uniq in UNIQS:
+        gatilhos = [p for _, p in escritas.de("gatilho.set") if p["uniq"] == uniq]
+        assert [p["modo"] for p in gatilhos] == (["Weapon"] if devolve else ["Weapon", "Off"])
+        assert gatilhos[0].get("ate_ms") == 150 and all("ate_ms" not in p for p in gatilhos[1:])
+    assert not [c for c in saida.escrito if c[1] in ("luz", "gatilho") and devolve]
+
+
+def _a_mesa_com_o_cabo(devolve: bool, cabo: str, ordem: int, sai: bool) -> EscritasDeMentira:
+    """Quatro controles no rádio (UM e DOIS no mesmo adaptador), dois danos com 5 s entre eles, e o
+    ``cabo`` ligado no cabo aos 100 ms e de volta ao rádio aos 200 ms: na troca vista como saída e
+    volta, ele some da lista nesse intervalo."""
+    motor, saida, escritas = _motor(_DANO, QUATRO_CONTROLES, devolve=devolve)
+    mesa = list(QUATRO_CONTROLES)
+    random.Random(ordem).shuffle(mesa)
+    motor.controles(mesa)
+    _correr(motor, saida, escritas, 99, [(0, _cruz())])
+    transporte = [{**c, "transporte": "usb"} if c["uniq"] == cabo else c for c in mesa]
+    motor.controles([c for c in transporte if not sai or c["uniq"] != cabo])
+    _correr(motor, saida, escritas, 199, de_ms=100)
+    motor.controles(mesa)
+    _correr(motor, saida, escritas, 5600, [(5000, _cruz())], de_ms=200)
+    return escritas
+
+
+@pytest.mark.parametrize("sai", [False, True])
+@pytest.mark.parametrize("ordem", [0, 1, 2])
+@pytest.mark.parametrize("cabo", UNIQS)
+@pytest.mark.parametrize("devolve", [True, False])
+def test_o_controle_que_vai_ao_cabo_no_meio_do_jogo_nao_perde_nem_repete_o_prazo(
+        devolve: bool, cabo: str, ordem: int, sai: bool) -> None:
+    escritas = _a_mesa_com_o_cabo(devolve, cabo, ordem, sai)
+    for uniq in UNIQS:
+        gatilhos = [p for _, p in escritas.de("gatilho.set") if p["uniq"] == uniq]
+        assert [p["modo"] for p in gatilhos] == (
+            ["Weapon"] * 2 if devolve else ["Weapon", "Off"] * 2), uniq
+        assert [p["ate_ms"] for p in gatilhos if "ate_ms" in p] == [150, 150]
+        luzes = [p.get("ate_ms") for _, p in escritas.de("luz.set") if p["uniq"] == uniq]
+        if sai and uniq == cabo:
+            assert len(luzes) == 3 and 150 <= (luzes[1] or 0) <= 250
+            assert luzes[0] == luzes[2] == 400
+        else:
+            assert luzes == [400, 400]

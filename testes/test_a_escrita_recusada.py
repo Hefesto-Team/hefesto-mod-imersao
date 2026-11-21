@@ -375,7 +375,7 @@ def test_o_teto_e_a_recusa_de_cada_controle_atravessam_a_troca_de_transporte(ord
         assert _do(porta_some, uniq) == _do(porta_fica, uniq)
     do_tres = _do(porta_some, TRES)
     assert [m for _, m in do_tres].count("gatilho.set") == 3
-    assert [m for _, m in do_tres].count("luz.set") == 1
+    assert [m for _, m in do_tres].count("luz.set") == 2
     assert [m for _, m in do_tres].count("som.tocar") == 2
     assert fica._no_teto == set() == some._no_teto
     assert {c[0] for c in fica._falhou} == {DOIS} == {c[0] for c in some._falhou}

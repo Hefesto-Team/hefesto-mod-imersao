@@ -480,11 +480,13 @@ class Motor:
                                  or catalogo.para_o_trigger_set(efeito))
             lados = ["esquerdo", "direito"] if efeito["lado"] == "ambos" else [
                 "esquerdo" if efeito["lado"] == "l2" else "direito"]
+            self._com_prazo(params, ativa, efeito)
         elif canal == "luz":
             brilho = float(efeito.get("brilho", 1.0)) * escala
             cor = self._cor(efeito["cor"])
             forca = catalogo.forca_da_luz(cor, brilho)
             params.update(rgb=catalogo.rgb(cor), brilho=brilho)
+            self._com_prazo(params, ativa, efeito)
             lados = ["-"]
         elif canal == "mira":
             if not ajustes.ligado(self.opcoes, peso_da_mira.OPCAO, peso_da_mira.PADRAO):
@@ -518,6 +520,11 @@ class Motor:
                     params["dura_s"] = round(min(maximo, max(minimo, dura)) / 1000, 3)
             lados = ["-"]
         return forca, params, lados
+
+    def _com_prazo(self, params: dict[str, Any], ativa: Ativacao, efeito: dict[str, Any]) -> None:
+        """O ``fim_ms`` do efeito com ``dura_ms``: a saída o leva à porta como o prazo que resta."""
+        if "dura_ms" in efeito and ativa.fim_ms is not None:
+            params["fim_ms"] = ativa.fim_ms
 
     def _sente(self, uniq: str, canal: str) -> bool:
         """O controle conectado, que a janela não calou e, na mira, que a porta não recusou agora."""

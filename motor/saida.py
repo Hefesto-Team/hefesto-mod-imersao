@@ -23,6 +23,13 @@ aceita. As outras recusas sem tratamento (sem permissão, sem ponte) se tentam d
 de :data:`RENOVA_MS`, nunca por tique, e a linha do diário sai uma vez por efeito e por motivo. Tudo
 isso vale por controle: a conta é da identidade do controle, no cabo e no rádio.
 
+O ``luz.set`` e o ``gatilho.set`` de um efeito com ``dura_ms`` levam ``ate_ms``, o que resta do
+efeito quando a escrita sai: a porta devolve o que havia quando o prazo vence, sem depender da
+extensão viva. A entrada da luz sai da conta quando o efeito acaba, e o mesmo pedido que vier depois
+se escreve de novo. A porta que devolve diz ``devolve: true`` na resposta ao pedido com prazo, e
+para esse controle o ``Off`` do fim do gatilho não se escreve; a que não diz recebe o ``Off`` de
+sempre.
+
 Um pedido vivo que só anda nos parâmetros contínuos (força, batimento, brilho) só se reescreve
 quando a mudança se sente: um degrau de :data:`DEGRAUS` desde o que está no controle, no máximo uma
 vez por :data:`INTERVALO_DO_DEGRAU_MS` em cada canal e controle, e só com :data:`VAGA_DO_EVENTO`
@@ -136,6 +143,8 @@ class Saida:
         self._falhou: set[Chave] = set()
         self._ditas: set[tuple[Chave, str, Any]] = set()
         self._quem: dict[Chave, frozenset[tuple[str, float]]] = {}
+        self._fins: dict[Chave, float] = {}
+        self._devolve: dict[Chave, bool] = {}
 
     def _cabe(self, t_ms: float, uniq: str, reserva: int = 0,
               reserva_total: int | None = None) -> bool:
@@ -178,7 +187,8 @@ class Saida:
         return pedido.params
 
     async def _escrever(self, t_ms: float, chave: Chave, metodo: str,
-                        params: dict[str, Any], zero: bool = False, reserva: int = 0) -> bool:
+                        params: dict[str, Any], zero: bool = False, reserva: int = 0,
+                        fim_ms: float | None = None) -> bool:
         uniq = chave[0]
         passa_do_teto = zero and chave not in self._no_teto
         if not passa_do_teto and not self._cabe(t_ms, uniq, reserva):
@@ -187,8 +197,9 @@ class Saida:
         self.janela.append((t_ms, uniq))
         antes = self.escrito.get(chave)
         self.escrito[chave] = (t_ms, params)
+        enviado = params if fim_ms is None else {**params, "ate_ms": max(1, round(fim_ms - t_ms))}
         try:
-            await self._pedir(metodo, params)
+            resposta = await self._pedir(metodo, enviado)
         except (RuntimeError, OSError, asyncio.TimeoutError) as exc:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
             dados = getattr(exc, "dados", None)
@@ -223,11 +234,14 @@ class Saida:
                 self._diario("a porta não acende as luzes de jogador: o lado na luz fica calado")
                 return False
             self._falhou.add(chave)
+            self._devolve.pop(chave, None)
             self._dizer(chave, f"{metodo} recusado: {exc}", motivo_da_recusa(codigo, dados))
         else:
             self._no_teto.discard(chave)
             self._falhou.discard(chave)
             self._ditas = {d for d in self._ditas if d[0] != chave}
+            self._devolve[chave] = fim_ms is not None and isinstance(resposta, dict) and (
+                resposta.get("devolve") is True)
             if not zero:
                 self.aceitas_do_tique.append((uniq, chave[1]))
         return True
@@ -315,6 +329,7 @@ class Saida:
         motores: dict[str, dict[str, float]] = {}
         no_motor: dict[str, set[tuple[Any, ...]]] = {}
         quem: dict[Chave, set[tuple[str, float]]] = {}
+        self._fins = {}
         self._vivos = {vaga: vivo for vaga, vivo in self._vivos.items() if vaga in vencedores}
         grupos = Counter((uniq, canal) for uniq, canal, _ in vencedores)
         for (uniq, canal, lado), pedido in sorted(vencedores.items()):
@@ -345,9 +360,13 @@ class Saida:
                 nome, valores = p["trigger"]
                 desejo[(uniq, "gatilho", lado)] = ("gatilho.set", {
                     "uniq": uniq, "lado": lado, "modo": nome, "params": valores}, False)
+                if "fim_ms" in p:
+                    self._fins[(uniq, "gatilho", lado)] = p["fim_ms"]
             elif canal == "luz":
                 desejo[(uniq, "luz", "-")] = ("luz.set", {
                     "uniq": uniq, "rgb": p["rgb"], "brilho": p["brilho"]}, False)
+                if "fim_ms" in p:
+                    self._fins[(uniq, "luz", "-")] = p["fim_ms"]
             elif canal == "som":
                 som = {"uniq": uniq, "som": p["som"], "volume": p["volume"]}
                 for campo in ("t", "dura_s"):
@@ -373,7 +392,7 @@ class Saida:
             uniq, canal, lado = chave
             if canal == "vibracao" and (params["fraco"] or params["forte"]):
                 desejo[chave] = ("vibracao.set", {"uniq": uniq, "fraco": 0, "forte": 0}, True)
-            elif canal == "gatilho" and params["modo"] != "Off":
+            elif canal == "gatilho" and params["modo"] != "Off" and not self._devolve.get(chave):
                 desejo[chave] = ("gatilho.set", {"uniq": uniq, "lado": lado, "modo": "Off",
                                                  "params": []}, True)
             elif canal == "haptica" and params["forca"]:
@@ -405,7 +424,8 @@ class Saida:
             if self.sem_haptica:
                 desejo = self._desejado(t_ms, self._pelo_motor(vencedores))
         vivos: set[tuple[str, str, float]] = set()
-        for chave in [c for c in self.escrito if c[1] == "mira" and c not in desejo]:
+        for chave in [c for c in self.escrito if c not in desejo and (
+                c[1] in ("mira", "luz") or (c[1] == "gatilho" and self._devolve.get(c)))]:
             del self.escrito[chave]
         for chave in sorted(desejo):
             metodo, params, zero = desejo[chave]
@@ -440,7 +460,8 @@ class Saida:
             batida = self._batida(chave, antes, params)
             liga = batida and bool(params["forte"] or params["fraco"])
             reserva = VAGA_DO_EVENTO + 1 if liga else 0
-            if await self._escrever(t_ms, chave, metodo, params, zero and not batida, reserva):
+            if await self._escrever(t_ms, chave, metodo, params, zero and not batida, reserva,
+                                    self._fins.get(chave)):
                 self._em_dia(chave)
         for uniq in self._no_motor:
             if (uniq, "vibracao", "-") not in desejo:
@@ -452,6 +473,7 @@ class Saida:
             self.recusas_do_tique.append((chave[0], chave[1], motivo_da_recusa(TETO_CHEIO, None)))
         self._falhou &= desejo.keys()
         self._ditas = {d for d in self._ditas if d[0] in desejo}
+        self._devolve = {c: v for c, v in self._devolve.items() if c in self.escrito}
         self._tocados &= vivos
         if self.pedidos_do_corpo is not None:
             await self.ligar_o_corpo(t_ms, self.pedidos_do_corpo())

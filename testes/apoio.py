@@ -32,13 +32,17 @@ class EscritasDeMentira:
     """O ``pedir`` da porta sem socket: guarda ``(instante, método, params)`` de cada escrita.
 
     ``com_haptica`` e ``com_som`` dizem se a porta conhece ``haptica.tocar`` e ``som.tocar``;
-    sem eles, a resposta é o -32601 de método desconhecido. Como no Hefesto, o ``haptica.tocar``
+    sem eles, a resposta é o -32601 de método desconhecido. Com ``devolve``, o ``luz.set`` e o
+    ``gatilho.set`` que levam ``ate_ms`` respondem ``devolve: true``, como a porta que devolve o
+    que havia quando o prazo vence. Como no Hefesto, o ``haptica.tocar``
     de um padrão que não passou pelo ``haptica.registrar`` recusa com -32602. O registro não escreve no controle: ele
     fica em ``registros``, com o número de escritas que já havia, e não em ``escritas``.
     """
 
-    def __init__(self, com_haptica: bool = False, com_som: bool = False) -> None:
+    def __init__(self, com_haptica: bool = False, com_som: bool = False,
+                 devolve: bool = False) -> None:
         self.agora = 0.0
+        self.devolve = devolve
         self.escritas: list[tuple[float, str, dict[str, Any]]] = []
         self.com_haptica = com_haptica
         self.com_som = com_som
@@ -56,6 +60,8 @@ class EscritasDeMentira:
         if metodo == "haptica.tocar" and params["id"] not in self.registrados:
             raise Recusa(f"haptica.tocar: padrão não registrado: {params['id']}", -32602)
         self.escritas.append((self.agora, metodo, dict(params)))
+        if self.devolve and metodo in ("luz.set", "gatilho.set") and "ate_ms" in params:
+            return {"status": "ok", "devolve": True}
         return {"status": "ok"}
 
     def esquecer(self) -> None:
