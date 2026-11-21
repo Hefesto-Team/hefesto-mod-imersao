@@ -26,7 +26,8 @@ isso vale por controle: a conta é da identidade do controle, no cabo e no rádi
 O ``luz.set`` e o ``gatilho.set`` de um efeito com ``dura_ms`` levam ``ate_ms``, o que resta do
 efeito quando a escrita sai: a porta devolve o que havia quando o prazo vence, sem depender da
 extensão viva. A entrada da luz sai da conta quando o efeito acaba, e o mesmo pedido que vier depois
-se escreve de novo. A porta que devolve diz ``devolve: true`` na resposta ao pedido com prazo, e
+se escreve de novo; o efeito novo que chega com o anterior ainda vivo também se escreve, com o prazo
+dele. A porta que devolve diz ``devolve: true`` na resposta ao pedido com prazo, e
 para esse controle o ``Off`` do fim do gatilho não se escreve; a que não diz recebe o ``Off`` de
 sempre.
 
@@ -145,6 +146,7 @@ class Saida:
         self._quem: dict[Chave, frozenset[tuple[str, float]]] = {}
         self._fins: dict[Chave, float] = {}
         self._devolve: dict[Chave, bool] = {}
+        self._fim_escrito: dict[Chave, float | None] = {}
 
     def _cabe(self, t_ms: float, uniq: str, reserva: int = 0,
               reserva_total: int | None = None) -> bool:
@@ -196,7 +198,9 @@ class Saida:
             return False
         self.janela.append((t_ms, uniq))
         antes = self.escrito.get(chave)
+        fim_antes = self._fim_escrito.get(chave)
         self.escrito[chave] = (t_ms, params)
+        self._fim_escrito[chave] = fim_ms
         enviado = params if fim_ms is None else {**params, "ate_ms": max(1, round(fim_ms - t_ms))}
         try:
             resposta = await self._pedir(metodo, enviado)
@@ -204,7 +208,7 @@ class Saida:
             codigo = getattr(exc, "codigo", None)  # (noqa-acento)
             dados = getattr(exc, "dados", None)
             if codigo == TETO_CHEIO:
-                self._desfazer(chave, antes)
+                self._desfazer(chave, antes, fim_antes)
                 self._no_teto.add(chave)
                 self.adiadas_do_tique.append((uniq, chave[1]))
                 return False
@@ -212,18 +216,18 @@ class Saida:
                                                    or NAO_REGISTRADO in str(exc))):
                 self._anotar_a_recusa(chave, codigo, dados, str(exc))
             if codigo == MAIS_FRACO:
-                self._desfazer(chave, antes)
+                self._desfazer(chave, antes, fim_antes)
                 self.recusados[chave] = params
                 self._recusado(chave, params, dados)
                 return True
             if codigo == METODO_DESCONHECIDO and metodo == "haptica.tocar":
                 self.sem_haptica = True
                 self._diario("a porta não toca háptica: o padrão segue pelo motor")
-                self._desfazer(chave, antes)
+                self._desfazer(chave, antes, fim_antes)
                 return False
             if metodo == "haptica.tocar" and NAO_REGISTRADO in str(exc):
                 self._registrados = False
-                self._desfazer(chave, antes)
+                self._desfazer(chave, antes, fim_antes)
                 return True
             if codigo == METODO_DESCONHECIDO and metodo == "som.tocar":
                 self.sem_som = True
@@ -317,11 +321,14 @@ class Saida:
         recusas, self.recusas_do_tique = self.recusas_do_tique, []
         return recusas
 
-    def _desfazer(self, chave: Chave, antes: tuple[float, dict[str, Any]] | None) -> None:
+    def _desfazer(self, chave: Chave, antes: tuple[float, dict[str, Any]] | None,
+                  fim: float | None = None) -> None:
         if antes is None:
             self.escrito.pop(chave, None)
+            self._fim_escrito.pop(chave, None)
         else:
             self.escrito[chave] = antes
+            self._fim_escrito[chave] = fim
 
     def _desejado(self, t_ms: float, vencedores: dict[Vaga, Pedido]
                   ) -> dict[Chave, tuple[str, dict[str, Any], bool]]:
@@ -454,7 +461,8 @@ class Saida:
             antes = self.escrito.get(chave)
             vence = (metodo == "vibracao.set" or chave in self._falhou) and (
                 antes is not None and not zero and t_ms - antes[0] >= RENOVA_MS)
-            if antes is not None and antes[1] == params and not vence:
+            if (antes is not None and antes[1] == params and not vence
+                    and self._fim_escrito.get(chave) == self._fins.get(chave)):
                 self._em_dia(chave)
                 continue
             batida = self._batida(chave, antes, params)
@@ -474,6 +482,7 @@ class Saida:
         self._falhou &= desejo.keys()
         self._ditas = {d for d in self._ditas if d[0] in desejo}
         self._devolve = {c: v for c, v in self._devolve.items() if c in self.escrito}
+        self._fim_escrito = {c: v for c, v in self._fim_escrito.items() if c in self.escrito}
         self._tocados &= vivos
         if self.pedidos_do_corpo is not None:
             await self.ligar_o_corpo(t_ms, self.pedidos_do_corpo())

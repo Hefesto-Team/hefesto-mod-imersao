@@ -401,3 +401,18 @@ def test_o_controle_que_vai_ao_cabo_no_meio_do_jogo_nao_perde_nem_repete_o_prazo
             assert luzes[0] == luzes[2] == 400
         else:
             assert luzes == [400, 400]
+
+
+@pytest.mark.parametrize("devolve", [True, False])
+def test_o_dano_que_chega_com_o_efeito_ainda_vivo_escreve_de_novo_com_o_prazo_dele(
+        devolve: bool) -> None:
+    motor, saida, escritas = _motor(_DANO, QUATRO_CONTROLES, devolve=devolve)
+    _correr(motor, saida, escritas, 1000, [(0, _cruz()), (100, _cruz())])
+    for uniq in UNIQS:
+        luzes = [(round(t), p.get("ate_ms")) for t, p in escritas.de("luz.set")
+                 if p["uniq"] == uniq]
+        assert luzes == [(0, 400), (100, 400)], uniq
+        gatilhos = [(round(t), p["modo"], p.get("ate_ms")) for t, p in escritas.de("gatilho.set")
+                    if p["uniq"] == uniq]
+        assert gatilhos[:2] == [(0, "Weapon", 150), (100, "Weapon", 150)], uniq
+        assert [m for _, m, _ in gatilhos[2:]] == ([] if devolve else ["Off"]), uniq
