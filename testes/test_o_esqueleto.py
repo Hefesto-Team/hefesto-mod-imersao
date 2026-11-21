@@ -272,14 +272,15 @@ def test_o_leitor_que_morre_por_qualquer_causa_marca_a_porta_como_fechada() -> N
         def close(self) -> None:
             pass
 
-    async def correr() -> tuple[bool, dict[str, Any]]:
+    async def correr() -> tuple[bool, list[dict[str, Any]]]:
         porta = servidor.Porta(Leitor(), Escritor())  # type: ignore[arg-type]
         with pytest.raises(RuntimeError, match="leitor quebrado"):
             await porta._lendo
-        return porta.fechada, porta.eventos.get_nowait()
+        avisos = [porta.eventos.get_nowait() for _ in range(porta.eventos.qsize())]
+        return porta.fechada, avisos
 
-    fechada, mensagem = asyncio.run(correr())
-    assert fechada and mensagem == {"method": "porta.fechou"}
+    fechada, avisos = asyncio.run(correr())
+    assert fechada and avisos == [{"method": "porta.fechou"}]
 
 
 def test_a_linha_de_mais_de_1_mib_nao_derruba_o_leitor_da_porta(pasta_curta: Path) -> None:
