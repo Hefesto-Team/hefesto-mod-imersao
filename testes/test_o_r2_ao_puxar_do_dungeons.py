@@ -14,10 +14,11 @@ from typing import Any
 import pytest
 from apoio import DOIS, QUATRO, QUATRO_CONTROLES, TRES, UM, EscritasDeMentira, Recusa
 from test_a_receita_minecraft_dungeons_ii import LINHA_DO_GATILHO, _golpe_no_r2, _receita
-from test_o_universal import TIQUE, Evento, entradas
+from test_o_universal import TIQUE, Evento, entradas, rumble
 
 import servidor
 from motor import efeitos as catalogo
+from motor.caminho import JANELA_MS
 from motor.laco import Motor
 from motor.saida import ATE_MS_DO_GATILHO_CONTINUO, RENOVA_MS, Saida
 
@@ -101,22 +102,30 @@ def test_o_gatilho_sem_prazo_se_renova_a_cada_2500_ms_para_a_porta_nao_o_soltar(
     assert RENOVA_MS == 2500
 
 
+def _golpe(uniq: str, t: float, transporte: str = "usb") -> list[tuple[float, Evento]]:
+    """O golpe dado com o R2 de ``uniq``: o gatilho apertado e o pulso do rumble do jogo."""
+    return [(t, entradas(uniq, 200, transporte=transporte)), (t + 80, rumble(uniq, 180)),
+            (t + 200, rumble(uniq, 0)), (t + 300, entradas(uniq, 0, transporte=transporte))]
+
+
+@pytest.mark.parametrize("devolve", [False, True])
+@pytest.mark.parametrize("uniq", UNIQS)
 @pytest.mark.parametrize("transporte", ["usb", "bt"])
 @pytest.mark.parametrize("escolha", ["Vibração", "Arco"])
 def test_o_impacto_do_golpe_toca_por_cima_e_ao_acabar_o_arco_volta(
-        transporte: str, escolha: str) -> None:
-    porta = EscritasDeMentira()
-    golpe = [(t + 1000, e) for t, e in _golpe_no_r2(0)]
-    golpe[0] = (1000, entradas(UM, 200, transporte=transporte))
-    _correr(_motor({"tipo_do_r2": escolha}, [{"uniq": UM, "jogador": 1}]), porta, 3000,
-            [(0, EM_CENA), *golpe])
-    escritas = _gatilhos(porta)
+        transporte: str, escolha: str, uniq: str, devolve: bool) -> None:
+    porta = EscritasDeMentira(devolve=devolve)
+    _correr(_motor({"tipo_do_r2": escolha}), porta, 3000,
+            [(0, EM_CENA), *_golpe(uniq, 1000, transporte)])
+    escritas = _gatilhos(porta, uniq)
     impacto = ("Bow", [1, 7, 6, 6]) if escolha == "Arco" else ("Vibration", [2, 6, 40])
     assert [(modo, params) for _, _, modo, params, _ in escritas] == [ARCO, impacto, ARCO]
     assert escritas[1][4] == 150
     assert 1000 < escritas[1][0] < 1200
     assert escritas[2][0] - escritas[1][0] in range(150, 170)
     assert escritas[2][4] == ATE_MS_DO_GATILHO_CONTINUO
+    for outro in set(UNIQS) - {uniq}:
+        assert [m for m, _ in _viradas(_gatilhos(porta, outro))] == ["Bow"]
 
 
 def test_o_impacto_e_sempre_mais_forte_que_o_arco_em_qualquer_forca() -> None:
@@ -159,11 +168,22 @@ def test_trocar_o_tipo_para_solto_com_o_jogo_aberto_devolve_o_gatilho_ao_perfil(
     assert 1000 <= escritas[1][0] < 1100
 
 
-@pytest.mark.parametrize("opcoes", [{"forca_geral": 0}, {"canal_gatilho": False}])
-def test_a_forca_em_zero_e_o_canal_calado_nao_mandam_o_arco(opcoes: dict[str, Any]) -> None:
+@pytest.mark.parametrize("opcoes", [{"forca_geral": 0}, {"canal_gatilho": False},
+                                    {"impacto_nos_gatilhos": False}])
+def test_a_forca_em_zero_o_canal_calado_e_o_cartao_desligado_nao_mandam_o_arco(opcoes: dict[str, Any]) -> None:
     porta = EscritasDeMentira()
     _correr(_motor(opcoes), porta, 3000, [(0, EM_CENA)])
     assert not porta.de("gatilho.set")
+
+
+def test_desligar_o_cartao_com_o_jogo_aberto_devolve_o_gatilho_ao_perfil_e_cala_o_impacto() -> None:
+    porta = EscritasDeMentira()
+    _correr(_motor(controles=[{"uniq": UM, "jogador": 1}]), porta, 3000,
+            [(0, EM_CENA), *_golpe(UM, 2000)],
+            [(1000, lambda m: m.ajustar({"impacto_nos_gatilhos": False}))])
+    escritas = _gatilhos(porta)
+    assert [(modo, params) for _, _, modo, params, _ in escritas] == [ARCO, ("Off", [])]
+    assert 1000 <= escritas[1][0] < 1100
 
 
 def test_a_forca_da_janela_escala_o_arco() -> None:
@@ -211,14 +231,16 @@ def test_ao_sair_do_jogo_a_receita_se_vai_o_gatilho_volta_ao_perfil_e_o_laco_rep
 
 
 class PortaQueCala(EscritasDeMentira):
-    """O Modo Nativo, ou o jogo mais forte: a porta recusa todo ``gatilho.set`` com ``-32011``."""
+    """O Modo Nativo, ou o jogo mais forte: enquanto ``calando``, a porta recusa todo
+    ``gatilho.set`` com ``-32011``."""
 
     def __init__(self) -> None:
         super().__init__()
         self.recusas = 0
+        self.calando = True
 
     async def pedir(self, metodo: str, params: dict[str, Any]) -> dict[str, Any]:
-        if metodo == "gatilho.set":
+        if metodo == "gatilho.set" and self.calando:
             self.recusas += 1
             raise Recusa("no Modo Nativo o jogo fala direto com o controle", -32011)
         return await super().pedir(metodo, params)
@@ -228,6 +250,41 @@ def test_a_porta_que_recusa_o_gatilho_nao_e_pedida_de_novo_enquanto_o_arco_conti
     porta = PortaQueCala()
     _correr(_motor(), porta, 12_000, [(0, EM_CENA)])
     assert porta.recusas == len(UNIQS)
+
+
+def test_o_arco_que_a_porta_recusou_volta_quando_ela_deixa_e_se_pede_uma_vez_por_janela() -> None:
+    porta = PortaQueCala()
+    motor = _motor()
+    saida = Saida(porta.pedir, None, motor.recusado)
+    libera_ms = 7000
+
+    async def correr() -> None:
+        motor.evento(*EM_CENA)
+        k = 0
+        while (t := k * TIQUE) <= 12_000:
+            porta.calando = t < libera_ms
+            porta.agora = t
+            await saida.aplicar(t, motor.passo(t))
+            k += 1
+
+    asyncio.run(correr())
+    assert len(UNIQS) <= porta.recusas <= len(UNIQS) * (libera_ms // JANELA_MS + 1)
+    for uniq in UNIQS:
+        voltas = [t for t, _, modo, _, _ in _gatilhos(porta, uniq) if modo == "Bow"]
+        assert voltas and libera_ms <= voltas[0] <= libera_ms + JANELA_MS + TIQUE
+
+
+@pytest.mark.parametrize("mascara", ["xbox", "nintendo"])
+def test_pela_mascara_xbox_o_jogo_nao_alcanca_o_gatilho_e_o_arco_sai_em_cada_controle(
+        mascara: str) -> None:
+    porta = EscritasDeMentira()
+    identidade: Evento = ("jogo.identidade", "jogo.identidade", None, {
+        "chave": "steam_app_1912410", "executavel": "jogo.exe", "loja": "steam",
+        "mascara": mascara})
+    _correr(_motor(), porta, 3000, [(0, EM_CENA), (0, identidade), *_golpe(TRES, 1000)])
+    for uniq in UNIQS:
+        modos = [m for m, _ in _viradas(_gatilhos(porta, uniq))]
+        assert modos == (["Bow", "Vibration", "Bow"] if uniq == TRES else ["Bow"])
 
 
 def test_o_arco_e_o_gatilho_do_jogo_convivem_pelo_mais_forte_na_linha_gravada() -> None:

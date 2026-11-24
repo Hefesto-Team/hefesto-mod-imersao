@@ -5,7 +5,7 @@
 - No Minecraft Dungeons II o R2 passa a ter a resistência de arco ao puxar enquanto o jogo está aberto, em
   cada controle: o impacto do golpe toca por cima e, ao acabar, o arco volta. A opção «R2 ao puxar», no
   cartão «Impacto nos gatilhos», escolhe o efeito (a lista dos gatilhos e «Solto», que deixa o gatilho
-  livre); nasce em «Arco».
+  livre); nasce em «Arco». A chave do cartão desligada solta o arco junto com o impacto.
 - O gatilho de um efeito que vale enquanto a regra vale se renova a cada 2,5 s e sai com prazo, para a
   porta não o soltar; ao acabar, o gatilho volta ao que o perfil diz na hora.
 - O efeito que vale enquanto a regra vale alcança também o controle que liga, volta ou troca de número

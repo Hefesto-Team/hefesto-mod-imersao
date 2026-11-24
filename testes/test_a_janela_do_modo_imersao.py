@@ -219,7 +219,7 @@ def test_no_dungeons_a_janela_no_padrao_escreve_o_mesmo_e_cada_efeito_muda_o_que
     assert [(c, 0.75 in forcas) for c, forcas in acelerados] == [(35, True), (90, False)]
     assert _primeiro_estalo(_no_dungeons({"golpe_com_lado": 35}, estalo, 600)) == round(0.3 * 255)
     impactos = [p for _, p in _no_dungeons({"impacto_nos_gatilhos": False}, LINHA_DO_GATILHO,
-                                           5000).de("gatilho.set") if p["modo"] == "Vibration"]
+                                           5000).de("gatilho.set") if p["modo"] != "Off"]
     assert not impactos
     rajada = [(t, rumble(UM, 230)) for t in (1000, 1100, 1200, 1300, 1400)] + [(1500, rumble(UM, 0))]
     assert _no_dungeons({}, rajada, 2000).de("luz.set")

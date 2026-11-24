@@ -113,7 +113,7 @@
      "prioridade": 10, "espera_ms": "$intervalo_do_susto * 1000", "para": "todos"},
     {"quando": "estalo_forte e tenso e $susto_no_tato", "entao": "susto_no_tato",
      "prioridade": 10, "espera_ms": "$intervalo_do_susto * 1000", "para": "todos"},
-    {"quando": "1", "entao": "r2_ao_puxar", "para": "todos"},
+    {"quando": "$impacto_nos_gatilhos", "entao": "r2_ao_puxar", "para": "todos"},
     {"quando": "golpe_no_r2 e $impacto_nos_gatilhos", "entao": "impacto_no_r2",
      "para": "quem_levou"},
     {"quando": "golpe_no_l2 e $impacto_nos_gatilhos", "entao": "impacto_no_l2",
