@@ -173,7 +173,7 @@ def test_o_golpe_com_forma_desenha_o_motor_e_o_continuo_segue_reto() -> None:
 def test_cada_tipo_da_janela_e_uma_entrada_de_escolha_das_receitas_com_o_padrao_de_hoje() -> None:
     manifesto = json.loads((RAIZ / "hefesto-mod.json").read_text(encoding="utf-8"))
     da_janela = {o["id"]: o for o in manifesto["opcoes"] if o["id"].startswith("tipo_do_")}
-    assert set(da_janela) == {*TIPOS_DOS_EFEITOS, "tipo_do_l2", "tipo_do_r2"}
+    assert set(da_janela) == {*TIPOS_DOS_EFEITOS, "tipo_do_l2", "tipo_do_r2", "tipo_do_r2_ao_puxar"}
     for caminho in (RAIZ / "receitas").rglob("*.json"):
         receita = ler_receita(caminho.read_bytes())
         for nome, entrada in receita.secao("entradas").items():

@@ -149,8 +149,8 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
 
 - `minecraft-dungeons-ii.json` (Steam 1912410): o jogo manda nos gatilhos; a receita soma o coração
   pelo batimento do rumble, o susto, o lado pelo som, a barra vermelha na rajada e o impacto do
-  golpe, que só troca o gatilho do jogo quando é mais forte, e pesa a mira de 1 a 0,6 no perigo.
-  Sem memória.
+  golpe, que só troca o gatilho do jogo quando é mais forte, pesa a mira de 1 a 0,6 no perigo e dá ao R2
+  a resistência de arco ao puxar (opção «R2 ao puxar», com «Solto» para deixar o gatilho livre). Sem memória.
 
 ## As receitas da comunidade
 

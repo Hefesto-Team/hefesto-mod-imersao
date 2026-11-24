@@ -20,7 +20,7 @@ import pytest
 from apoio import DOIS, QUATRO, TRES, UM, EscritasDeMentira, Recusa
 
 from motor.arbitragem import Pedido, Vaga
-from motor.saida import RENOVA_MS, TETO_POR_CONTROLE, Saida
+from motor.saida import ATE_MS_DO_GATILHO_CONTINUO, RENOVA_MS, TETO_POR_CONTROLE, Saida
 
 Vencedores = dict[Vaga, Pedido]
 
@@ -58,8 +58,12 @@ def _haptica(uniq: str, forca: float, efeito: str = "efeito") -> Vencedores:
                    inicio_ms=0.0)
 
 
-def _escrita_do_gatilho(uniq: str, nome: str, valores: list[int]) -> dict[str, Any]:
-    return {"uniq": uniq, "lado": "direito", "modo": nome, "params": valores}
+def _escrita_do_gatilho(uniq: str, nome: str, valores: list[int],
+                        enviada: bool = False) -> dict[str, Any]:
+    """A escrita da conta da saída; ``enviada`` é a que vai à porta, com o prazo do gatilho que
+    vale enquanto a regra vale."""
+    escrita = {"uniq": uniq, "lado": "direito", "modo": nome, "params": valores}
+    return {**escrita, "ate_ms": ATE_MS_DO_GATILHO_CONTINUO} if enviada else escrita
 
 
 def _escrita_do_motor(uniq: str, forca: float) -> dict[str, Any]:
@@ -74,7 +78,7 @@ def _escrita_da_haptica(uniq: str, forca: float) -> dict[str, Any]:
 CANAIS = {
     "gatilho": ("gatilho.set",
                 lambda u: _gatilho(u, "Rigid", [0, 120]), lambda u: _gatilho(u, "Rigid", [0, 255]),
-                lambda u: _escrita_do_gatilho(u, "Rigid", [0, 255]),
+                lambda u: _escrita_do_gatilho(u, "Rigid", [0, 255], enviada=True),
                 lambda u: {"uniq": u, "lado": "direito", "modo": "Off", "params": []}),
     "motor": ("vibracao.set",
               lambda u: _motor(u, 0.4), lambda u: _motor(u, 0.8, "mais_forte"),
@@ -134,7 +138,7 @@ def test_a_extensao_que_sai_depois_da_recusa_zera_o_que_tinha_escrito_antes(
 
 def test_a_conta_diz_o_que_ficou_no_controle_e_a_volta_ao_valor_aceito_nao_se_repete() -> None:
     porta = PortaQueRecusa()
-    porta.recusar.append(_escrita_do_gatilho(UM, "Rigid", [0, 255]))
+    porta.recusar.append(_escrita_do_gatilho(UM, "Rigid", [0, 255], enviada=True))
     saida = Saida(porta.pedir)
     _correr(saida, porta, [(0.0, _gatilho(UM, "Rigid", [0, 120])),
                            (100.0, _gatilho(UM, "Rigid", [0, 255])),

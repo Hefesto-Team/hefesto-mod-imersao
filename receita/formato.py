@@ -60,7 +60,7 @@ ZONAS = 10
 TIPOS_POR_CANAL: dict[str, tuple[str, ...]] = {
     "haptica": tuple(catalogo.TIPOS_DA_VIBRACAO),
     "motor": (catalogo.CONTINUO, *catalogo.TIPOS_DA_VIBRACAO),
-    "gatilho": tuple(catalogo.TIPOS_DO_GATILHO),
+    "gatilho": (*catalogo.TIPOS_DO_GATILHO, catalogo.SOLTO),
 }
 
 

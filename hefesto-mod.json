@@ -622,6 +622,30 @@
         "@presente": "tipo_do_r2"
       },
       "cartao": "Impacto nos gatilhos"
+    },
+    {
+      "id": "tipo_do_r2_ao_puxar",
+      "rotulo": "R2 ao puxar",
+      "tipo": "escolha",
+      "escolhas": [
+        "Vibração",
+        "Resistência",
+        "Disparo",
+        "Arco",
+        "Galope",
+        "Metralhadora",
+        "Rampa de força",
+        "Curva de força",
+        "Vibração por posição",
+        "Solto"
+      ],
+      "padrao": "Arco",
+      "grupo": "Efeitos",
+      "dica": "A resistência do R2 ao puxar, com o jogo aberto; Solto deixa o gatilho livre",
+      "aparece_com": {
+        "@presente": "tipo_do_r2_ao_puxar"
+      },
+      "cartao": "Impacto nos gatilhos"
     }
   ],
   "agora": [

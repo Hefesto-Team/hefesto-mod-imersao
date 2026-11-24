@@ -78,10 +78,11 @@ def test_o_gatilho_do_jogo_sai_igual_enquanto_e_o_mais_forte_e_o_impacto_entra_o
     porta = TatoVivoDeMentira()
     _correr(_motor(), porta, 5000, LINHA_DO_GATILHO)
     gatilhos = [(round(t), p["lado"], p["modo"]) for t, p in porta.de("gatilho.set")]
-    assert not [g for g in gatilhos if g[0] < 2000 or g[0] >= 3500]
-    impactos = [g for g in gatilhos if g[2] != "Off"]
+    impactos = [g for g in gatilhos if g[2] == "Vibration"]
     assert [g[1:] for g in impactos] == [("direito", "Vibration")]
     assert 2580 <= impactos[0][0] <= 2600
+    assert not [g for g in gatilhos if 500 < g[0] < 2000 and g[2] != "Off"]
+    assert not [g for g in gatilhos if g[0] > 3500]
     assert not porta.recusas
 
 

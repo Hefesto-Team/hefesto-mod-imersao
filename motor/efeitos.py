@@ -187,6 +187,7 @@ TIPOS_DO_GATILHO: dict[str, Callable[[int], tuple[str, list[int]]]] = {
     "Curva de força": lambda f: ("MultiPositionFeedback", _zonas(f)),
     "Vibração por posição": lambda f: ("MultiPositionVibration", [40, *_zonas(f)]),
 }
+SOLTO = "Solto"
 _TIPO_DO_MODO = {
     "vibracao": "Vibração", "arma": "Disparo", "rampa": "Rampa de força",  # (noqa-acento)
     "resistencia_por_zona": "Curva de força", "vibracao_por_zona": "Vibração por posição",  # (noqa-acento)
@@ -195,7 +196,8 @@ _TIPO_DO_MODO = {
 
 def trigger_do_tipo(tipo: str | None, efeito: dict[str, Any]) -> tuple[str, list[int]] | None:
     """O ``trigger.set`` do ``tipo`` escolhido, na força do ``efeito`` (de 1 a 8); ``None`` sem
-    tipo conhecido ou quando o tipo é o modo do próprio efeito, que segue como a receita o diz."""
+    tipo conhecido ou quando o tipo é o modo do próprio efeito, que segue como a receita o diz.
+    O :data:`SOLTO` não é tipo de ``trigger.set``: quem o escolhe não pede o gatilho."""
     fabrica = TIPOS_DO_GATILHO.get(tipo or "")
     if fabrica is None or _TIPO_DO_MODO.get(efeito["modo"]) == tipo:
         return None

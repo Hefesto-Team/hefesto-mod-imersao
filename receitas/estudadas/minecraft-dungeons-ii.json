@@ -47,7 +47,10 @@
       "padrao": "Vibração"},
     "tipo_do_r2": {"rotulo": "Impacto no R2", "tipo": "escolha",
       "escolhas": ["Vibração", "Resistência", "Disparo", "Arco", "Galope", "Metralhadora", "Rampa de força", "Curva de força", "Vibração por posição"],
-      "padrao": "Vibração"}
+      "padrao": "Vibração"},
+    "tipo_do_r2_ao_puxar": {"rotulo": "R2 ao puxar", "tipo": "escolha",
+      "escolhas": ["Vibração", "Resistência", "Disparo", "Arco", "Galope", "Metralhadora", "Rampa de força", "Curva de força", "Vibração por posição", "Solto"],
+      "padrao": "Arco"}
   },
   "sentidos": {
     "estalo_forte": {"de": "sentido.som", "especie": "evento", "nome": "estalo_forte"},
@@ -89,6 +92,8 @@
                               "dura_ms": "$duracao_do_susto"},
     "susto_no_tato": {"canal": "haptica", "padrao": "susto", "tipo": "$tipo_do_susto", "lado": "ambos",
                       "forca": "$forca_do_susto / 100", "dura_ms": "$duracao_do_susto"},
+    "r2_ao_puxar": {"canal": "gatilho", "modo": "vibracao", "tipo": "$tipo_do_r2_ao_puxar", "lado": "r2", "posicao": 2,
+                    "amplitude": 4, "frequencia": 40},
     "impacto_no_r2": {"canal": "gatilho", "modo": "vibracao", "tipo": "$tipo_do_r2", "lado": "r2", "posicao": 2,
                       "amplitude": 6, "frequencia": 40, "dura_ms": 150},
     "impacto_no_l2": {"canal": "gatilho", "modo": "vibracao", "tipo": "$tipo_do_l2", "lado": "l2", "posicao": 2,
@@ -108,6 +113,7 @@
      "prioridade": 10, "espera_ms": "$intervalo_do_susto * 1000", "para": "todos"},
     {"quando": "estalo_forte e tenso e $susto_no_tato", "entao": "susto_no_tato",
      "prioridade": 10, "espera_ms": "$intervalo_do_susto * 1000", "para": "todos"},
+    {"quando": "1", "entao": "r2_ao_puxar", "para": "todos"},
     {"quando": "golpe_no_r2 e $impacto_nos_gatilhos", "entao": "impacto_no_r2",
      "para": "quem_levou"},
     {"quando": "golpe_no_l2 e $impacto_nos_gatilhos", "entao": "impacto_no_l2",

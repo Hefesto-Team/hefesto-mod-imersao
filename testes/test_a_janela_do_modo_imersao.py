@@ -219,7 +219,7 @@ def test_no_dungeons_a_janela_no_padrao_escreve_o_mesmo_e_cada_efeito_muda_o_que
     assert [(c, 0.75 in forcas) for c, forcas in acelerados] == [(35, True), (90, False)]
     assert _primeiro_estalo(_no_dungeons({"golpe_com_lado": 35}, estalo, 600)) == round(0.3 * 255)
     impactos = [p for _, p in _no_dungeons({"impacto_nos_gatilhos": False}, LINHA_DO_GATILHO,
-                                           5000).de("gatilho.set") if p["modo"] != "Off"]
+                                           5000).de("gatilho.set") if p["modo"] == "Vibration"]
     assert not impactos
     rajada = [(t, rumble(UM, 230)) for t in (1000, 1100, 1200, 1300, 1400)] + [(1500, rumble(UM, 0))]
     assert _no_dungeons({}, rajada, 2000).de("luz.set")
@@ -472,7 +472,8 @@ def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_a_faixa_do_alto
         if o.get("grupo") == "Efeitos" and "cartao" in o:
             cartoes.setdefault(o["cartao"], []).append(o["id"])
     assert cartoes["Coração"] == ["coracao", "tipo_do_coracao"]
-    assert cartoes["Impacto nos gatilhos"] == ["impacto_nos_gatilhos", "tipo_do_l2", "tipo_do_r2"]
+    assert cartoes["Impacto nos gatilhos"] == ["impacto_nos_gatilhos", "tipo_do_l2", "tipo_do_r2",
+                                               "tipo_do_r2_ao_puxar"]
     assert cartoes["Susto"][:2] == ["susto_no_alto_falante", "susto_no_tato"]
     assert opcoes["coracao"]["rotulo"] == opcoes["coracao"]["cartao"] == "Coração"
     assert {opcoes[i]["canal"] for i in ("canal_haptica", "canal_motor", "canal_gatilho",

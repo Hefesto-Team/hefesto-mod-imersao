@@ -3,7 +3,8 @@
 O :meth:`Motor.passo` é puro no tempo: recebe o instante e devolve o vencedor de cada vaga
 (controle, canal e lado). Quem o chama a 60 Hz é :func:`rodar`, que entrega os vencedores à
 :class:`~motor.saida.Saida`. Um evento vale um tique; um efeito sem ``dura_ms`` vale enquanto a
-regra vale, e nunca menos que :data:`DURACAO_MINIMA_MS`. Os sentidos universais que a receita lê
+regra vale, e nunca menos que :data:`DURACAO_MINIMA_MS`. O efeito de gatilho com o tipo «Solto» não
+pede nada. Os sentidos universais que a receita lê
 recebem cada evento da porta e o tique, e o que eles derivam entra no mesmo tique. O
 :class:`~motor.caminho.Caminho` mede em que canal o jogo escreve, e o vencedor de um canal ocupado
 só sai quando é mais forte que o jogo; quando a porta não toca háptica, a saída o diz por
@@ -331,6 +332,18 @@ class Motor:
         numeros = {int(p[1:]) for p in para}
         return tuple(sorted(u for u, j in self.jogadores.items() if j in numeros))
 
+    def _alvos_de_agora(self, ativa: Ativacao) -> tuple[str, ...]:
+        """Os controles que o efeito alcança no tique: o efeito que vale enquanto a regra vale
+        segue a mesa (o controle que liga, sai, volta ou troca de número depois do início entra e
+        sai com ele); o evento e o efeito com prazo ficam com quem era alvo no disparo, e o
+        ``quem_levou`` é de quem levou."""
+        if ativa.regra == REGRA_DO_TESTE or ativa.fim_ms is not None:
+            return ativa.alvos
+        regra = self.receita.regras[ativa.regra]
+        if regra.get("para", "todos") == "quem_levou" and not ajustes.para_todos(self.opcoes):
+            return ativa.alvos
+        return self._alvos(regra, ativa.regra)
+
     def _dura(self, nome: str, efeito: dict[str, Any]) -> float | None:
         """O ``dura_ms`` do efeito, número ou expressão das entradas; ``None`` sem ele."""
         if "dura_ms" not in efeito:
@@ -447,7 +460,7 @@ class Motor:
                       else int(self.receita.regras[ativa.regra].get("prioridade", 0)))
         montados: dict[float, tuple[float, dict[str, Any], list[str]] | None] = {}
         pedidos: list[Pedido] = []
-        for uniq in ativa.alvos:
+        for uniq in self._alvos_de_agora(ativa):
             if not self._sente(uniq, canal):
                 continue
             forca_do_controle, volume_do_controle = self.niveis.get(uniq, (1.0, 1.0))
@@ -496,6 +509,8 @@ class Motor:
             lado = efeito.get("lado", "ambos")
             lados = ["esquerdo", "direito"] if lado == "ambos" else [lado]
         elif canal == "gatilho":
+            if self._tipo(efeito) == catalogo.SOLTO:
+                return None
             efeito = catalogo.gatilho_na_escala(efeito, escala)
             forca = catalogo.forca_do_gatilho(efeito)
             params["trigger"] = (catalogo.trigger_do_tipo(self._tipo(efeito), efeito)
