@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# CADA-EXTENSAO-CONFERE-A-PROPRIA-VERSAO-NO-CI-01: a extensão roda os próprios testes e o conferidor
+# contra o Hefesto do `main`, a cada push e toda segunda-feira, e fica vermelha quando o Hefesto muda
+# o que ela lê. O Hefesto entra pelo PYTHONPATH, sem instalar o pacote.
+jobs:
+  extensao:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensao
+      - uses: actions/checkout@v7
+        with:
+          repository: Hefesto-Team/hefesto-dualsense4unix
+          ref: main
+          path: hefesto
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Dependências do Hefesto e dos testes
+        run: python -m pip install pytest pydantic structlog PyYAML platformdirs filelock numpy ruff==0.16.10 mypy==2.3.1
+      - name: Testes da extensão contra o Hefesto do main
+        working-directory: extensao
+        env:
+          PYTHONPATH: ${{ github.workspace }}/hefesto/src
+        run: python -m pytest testes
+      - name: O conferidor do Hefesto (versão, licença, README e leitor)
+        run: python hefesto/scripts/conferir_as_extensoes.py extensao
