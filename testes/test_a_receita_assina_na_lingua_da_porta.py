@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ from apoio import RAIZ
 
 import servidor
 from receita import formato
+from receita.biblioteca import Biblioteca
 from receita.formato import ReceitaRecusada, ler_receita
 
 porta_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.porta")
@@ -137,6 +139,23 @@ def test_a_assinatura_recusada_vai_ao_diario_uma_vez_e_os_outros_topicos_ficam_a
     diario = capsys.readouterr().err
     assert diario.count("recusou a assinatura de jogo.memoria: recusa forçada") == 1
 
+
+def test_a_recusa_se_diz_de_novo_quando_a_receita_volta_a_valer(
+        tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "receitas").mkdir()
+    (tmp_path / "receitas" / "jogo.json").write_text(json.dumps(RECEITA), encoding="utf-8")
+    porta = PortaQueConfere(recusa="jogo.memoria")
+    biblioteca = Biblioteca(RAIZ / "receitas" / "estudadas", tmp_path, servidor.carregar_o_universal)
+    extensao = servidor.Extensao(porta, servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                 biblioteca, tmp_path)
+
+    async def corpo() -> None:
+        for jogo in (RECEITA["jogo"]["chave"], None, RECEITA["jogo"]["chave"]):
+            extensao.jogo = jogo
+            await extensao.escolher()
+
+    asyncio.run(corpo())
+    assert capsys.readouterr().err.count("recusou a assinatura de jogo.memoria: recusa forçada") == 2
 
 def test_a_memoria_que_muda_com_a_receita_se_assina_de_novo_com_a_leitura_nova() -> None:
     porta = PortaQueConfere()
