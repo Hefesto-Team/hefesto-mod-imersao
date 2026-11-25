@@ -2,10 +2,11 @@
 
 ## Na próxima versão
 
-- A busca das receitas da comunidade recua quando falha: depois de uma falha do índice espera 1 h, depois 6 h e
-  por fim um dia, com uma linha no diário por espera, e o índice que vem zera a espera. Em «Sempre o universal» a
-  extensão não busca nem diz à rede qual jogo está aberto. O jogo que abre durante a busca do anterior ganha a busca
-  dele ao fim dela, e o índice guardado que não fecha a assinatura deixa de apagar a receita já baixada.
+- A busca das receitas da comunidade recua quando falha: depois de uma falha, no índice ou na receita do jogo,
+  espera 1 h, depois 6 h e por fim um dia sem ir à rede, com uma linha no diário por espera, e a busca que dá
+  certo zera a espera. Em «Sempre o universal» a extensão não busca nem diz à rede qual jogo está aberto. O jogo
+  que abre durante a busca do anterior ganha a busca dele ao fim dela, e o índice guardado que não fecha a
+  assinatura deixa de apagar a receita já baixada.
 - A chave «Memória neste jogo» só aparece no cartão «O que ele escuta» quando a receita que vale lê a memória ou
   quando a chave já está ligada no jogo aberto, para o leitor que entra na frente do jogo não ficar sem onde desligar.
   Sem ajuste que leia a memória, quem abre um jogo online não vê a chave.

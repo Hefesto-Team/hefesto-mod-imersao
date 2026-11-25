@@ -4,9 +4,9 @@ O repositório ``hefesto-receitas-imersao`` guarda uma receita por arquivo em
 ``steam/<chave>/<nome>.json`` e publica o ``indice.json`` com a assinatura ao lado
 (``indice.json.minisig``, no formato do minisign: Ed25519 sobre o BLAKE2b-512 do arquivo, com o
 comentário de confiança assinado junto). A :class:`Comunidade` baixa o índice uma vez por dia (ou
-no «Procurar receitas»; depois de uma falha espera 1 h, 6 h e um dia, e o índice que vem zera a espera),
-confere a assinatura com a :data:`CHAVE_PUBLICA` que vem na extensão, e
-só depois baixa a receita do jogo aberto, que tem de bater com o tamanho e a soma SHA-256 do
+no «Procurar receitas»; depois de uma busca que falha espera 1 h, 6 h e um dia, e a que dá certo
+zera a espera), confere a assinatura com a :data:`CHAVE_PUBLICA` que vem na extensão, e só depois
+baixa a receita do jogo aberto, que tem de bater com o tamanho e a soma SHA-256 do
 índice e passar de novo pelo validador. A receita que lê a memória espera a chave «Memória neste
 jogo» do Hefesto, a mesma das outras receitas, com o aviso de anticheat dele.
 
@@ -293,16 +293,13 @@ class Comunidade:
         return self.dados / PASTA_DO_INDICE
 
     def _no_recuo(self) -> bool:
-        """Se a última falha do índice ainda está dentro da espera dela."""
+        """Se a última busca que falhou ainda está dentro da espera dela."""
         if not self._falhas:
             return False
         return self._relogio() - self._falhou_em < RECUOS_S[min(self._falhas, len(RECUOS_S)) - 1]
 
     def vencido(self) -> bool:
-        """Se o índice guardado passou de um dia, ou ainda não veio, e a falha de antes já cumpriu
-        a espera dela."""
-        if self._no_recuo():
-            return False
+        """Se o índice guardado passou de um dia, ou ainda não veio."""
         try:
             marca = (self.pasta_do_indice / ARQUIVO_DO_INDICE).stat().st_mtime
         except OSError:
@@ -322,19 +319,12 @@ class Comunidade:
         return self.indice_conferido() or []
 
     def atualizar_o_indice(self) -> list[Entrada]:
-        """Baixa o índice e a assinatura; só grava o que fecha com a chave pública. A falha começa
-        ou alonga a espera de :data:`RECUOS_S`, e o índice que vem a zera."""
-        try:
-            bruto = self.baixar(ENDERECO + ARQUIVO_DO_INDICE, TETO_DO_INDICE)
-            minisig = self.baixar(ENDERECO + ARQUIVO_DA_ASSINATURA, TETO_DA_ASSINATURA)
-            entradas = ler_o_indice(bruto, minisig, self.chave_publica)
-        except (OSError, ValueError):
-            self._falhas += 1
-            self._falhou_em = self._relogio()
-            raise
+        """Baixa o índice e a assinatura; só grava o que fecha com a chave pública."""
+        bruto = self.baixar(ENDERECO + ARQUIVO_DO_INDICE, TETO_DO_INDICE)
+        minisig = self.baixar(ENDERECO + ARQUIVO_DA_ASSINATURA, TETO_DA_ASSINATURA)
+        entradas = ler_o_indice(bruto, minisig, self.chave_publica)
         _gravar(self.pasta_do_indice / ARQUIVO_DA_ASSINATURA, minisig)
         _gravar(self.pasta_do_indice / ARQUIVO_DO_INDICE, bruto)
-        self._falhas = 0
         return entradas
 
     def entrada_do_jogo(self, chave: str, entradas: list[Entrada] | None = None) -> Entrada | None:
@@ -371,22 +361,35 @@ class Comunidade:
             (self.dados / PASTA_DA_COMUNIDADE / f"{chave}.json").unlink()
 
     def procurar(self, chave: str | None, agora: bool = False) -> dict[str, Any]:
-        """O «Procurar receitas» (``agora``) ou a volta diária, para o jogo ``chave``."""
+        """O «Procurar receitas» (``agora``) ou a volta diária, para o jogo ``chave``. A busca que
+        falha, no índice ou na receita, começa ou alonga a espera de :data:`RECUOS_S`, em que só o
+        ``agora`` vai à rede, e a que dá certo a zera."""
+        if not agora and self._no_recuo():
+            return {"tipo": "procurado", "achou": False}
         try:
-            entradas = self.indice_conferido()
-            if agora or self.vencido() or (entradas is None and not self._no_recuo()):
-                entradas = self.atualizar_o_indice()
-            if chave is None or not CHAVE_DE_JOGO.match(chave) or entradas is None:
-                return {"tipo": "procurado", "achou": False}
-            entrada = self.entrada_do_jogo(chave, entradas)
-            if entrada is None:
-                self.esquecer(chave)
-                return {"tipo": "procurado", "achou": False}
-            nova = self.baixar_a_receita(entrada)
+            resultado = self._procurar(chave, agora)
         except (AssinaturaRecusada, ReceitaDaComunidadeRecusada) as exc:
-            return {"tipo": "recusado", "frase": str(exc)}
+            resultado = {"tipo": "recusado", "frase": str(exc)}
         except (OSError, ValueError) as exc:
-            return {"tipo": "erro", "frase": "as receitas da comunidade não vieram",
-                    "detalhe": str(exc)}
+            resultado = {"tipo": "erro", "frase": "as receitas da comunidade não vieram",
+                         "detalhe": str(exc)}
+        if resultado["tipo"] == "procurado":
+            self._falhas = 0
+        else:
+            self._falhas += 1
+            self._falhou_em = self._relogio()
+        return resultado
+
+    def _procurar(self, chave: str | None, agora: bool) -> dict[str, Any]:
+        entradas = self.indice_conferido()
+        if agora or entradas is None or self.vencido():
+            entradas = self.atualizar_o_indice()
+        if chave is None or not CHAVE_DE_JOGO.match(chave):
+            return {"tipo": "procurado", "achou": False}
+        entrada = self.entrada_do_jogo(chave, entradas)
+        if entrada is None:
+            self.esquecer(chave)
+            return {"tipo": "procurado", "achou": False}
+        nova = self.baixar_a_receita(entrada)
         return {"tipo": "procurado", "achou": True, "nova": nova, "nome": entrada.nome,
                 "memoria": entrada.memoria}

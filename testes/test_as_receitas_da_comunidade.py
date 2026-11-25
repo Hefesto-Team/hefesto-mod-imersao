@@ -440,3 +440,18 @@ def test_o_indice_guardado_ilegivel_nao_apaga_a_receita_ja_baixada(tmp_path: Pat
     assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()
     assert _comunidade(tmp_path, Repositorio({})).procurar(JOGO, agora=True)["achou"] is False
     assert not (tmp_path / "comunidade" / f"{JOGO}.json").exists()
+
+
+def test_sem_rede_a_receita_que_o_indice_lista_e_falta_no_disco_tambem_espera(
+        tmp_path: Path) -> None:
+    rede = _Rede(Repositorio({ARQUIVO: _receita()}), no_ar=True)
+    agora = [time.time()]
+    aqui = Comunidade(tmp_path, rede.baixar, PUBLICA, lambda: agora[0])
+    aqui.atualizar_o_indice()
+    rede.no_ar = False
+    assert [aqui.procurar(JOGO)["tipo"] for _ in range(3)] == ["erro", "procurado", "procurado"]
+    assert rede.pedidos == ["indice.json", "indice.json.minisig", ARQUIVO]
+    agora[0] += RECUOS_S[0]
+    rede.no_ar = True
+    assert aqui.procurar(JOGO)["achou"] is True
+    assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()
