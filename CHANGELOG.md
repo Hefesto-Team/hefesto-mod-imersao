@@ -2,6 +2,11 @@
 
 ## Na próxima versão
 
+- A receita que lê a memória do jogo ou uma região da tela passa a assinar na língua do Hefesto: a leitura
+  vai com o endereço e a faixa do `buildid`, a região com a cor, e uma recusa da assinatura vai ao diário uma vez
+  por receita, sem derrubar os outros tópicos nem a extensão ao nascer. O formato pede a `cor` da região e
+  aceita o `hz` da leitura; a leitura tem até 7 `saltos`. O tópico `bateria`, que nenhuma receita lê e a extensão
+  não assina, sai do formato: a receita que o pede é recusada com a linha.
 - No Minecraft Dungeons II o R2 passa a ter a resistência de arco ao puxar enquanto o jogo está aberto, em
   cada controle: o impacto do golpe toca por cima e, ao acabar, o arco volta. A opção «R2 ao puxar», no
   cartão «Impacto nos gatilhos», escolhe o efeito (a lista dos gatilhos e «Solto», que deixa o gatilho

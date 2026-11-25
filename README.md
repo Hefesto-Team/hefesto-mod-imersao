@@ -66,7 +66,9 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto.
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
   (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
-  porta ainda não entrega vai ao diário, e o sentido dele fica parado.
+  porta ainda não entrega vai ao diário, e o sentido dele fica parado. Os tópicos sem parâmetro se assinam num
+  pedido só; o `jogo.memoria` leva o `memoria` (as leituras e a faixa do `buildid`) e o `jogo.tela` leva o `tela`
+  (as regiões), cada um no seu pedido: a recusa de um vai ao diário uma vez por receita e não derruba os outros.
 - Os sentidos universais (`sentidos/`) leem a porta e o tempo e publicam no próprio tópico, que a
   receita lê como lê a porta: `sentido.som` (o estalo do jogo, com o lado), `sentido.rumble`
   (pulso, rajada e batimento do motor e da háptica do jogo, pelo mais forte dos dois; os níveis
@@ -105,7 +107,7 @@ gramática recusam, sempre com a linha.
 | `jogo` | `chave`, `janela`, `builds{steam_buildid}`, `leitura_de_memoria` (`nao`, `nunca` ou `pede`) |
 | `permissoes` | o que a receita lê (`ler:<tópico>`); o sentido que lê sem declarar recusa |
 | `entradas` | `deslizante`, `ligado` ou `cor` da pessoa (`$nome` nas expressões; a cor só na `cor` da luz) |
-| `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar` |
+| `sentidos` | o que chega da porta: `nivel`, `estado` ou `evento`, com `campo` (o caminho no evento, com o índice da lista: `pedido.1` é o forte do `jogo.vibracao`), `igual`, `escala`, `limiar`; o de `jogo.memoria` traz a `leitura` (`tipo`, `modulo`, `base`, até 7 `saltos`, `hz` de 0,1 a 30) e o nível de `jogo.tela` traz a `regiao` (`x`, `y`, `w`, `h` em fração da tela, `cor` `[r, g, b]` obrigatória e `tolerancia` de 0 a 255); até 64 leituras e 8 regiões |
 | `derivados` | uma expressão, ou um acumulador (`sobe_com`, `passo`, `meia_vida_ms`) |
 | `estados` | `quando`, `histerese`, `minimo_ms` |
 | `efeitos` | `motor`, `gatilho`, `luz`, `haptica` (`coracao`, `susto`, `estalo`; o padrão que não se repete, com `dura_ms`, se estica até ela com a mesma forma), `som` (`susto`, `estalo` ou o `recorte` do estalo do jogo, com `dura_ms` de 50 a 5000 no recorte), `leds` (as luzes de jogador do lado, até 600 ms), `mira` (o `ganho` do giroscópio, de 0,3 a 1, pelo `mira.peso`); `forca`, `volume`, `bpm`, `ganho` e o `dura_ms` da háptica e do som aceitam expressão |

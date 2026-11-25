@@ -35,11 +35,13 @@ COR_DA_ENTRADA = re.compile(r"^\$[a-z][a-z0-9_]*$")
 HEXA = re.compile(r"^0x[0-9a-fA-F]{1,16}$")
 BASE64 = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
 TETO_DA_IMPRESSAO = 4096
+LEITURAS_POR_RECEITA = 64
+REGIOES_POR_RECEITA = 8
 ANCORAS = ("canto_sup_esq", "canto_sup_dir", "canto_inf_esq", "canto_inf_dir")
 _CLAUSULA = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+)$")
 
 TOPICOS_POR_CONTROLE = (
-    "conexao", "entradas", "botoes", "movimento", "bateria",  # (noqa-acento)
+    "conexao", "entradas", "botoes", "movimento",  # (noqa-acento)
     "jogo.vibracao", "jogo.gatilho", "jogo.haptica", "microfone.nivel",
 )
 TOPICOS_GLOBAIS = ("perfil.jogo", "jogo.som", "jogo.tela", "jogo.memoria", "jogo.identidade")
@@ -328,7 +330,8 @@ _LEITURA = estrito(
     tipo=Texto(escolhas=("u8", "i8", "u16", "i16", "u32", "i32", "f32", "f64")),
     modulo=Texto(120),
     base=Texto(18, HEXA),
-    saltos=Lista(Texto(18, HEXA), 8),
+    saltos=Lista(Texto(18, HEXA), 7),
+    hz=Real(0.1, 30.0),
 )
 
 _IMPRESSAO = estrito(
@@ -340,8 +343,10 @@ _IMPRESSAO = estrito(
 )
 
 _REGIAO = estrito(
-    ("x", "y", "w", "h"),
+    ("x", "y", "w", "h", "cor"),
     ancora=Texto(escolhas=ANCORAS),
+    cor=Lista(Inteiro(0, 255), 3, minimo=3),
+    tolerancia=Inteiro(0, 255),
     x=Real(0.0, 1.0),
     y=Real(0.0, 1.0),
     w=Real(0.0, 1.0),
@@ -533,6 +538,53 @@ class Receita:
     def vazia(self) -> bool:
         return not self.secao("sentidos") and not self.regras
 
+    def pedido_do_topico(self, topico: str) -> dict[str, Any]:
+        """O que a porta pede junto da assinatura (e do ``tela.ver``) do tópico: o ``memoria`` do
+        ``jogo.memoria`` e o ``tela`` do ``jogo.tela``; vazio nos demais e sem leitura declarada."""
+        if topico == "jogo.memoria" and (memoria := self.memoria_para_a_porta()):
+            return {"memoria": memoria}
+        if topico == "jogo.tela" and (tela := self.tela_para_a_porta()):
+            return {"tela": tela}
+        return {}
+
+    def memoria_para_a_porta(self) -> dict[str, Any] | None:
+        """O ``memoria`` que a porta pede para assinar ``jogo.memoria``, ``{entradas, faixa}``: cada
+        ``leitura`` vira a entrada da porta (o nome do sentido, o módulo, o ``tipo``, o ``hz`` se
+        houver e a ``cadeia_de_ponteiros`` com a base e os saltos) e o ``jogo.builds`` vira a
+        faixa ``{min, max}``; sem leitura, ``None``."""
+        entradas = []
+        for nome, sentido in self.secao("sentidos").items():
+            leitura = sentido.get("leitura")
+            if leitura is None:
+                continue
+            cadeia = [int(x, 16) for x in (leitura["base"], *leitura.get("saltos", ()))]
+            entrada = {"nome": nome, "tipo": leitura["tipo"], "cadeia_de_ponteiros": cadeia,
+                       "modulo": leitura["modulo"]}  # (noqa-acento)
+            if "hz" in leitura:
+                entrada["hz"] = leitura["hz"]
+            entradas.append(entrada)
+        if not entradas:
+            return None
+        builds = self.dados.get("jogo", {}).get("builds", {}).get("steam_buildid")
+        faixa = {"min": int(builds[0]), "max": int(builds[1])} if builds else None
+        return {"entradas": entradas, "faixa": faixa}
+
+    def tela_para_a_porta(self) -> dict[str, Any] | None:
+        """O ``tela`` que a porta pede para assinar ``jogo.tela`` e para o ``tela.ver``,
+        ``{regioes}``: cada ``regiao`` vira ``{nome, x, y, largura, altura, cor, tolerancia?}``;
+        sem região, ``None``."""
+        regioes = []
+        for nome, sentido in self.secao("sentidos").items():
+            regiao = sentido.get("regiao")
+            if regiao is None:
+                continue
+            pedida = {"nome": nome, "x": regiao["x"], "y": regiao["y"], "largura": regiao["w"],
+                      "altura": regiao["h"], "cor": regiao["cor"]}
+            if "tolerancia" in regiao:
+                pedida["tolerancia"] = regiao["tolerancia"]
+            regioes.append(pedida)
+        return {"regioes": regioes} if regioes else None
+
 
 def receita_vazia() -> Receita:
     """A receita sem sentido nem regra: não toca nada."""
@@ -675,6 +727,11 @@ def _semantica(dados: dict[str, Any], erros: Erros) -> Receita:
         padrao = entrada["padrao"]  # (noqa-acento)
         if not _numero(padrao) or not entrada["minimo"] <= padrao <= entrada["maximo"]:  # (noqa-acento)
             erros.append(((*caminho, "padrao"), "o padrão fica fora da faixa do deslizante"))  # (noqa-acento)
+
+    for campo, teto, texto in (("leitura", LEITURAS_POR_RECEITA, "valores para ler"),
+                               ("regiao", REGIOES_POR_RECEITA, "regiões")):
+        if sum(campo in s for s in sentidos.values()) > teto:
+            erros.append((("sentidos",), f"a receita declara até {teto} {texto}"))
 
     for ident, sentido in sentidos.items():
         caminho = ("sentidos", ident)

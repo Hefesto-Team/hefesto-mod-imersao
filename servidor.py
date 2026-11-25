@@ -506,6 +506,8 @@ class Extensao:
                                    contar=self.contar)
         self.conta = ContaDoMinuto()
         self.assinados: set[str] = set()
+        self._assinado_com: dict[str, dict[str, Any]] = {}
+        self._recusas_ditas: set[tuple[tuple[str, ...], str]] = set()
         self.comunidade = comunidade
         self.procurando: asyncio.Task[dict[str, Any]] | None = None
         self.memoria_vale = False
@@ -535,18 +537,37 @@ class Extensao:
 
     async def assinar(self) -> None:
         """Assina o que a receita de agora lê e ainda não estava assinado, e solta o tópico cuja
-        chave a janela desligou."""
+        chave a janela desligou ou cujo pedido a receita mudou. Os tópicos sem parâmetro vão num
+        pedido só; o que leva ``memoria`` ou ``tela`` vai num pedido por tópico, com as leituras da
+        receita na língua da porta, e a recusa de um não derruba os outros."""
         querem = topicos_assinados(self.receita, self.opcoes)
         if self.vendo and ajustes.TOPICO_DA_TELA not in querem:
             querem.append(ajustes.TOPICO_DA_TELA)
-        faltam = [t for t in querem if t not in self.assinados]
-        if faltam:
-            await self.porta.pedir("eventos.assinar", {"topicos": faltam})
-            self.assinados |= set(faltam)
-        sobram = sorted(t for t in self.assinados if not ajustes.topico_ligado(t, self.opcoes))
+        pedidos = {t: self.receita.pedido_do_topico(t) for t in querem}
+        sobram = sorted({t for t in self.assinados if not ajustes.topico_ligado(t, self.opcoes)}
+                        | {t for t in querem if t in self.assinados
+                           and self._assinado_com.get(t) != pedidos[t]})
         if sobram:
             await self.porta.pedir("eventos.desassinar", {"topicos": sobram})
             self.assinados -= set(sobram)
+        faltam = [t for t in querem if t not in self.assinados]
+        await self._assinar([t for t in faltam if not pedidos[t]], {})
+        for topico in (t for t in faltam if pedidos[t]):
+            await self._assinar([topico], pedidos[topico])
+
+    async def _assinar(self, topicos: list[str], extra: dict[str, Any]) -> None:
+        if not topicos:
+            return
+        try:
+            await self.porta.pedir("eventos.assinar", {"topicos": topicos, **extra})
+        except RecusaDaPorta as exc:
+            marca = (tuple(topicos), str(exc))
+            if marca not in self._recusas_ditas:
+                self._recusas_ditas.add(marca)
+                diario(f"a porta recusou a assinatura de {', '.join(topicos)}: {exc}")
+            return
+        self.assinados |= set(topicos)
+        self._assinado_com.update(dict.fromkeys(topicos, extra))
 
     async def procurar(self, agora: bool = False) -> dict[str, Any]:
         """A receita da comunidade do jogo aberto; a nova vale no tique seguinte."""
@@ -822,6 +843,7 @@ class Extensao:
         if nova.marca == self.escolhida.marca and nova.receita.dados == self.receita.dados:
             return
         self.escolhida, self.receita = nova, nova.receita
+        self._recusas_ditas.clear()
         self.motor.trocar(nova.receita)
         diario(f"vale a receita {nova.arquivo or 'universal'} ({nova.rotulo})")
         if fora := topicos_fora_da_porta(nova.receita):
@@ -879,7 +901,7 @@ class Extensao:
             await self.parar_de_ver()
             return
         try:
-            await self.porta.pedir("tela.ver", {})
+            await self.porta.pedir("tela.ver", self.receita.pedido_do_topico("jogo.tela"))
         except RecusaDaPorta as exc:
             antes = self.tela
             self.tela = TELA_SEM_O_PEDIDO if exc.codigo == METODO_DESCONHECIDO else TELA_RECUSADA

@@ -152,10 +152,12 @@ def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diari
         pasta_curta: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str]) -> None:
     porta = PortaDeMentira()
-    receita = {"formato": 1, "motor": ">=1,<2", "permissoes": ["ler:bateria", "ler:botoes"],  # (noqa-acento)
-               "sentidos": {"carga": {"de": "bateria", "especie": "nivel", "campo": "nivel"},
+    receita = {"formato": 1, "motor": ">=1,<2", "permissoes": ["ler:microfone.nivel", "ler:botoes"],  # (noqa-acento)
+               "sentidos": {"voz": {"de": "microfone.nivel", "especie": "nivel", "campo": "nivel"},
                             "cruz": {"de": "botoes", "especie": "evento"}}}
     _subir(pasta_curta, porta, monkeypatch, json.dumps(receita).encode())
+    monkeypatch.setattr(servidor, "TOPICOS_DA_PORTA", tuple(
+        t for t in servidor.TOPICOS_DA_PORTA if t != "microfone.nivel"))
 
     async def corpo(extensao: servidor.Extensao) -> None:
         assert not extensao.receita.universal and not extensao.receita.vazia
@@ -163,7 +165,7 @@ def test_o_topico_que_a_porta_nao_entrega_fica_fora_da_assinatura_e_vai_ao_diari
     assert asyncio.run(_rodar(pasta_curta, porta, corpo)) == 0
     assert porta.de("eventos.assinar") == [{"topicos": ["conexao", "perfil.jogo", "botoes",  # (noqa-acento)
                                                        "jogo.estilo"]}]
-    assert "a porta não entrega bateria" in capsys.readouterr().err
+    assert "a porta não entrega microfone.nivel" in capsys.readouterr().err
 
 
 def test_sem_a_porta_no_ambiente_o_processo_recusa(monkeypatch: pytest.MonkeyPatch) -> None:
