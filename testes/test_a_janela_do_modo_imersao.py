@@ -10,6 +10,11 @@ import pytest
 from apoio import DOIS, QUATRO_CONTROLES, RAIZ, TRES, UM, EscritasDeMentira
 from test_a_receita_minecraft_dungeons_ii import LINHA_DO_GATILHO, _batimento
 from test_a_receita_minecraft_dungeons_ii import _motor as _dungeons
+from test_o_modo_imersao_usa_o_que_o_hefesto_entrega import (
+    QUALQUER,
+    _que_le_a_memoria,
+    _trocou,
+)
 from test_o_universal import (
     _correr,
     _motores,
@@ -486,3 +491,27 @@ def test_cada_efeito_e_um_cartao_com_o_tipo_dele_e_a_janela_pede_a_faixa_do_alto
     assert all(a["cartao"] in cartoes for a in manifesto["acoes"] if a["id"].startswith("testar_"))
     assert {o["cartao"] for o in manifesto["opcoes"] if o.get("marca") == "Terror"} == {
         "Coração", "Alívio", "Susto", "Clima tenso", "Peso da mira"}
+
+
+def test_a_chave_da_memoria_so_aparece_com_a_receita_que_le_ou_com_a_chave_ja_ligada() -> None:
+    """D-2511-A-CHAVE-DA-MEMORIA-SO-APARECE-QUANDO-A-RECEITA-LE-OU-JA-ESTA-LIGADA: cada caso."""
+    manifesto_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.manifesto")
+    opcoes_do_hefesto = pytest.importorskip("hefesto_dualsense4unix.mods.opcoes")
+    lido = manifesto_do_hefesto.ler_manifesto(RAIZ)
+
+    def aparece(extensao: servidor.Extensao) -> bool:
+        return "memoria" in opcoes_do_hefesto.aparecem(lido, _padroes(), extensao.presentes())
+
+    universal = servidor.Extensao(_Porta(), servidor.carregar_o_universal())  # type: ignore[arg-type]
+    que_le = servidor.Extensao(_Porta(), _que_le_a_memoria())  # type: ignore[arg-type]
+    assert not aparece(universal)
+    assert aparece(que_le)
+
+    async def corpo() -> list[bool]:
+        vistos = []
+        for jogo, memoria in ((QUALQUER, True), (QUALQUER, False), (None, False)):
+            await universal.ao_evento(_trocou(jogo, memoria))
+            vistos.append(aparece(universal))
+        return vistos
+
+    assert asyncio.run(corpo()) == [True, False, False]

@@ -2,6 +2,9 @@
 
 ## Na próxima versão
 
+- A chave «Memória neste jogo» só aparece no cartão «O que ele escuta» quando a receita que vale lê a memória ou
+  quando a chave já está ligada no jogo aberto, para o leitor que entra na frente do jogo não ficar sem onde desligar.
+  Sem ajuste que leia a memória, quem abre um jogo online não vê a chave.
 - A receita que lê a memória do jogo ou uma região da tela passa a assinar na língua do Hefesto: a leitura
   vai com o endereço e a faixa do `buildid`, a região com a cor, e uma recusa da assinatura vai ao diário uma vez
   por receita, sem derrubar os outros tópicos nem a extensão ao nascer. O formato pede a `cor` da região e

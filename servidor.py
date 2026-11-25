@@ -95,6 +95,7 @@ TETO_DAS_LINHAS = 6
 TETO_DO_ROTULO = 20
 TETO_DO_VALOR = 40
 TETO_DOS_PRESENTES = 32
+PRESENTE_DA_MEMORIA = "le_a_memoria"
 PREFIXO_DO_CANAL = "canal."
 NOMES_DOS_SENTIDOS = (
     (("sentido.som", "jogo.som"), "som"),
@@ -628,10 +629,12 @@ class Extensao:
 
     def presentes(self) -> list[str]:
         """Os ``presentes`` do estado: o Som no corpo e os Gatilhos que vibram, que tocam em todo
-        estilo, e o que a receita de agora tem."""
+        estilo, o que a receita de agora tem e o ``le_a_memoria``, que a chave «Memória neste
+        jogo» pede: a receita que vale lê a memória ou a chave já está ligada no jogo em cena."""
         corpo = [n for n in (ajustes.SOM_NO_CORPO, ajustes.GATILHOS_QUE_VIBRAM)
                  if n not in self.motor.sem_do_estilo]
-        nomes = [*corpo, *presentes_da_receita(self.receita)]
+        memoria = [PRESENTE_DA_MEMORIA] if self._le_a_memoria() or self.memoria_vale else []
+        nomes = [*memoria, *corpo, *presentes_da_receita(self.receita)]
         return list(dict.fromkeys(nomes))[:TETO_DOS_PRESENTES]
 
     def fechar_o_minuto(self) -> None:

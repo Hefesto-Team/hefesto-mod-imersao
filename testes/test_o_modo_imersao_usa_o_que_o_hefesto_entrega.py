@@ -244,7 +244,8 @@ def test_a_janela_mostra_so_o_efeito_que_a_receita_tem_e_a_chave_da_memoria() ->
     for efeito in EFEITOS_DO_UNIVERSAL - {"peso_da_mira"}:
         assert efeito not in efeitos([p for p in universal if p != efeito]), efeito
     assert "cor_do_dano" not in efeitos(universal, {**padroes, "luz_do_dano": False})
-    assert "memoria" in opcoes_do_hefesto.aparecem(lido, padroes, [])
+    assert "memoria" not in opcoes_do_hefesto.aparecem(lido, padroes, universal)
+    assert "memoria" in opcoes_do_hefesto.aparecem(lido, padroes, [servidor.PRESENTE_DA_MEMORIA])
 
 
 def test_o_nome_de_cada_canal_no_agora_e_o_rotulo_da_chave_dele() -> None:

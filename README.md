@@ -63,7 +63,8 @@ sentidos  →  derivados  →  estados  →  regras  →  efeitos  →  a porta
   em cada canal e por que algo não tocou (o motivo que a porta devolve, ou o jogo mais forte no
   canal).
 - O `jogo.memoria` só chega ao motor com a «Memória neste jogo» ligada (o `memoria` do
-  `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto.
+  `perfil.trocou`), em toda receita; no jogo com anticheat, o aviso é o do Hefesto. A chave só aparece quando a
+  receita que vale lê a memória ou quando já está ligada no jogo aberto (o `presente` `le_a_memoria`).
 - Assina os tópicos que a receita lê, o que o jogo escreve nos canais em que ela escreve
   (`jogo.vibracao`, `jogo.haptica`, `jogo.gatilho`), a `conexao` e o `perfil.jogo`; o tópico que a receita lê e a
   porta ainda não entrega vai ao diário, e o sentido dele fica parado. Os tópicos sem parâmetro se assinam num
