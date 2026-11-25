@@ -158,7 +158,7 @@ Em `receitas/estudadas/`, uma por jogo, valem quando o jogo abre e quem joga nã
 ## As receitas da comunidade
 
 Moram no repositório `hefesto-receitas-imersao` (as receitas são CC0). A extensão baixa o índice
-uma vez por dia, e só o aceita com a assinatura que fecha com a chave
+uma vez por dia (depois de uma falha espera 1 h, 6 h e um dia, e em «Sempre o universal» não busca), e só o aceita com a assinatura que fecha com a chave
 pública dela; depois baixa só a receita do jogo aberto, que tem de bater com a soma do índice e
 passar no validador. Vale a sua, depois a estudada, depois a da comunidade. A receita que lê a
 memória diz isso na faixa do alto, e espera a «Memória neste jogo» da aba Sentir.

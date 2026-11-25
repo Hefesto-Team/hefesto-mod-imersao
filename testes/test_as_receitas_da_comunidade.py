@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,9 +19,11 @@ import pytest
 from apoio import RAIZ
 
 import comunidade
+import opcoes as ajustes
 import servidor
 from comunidade import (
     ENDERECO,
+    RECUOS_S,
     UM_DIA_S,
     AssinaturaRecusada,
     Comunidade,
@@ -306,3 +310,133 @@ def test_sem_internet_a_receita_baixada_fica_e_a_tela_nao_ve_o_erro_cru(tmp_path
     assert resultado["tipo"] == "erro" and "Errno" not in resultado["frase"]
     assert "Errno" in resultado["detalhe"]
     assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()
+
+
+class _Rede:
+    """O servidor de mentira: o endereço pedido e se ele responde (``404``) ou serve o repositório."""
+
+    def __init__(self, repositorio: Repositorio | None = None, no_ar: bool = False) -> None:
+        self.repositorio = repositorio
+        self.no_ar = no_ar
+        self.pedidos: list[str] = []
+
+    def baixar(self, endereco: str, teto: int) -> bytes:
+        self.pedidos.append(endereco.removeprefix(ENDERECO))
+        if not self.no_ar or self.repositorio is None:
+            raise OSError("HTTP Error 404: Not Found")
+        return self.repositorio.baixar(endereco, teto)
+
+
+def test_a_falha_do_indice_da_espera_crescente_e_o_indice_que_vem_zera_a_espera(
+        tmp_path: Path) -> None:
+    """D-2511-A-BUSCA-DAS-RECEITAS-RECUA-QUANDO-FALHA-E-RESPEITA-O-UNIVERSAL: o recuo da falha."""
+    rede = _Rede(Repositorio({ARQUIVO: _receita()}))
+    agora = [time.time()]
+    aqui = Comunidade(tmp_path, rede.baixar, PUBLICA, lambda: agora[0])
+
+    def tentar() -> str:
+        antes = len(rede.pedidos)
+        tipo = str(aqui.procurar(JOGO)["tipo"])
+        return f"{tipo}:{len(rede.pedidos) - antes}"
+
+    assert [tentar(), tentar(), tentar()] == ["erro:1", "procurado:0", "procurado:0"]
+    for espera in (RECUOS_S[0], RECUOS_S[1], RECUOS_S[2], RECUOS_S[2]):
+        agora[0] += espera - 1
+        assert tentar() == "procurado:0"
+        agora[0] += 1
+        assert tentar() == "erro:1"
+    rede.no_ar = True
+    agora[0] += RECUOS_S[-1]
+    assert tentar() == "procurado:3"
+    agora[0] += UM_DIA_S
+    rede.no_ar = False
+    assert tentar() == "erro:1"
+    agora[0] += RECUOS_S[0]
+    assert tentar() == "erro:1"
+
+
+def test_tres_jogos_seguidos_com_o_servidor_fora_fazem_um_pedido_e_uma_linha_no_diario(
+        tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rede = _Rede()
+    agora = [time.time()]
+    aqui = Comunidade(tmp_path, rede.baixar, PUBLICA, lambda: agora[0])
+
+    async def corpo() -> None:
+        extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                     None, tmp_path, aqui)
+        for _ in range(3):
+            await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": False}))
+            assert extensao.procurando is not None
+            await asyncio.wait_for(extensao.procurando, 5)
+        agora[0] += RECUOS_S[0]
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": False}))
+        assert extensao.procurando is not None
+        await asyncio.wait_for(extensao.procurando, 5)
+
+    asyncio.run(corpo())
+    assert rede.pedidos == ["indice.json", "indice.json"]
+    assert capsys.readouterr().err.count("as receitas da comunidade não vieram") == 2
+
+
+def test_em_sempre_o_universal_nao_se_busca_e_ao_voltar_ao_jogo_a_busca_sai(
+        tmp_path: Path) -> None:
+    rede = _Rede(Repositorio({ARQUIVO: _receita()}), no_ar=True)
+
+    async def corpo() -> None:
+        biblioteca = Biblioteca(RAIZ / "receitas" / "estudadas", tmp_path,
+                                servidor.carregar_o_universal)
+        extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                     biblioteca, tmp_path,
+                                     Comunidade(tmp_path, rede.baixar, PUBLICA))
+        extensao.opcoes = {**extensao.opcoes, ajustes.AJUSTE: ajustes.SEMPRE_O_UNIVERSAL}
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": False}))
+        assert extensao.procurando is None
+        assert rede.pedidos == []
+        extensao.dados = tmp_path
+        (tmp_path / "opcoes.json").write_text(json.dumps({ajustes.AJUSTE: ajustes.AUTOMATICO}))
+        await extensao.reler_as_opcoes()
+        busca: Any = extensao.procurando
+        assert busca is not None
+        await asyncio.wait_for(busca, 5)
+
+    asyncio.run(corpo())
+    assert rede.pedidos == ["indice.json", "indice.json.minisig", ARQUIVO]
+
+
+def test_o_jogo_que_abre_durante_a_busca_do_anterior_ganha_a_busca_dele(tmp_path: Path) -> None:
+    outro = "steam_app_900000005"
+    arquivo_do_outro = f"steam/{outro}/golpe-forte.json"
+    repositorio = Repositorio({ARQUIVO: _receita(), arquivo_do_outro: _receita(outro)})
+    entrou, liberar = threading.Event(), threading.Event()
+
+    def baixar(endereco: str, teto: int) -> bytes:
+        if not liberar.is_set():
+            entrou.set()
+            liberar.wait(5)
+        return repositorio.baixar(endereco, teto)
+
+    async def corpo() -> None:
+        extensao = servidor.Extensao(_Porta(), servidor.carregar_o_universal(),  # type: ignore[arg-type]
+                                     None, tmp_path, Comunidade(tmp_path, baixar, PUBLICA))
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": JOGO, "memoria": False}))
+        assert await asyncio.get_running_loop().run_in_executor(None, entrou.wait, 5)
+        await extensao.ao_evento(_evento("perfil.jogo", {"jogo": outro, "memoria": False}))
+        liberar.set()
+        assert extensao.procurando is not None
+        await asyncio.wait_for(extensao.procurando, 5)
+
+    asyncio.run(corpo())
+    assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()
+    assert (tmp_path / "comunidade" / f"{outro}.json").is_file()
+
+
+def test_o_indice_guardado_ilegivel_nao_apaga_a_receita_ja_baixada(tmp_path: Path) -> None:
+    repositorio = Repositorio({ARQUIVO: _receita()})
+    _comunidade(tmp_path, repositorio).procurar(JOGO, agora=True)
+    guardado = tmp_path / "indice-da-comunidade" / "indice.json"
+    guardado.write_bytes(guardado.read_bytes().replace(b"golpe-forte", b"golpe-fraco"))
+    aqui = Comunidade(tmp_path, _Rede().baixar, PUBLICA)
+    assert [aqui.procurar(JOGO)["tipo"], aqui.procurar(JOGO)["tipo"]] == ["erro", "procurado"]
+    assert (tmp_path / "comunidade" / f"{JOGO}.json").is_file()
+    assert _comunidade(tmp_path, Repositorio({})).procurar(JOGO, agora=True)["achou"] is False
+    assert not (tmp_path / "comunidade" / f"{JOGO}.json").exists()

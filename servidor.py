@@ -22,7 +22,7 @@ janela (``opcoes.py``) desassinam o tópico deles e calam o que escrevem. A tela
 segundo clique, o jogo que fecha ou a saída da extensão (``tela.parar``); o Hefesto que não conhece
 ``tela.ver`` vira a linha «Tela» da faixa, e nada se assina.
 A :class:`~comunidade.Comunidade` procura a receita do jogo aberto no índice assinado a cada jogo
-que abre (o índice se baixa uma vez por dia). A cada minuto em que houve jogo, uma linha do diário conta,
+que abre, salvo no «Sempre o universal» (o índice se baixa uma vez por dia, e a falha dá espera). A cada minuto em que houve jogo, uma linha do diário conta,
 por controle e pela cor do plástico, o que tocou em cada canal e por que algo não tocou
 (:class:`~motor.conta.ContaDoMinuto`). A porta lê a cor em fundo, depois da conexão, e a renomeia
 sem evento: a lista dos controles se pede de novo a cada :data:`RELE_OS_CONTROLES_S` enquanto um
@@ -585,8 +585,20 @@ class Extensao:
         return {**resultado, "origem": self.escolhida.rotulo}
 
     def procurar_em_fundo(self, agora: bool = False) -> None:
-        if self.comunidade is not None and (self.procurando is None or self.procurando.done()):
-            self.procurando = asyncio.create_task(self.procurar(agora))
+        """A busca da receita do jogo de agora, uma por vez: sem ela em «Sempre o universal», e a
+        em curso, ao acabar, busca o jogo que abriu enquanto ela rodava."""
+        if self.comunidade is None or (not agora and self.escolha == UNIVERSAL_SEMPRE):
+            return
+        if self.procurando is None or self.procurando.done():
+            self.procurando = asyncio.create_task(self._procurar_ate_o_jogo_de_agora(agora))
+
+    async def _procurar_ate_o_jogo_de_agora(self, agora: bool) -> dict[str, Any]:
+        while True:
+            buscado = self.jogo
+            resultado = await self.procurar(agora)
+            if self.jogo is None or self.jogo == buscado or self.escolha == UNIVERSAL_SEMPRE:
+                return resultado
+            agora = False
 
     def anotar(self, vencedores: dict[Vaga, Pedido]) -> None:
         """O último efeito que começou a tocar, com a hora em que começou."""
@@ -956,6 +968,8 @@ class Extensao:
         self.aplicar_o_estilo()
         if self.escolha != antes:
             await self.escolher()
+            if self.jogo is not None:
+                self.procurar_em_fundo()
         with contextlib.suppress(RuntimeError, ConnectionError, asyncio.TimeoutError):
             await self.assinar()
         await self.publicar_se_mudou()
