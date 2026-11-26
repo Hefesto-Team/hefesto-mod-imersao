@@ -431,7 +431,8 @@ def test_o_nivel_de_um_controle_nao_apaga_o_do_outro_e_a_regra_sobe_uma_vez() ->
     """Medido em 19/11/2026: um controle segurando o R2 e o outro só mexendo o analógico (r2 = 0)
     faziam a regra «r2 > 0.5» subir 150 vezes em 5 s, porque a leitura era uma só por sentido e o
     último evento de qualquer controle a sobrescrevia. Agora a regra vale pelo maior nível: sobe
-    uma vez, e o efeito vai uma vez a cada controle da mesa."""
+    uma vez, e o efeito vai uma vez a cada controle da mesa
+    (D-2511-A-REGRA-DE-NIVEL-VALE-PELO-MAIOR-ENTRE-OS-CONTROLES)."""
     motor, saida, escritas = _motor({
         "permissoes": ["ler:entradas"],  # (noqa-acento)
         "sentidos": {"r2": {"de": "entradas", "especie": "nivel", "campo": "r2",
@@ -475,12 +476,12 @@ def test_o_limiar_dispara_uma_borda_so_de_quem_cruzou_mesmo_com_o_outro_controle
         "regras": [{"quando": "golpe", "entao": "tranco", "para": "quem_levou"}],
     }, _DOIS)
     eventos: list[tuple[float, Evento]] = []
-    for k in range(20):
-        eventos.append((k * 100.0, ("jogo.vibracao", "jogo.vibracao", UM,
+    for k in range(6):
+        eventos.append((k * 400.0, ("jogo.vibracao", "jogo.vibracao", UM,
                                     vibracao_do_jogo(UM, 250))))
-        eventos.append((k * 100.0 + 50, ("jogo.vibracao", "jogo.vibracao", DOIS,
-                                         vibracao_do_jogo(DOIS, 10, jogador=2))))
-    _correr(motor, saida, escritas, 2500, eventos)
+        eventos.append((k * 400.0 + 200, ("jogo.vibracao", "jogo.vibracao", DOIS,
+                                          vibracao_do_jogo(DOIS, 10, jogador=2))))
+    _correr(motor, saida, escritas, 3000, eventos)
     assert _fortes(escritas) == [UM], "uma borda só, a de quem cruzou"
 
 
