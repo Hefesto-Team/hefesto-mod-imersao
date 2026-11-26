@@ -416,3 +416,85 @@ def test_o_dano_que_chega_com_o_efeito_ainda_vivo_escreve_de_novo_com_o_prazo_de
                     if p["uniq"] == uniq]
         assert gatilhos[:2] == [(0, "Weapon", 150), (100, "Weapon", 150)], uniq
         assert [m for _, m, _ in gatilhos[2:]] == ([] if devolve else ["Off"]), uniq
+
+
+_DOIS = [{"uniq": UM, "jogador": 1}, {"uniq": DOIS, "jogador": 2}]
+_TRANCO = {"tranco": {"canal": "motor", "forca": 1.0, "dura_ms": 200, "lado": "esquerdo"}}
+
+
+def _fortes(escritas: EscritasDeMentira) -> list[str]:
+    """Os controles que receberam uma escrita acima de zero, na ordem."""
+    return [p["uniq"] for _, p in escritas.de("vibracao.set") if p["forte"] > 0]
+
+
+def test_o_nivel_de_um_controle_nao_apaga_o_do_outro_e_a_regra_sobe_uma_vez() -> None:
+    """Medido em 19/11/2026: um controle segurando o R2 e o outro só mexendo o analógico (r2 = 0)
+    faziam a regra «r2 > 0.5» subir 150 vezes em 5 s, porque a leitura era uma só por sentido e o
+    último evento de qualquer controle a sobrescrevia. Agora a regra vale pelo maior nível: sobe
+    uma vez, e o efeito vai uma vez a cada controle da mesa."""
+    motor, saida, escritas = _motor({
+        "permissoes": ["ler:entradas"],  # (noqa-acento)
+        "sentidos": {"r2": {"de": "entradas", "especie": "nivel", "campo": "r2",
+                            "escala": [0, 255]}},
+        "efeitos": _TRANCO,
+        "regras": [{"quando": "r2 > 0.5", "entao": "tranco"}],
+    }, _DOIS)
+    eventos: list[tuple[float, Evento]] = [
+        (k * TIQUE, ("entradas", "controle.entradas", DOIS, {"r2": 0})) for k in range(300)]
+    eventos += [(k * 100.0, ("entradas", "controle.entradas", UM, {"r2": 255}))
+                for k in range(50)]
+    _correr(motor, saida, escritas, 5000, eventos)
+    assert sorted(_fortes(escritas)) == [UM, DOIS], "a regra sobe uma vez: uma escrita por controle"
+
+
+def test_o_controle_que_sai_da_mesa_leva_o_nivel_dele() -> None:
+    motor, saida, escritas = _motor({
+        "permissoes": ["ler:entradas"],  # (noqa-acento)
+        "sentidos": {"r2": {"de": "entradas", "especie": "nivel", "campo": "r2",
+                            "escala": [0, 255]}},
+        "estados": {"apertado": {"quando": "r2 > 0.5"}},
+        "efeitos": {"aperto": {"canal": "motor", "forca": 1.0, "lado": "esquerdo"}},
+        "regras": [{"quando": "apertado", "entao": "aperto"}],
+    }, _DOIS)
+    _correr(motor, saida, escritas, 200, [
+        (0, ("entradas", "controle.entradas", DOIS, {"r2": 255}))])
+    assert motor.leituras["r2"].valor == 1.0
+    motor.controles([{"uniq": UM, "jogador": 1}])
+    motor.passo(300)
+    assert motor.leituras["r2"].valor == 0.0, "o R2 do controle que saiu não segura a regra"
+
+
+def test_o_limiar_dispara_uma_borda_so_de_quem_cruzou_mesmo_com_o_outro_controle_baixo() -> None:
+    """O ``anterior`` do limiar era único: o segundo controle com valor baixo rearmava a borda, e
+    o evento disparava de novo a cada alternância."""
+    motor, saida, escritas = _motor({
+        "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
+        "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "pedido.1",
+                               "escala": [0, 255], "limiar": 0.5}},
+        "efeitos": _TRANCO,
+        "regras": [{"quando": "golpe", "entao": "tranco", "para": "quem_levou"}],
+    }, _DOIS)
+    eventos: list[tuple[float, Evento]] = []
+    for k in range(20):
+        eventos.append((k * 100.0, ("jogo.vibracao", "jogo.vibracao", UM,
+                                    vibracao_do_jogo(UM, 250))))
+        eventos.append((k * 100.0 + 50, ("jogo.vibracao", "jogo.vibracao", DOIS,
+                                         vibracao_do_jogo(DOIS, 10, jogador=2))))
+    _correr(motor, saida, escritas, 2500, eventos)
+    assert _fortes(escritas) == [UM], "uma borda só, a de quem cruzou"
+
+
+def test_dois_golpes_no_mesmo_tique_um_de_cada_controle_chegam_aos_dois() -> None:
+    """O ``uniq`` da leitura era único: de dois controles que disparavam o mesmo evento no mesmo
+    tique, só o último ficava em ``quem_levou``."""
+    motor, saida, escritas = _motor({
+        "permissoes": ["ler:jogo.vibracao"],  # (noqa-acento)
+        "sentidos": {"golpe": {"de": "jogo.vibracao", "especie": "evento", "campo": "pedido.1",
+                               "escala": [0, 255], "limiar": 0.5}},
+        "efeitos": _TRANCO,
+        "regras": [{"quando": "golpe", "entao": "tranco", "para": "quem_levou"}],
+    }, _DOIS)
+    _correr(motor, saida, escritas, 500, [
+        (0, ("jogo.vibracao", "jogo.vibracao", UM, vibracao_do_jogo(UM, 250))),
+        (0, ("jogo.vibracao", "jogo.vibracao", DOIS, vibracao_do_jogo(DOIS, 250, jogador=2)))])
+    assert sorted(_fortes(escritas)) == [UM, DOIS]

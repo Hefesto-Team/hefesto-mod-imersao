@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -47,6 +48,11 @@ _LADOS = {"esquerdo": -1.0, "direito": 1.0}
 
 @dataclass
 class Leitura:
+    """O que um sentido leu. As leituras de cada controle ficam em :attr:`por_controle` (a chave
+    ``None`` é a do evento sem controle, o dos sentidos universais da cena); os campos da própria
+    leitura são o que a receita enxerga: o maior nível, se algum controle disparou, a maior força
+    de quem disparou e o lado, o jogador e o instante do último evento lido."""
+
     valor: float = 0.0
     lado: float = 0.0
     forca: float = 0.0
@@ -55,6 +61,28 @@ class Leitura:
     disparou: bool = False
     anterior: float = 0.0
     t: float | None = None
+    por_controle: dict[str | None, Leitura] = field(default_factory=dict)
+    ultima: Leitura | None = None
+
+    def consolidar(self) -> None:
+        """Junta as leituras dos controles: o maior nível, o disparo de qualquer um e a maior
+        força entre os que dispararam; o resto é o do último evento."""
+        subs = list(self.por_controle.values())
+        self.valor = max((s.valor for s in subs), default=0.0)
+        self.disparou = any(s.disparou for s in subs)
+        if self.disparou:
+            self.forca = max(s.forca for s in subs if s.disparou)
+        if self.ultima is not None:
+            self.lado, self.jogador = self.ultima.lado, self.ultima.jogador
+            self.uniq, self.t = self.ultima.uniq, self.ultima.t
+
+    def esquecer(self, vivos: AbstractSet[str]) -> None:
+        """O controle que saiu da mesa leva a leitura dele."""
+        for uniq in [u for u in self.por_controle if u is not None and u not in vivos]:
+            if self.ultima is self.por_controle[uniq]:
+                self.ultima = None
+            del self.por_controle[uniq]
+        self.consolidar()
 
 
 @dataclass
@@ -176,6 +204,8 @@ class Motor:
         """Os controles conectados agora, ``[{uniq, jogador}]``."""
         self.jogadores = {c["uniq"]: int(c.get("jogador") or 0) for c in lista
                           if isinstance(c.get("uniq"), str)}
+        for leitura in self.leituras.values():
+            leitura.esquecer(self.jogadores.keys())
         self.acordar()
 
     def calar(self, uniqs: set[str] | frozenset[str]) -> None:
@@ -228,7 +258,7 @@ class Motor:
             if impressao is not None and not impressoes.reconhece(impressao,
                                                                  evento.dados.get("bandas")):
                 continue
-            leitura = self.leituras[ident]
+            geral = self.leituras[ident]
             valor = 1.0
             campo = _campo_do_sentido(ident, sentido)
             if campo is not None:
@@ -246,6 +276,7 @@ class Motor:
                 escala = sentido.get("escala")
                 if escala:
                     valor = min(1.0, max(0.0, (valor - escala[0]) / (escala[1] - escala[0])))
+            leitura = geral.por_controle.setdefault(evento.uniq, Leitura())
             marca = evento.dados.get("t")
             if isinstance(marca, (int, float)) and not isinstance(marca, bool):
                 leitura.t = float(marca)
@@ -255,6 +286,7 @@ class Motor:
             lado = evento.dados.get("lado")
             if lado in _LADOS:
                 leitura.lado = _LADOS[lado]
+            geral.ultima = leitura
             if sentido["especie"] != "evento":
                 leitura.valor = valor
                 continue
@@ -326,8 +358,9 @@ class Motor:
             quem: set[str] = set()
             for nome in expressao.nomes(no):
                 leitura = self.leituras.get(nome)
-                if leitura is not None and leitura.disparou and leitura.uniq is not None:
-                    quem.add(leitura.uniq)
+                if leitura is not None:
+                    quem |= {u for u, sub in leitura.por_controle.items()
+                             if sub.disparou and u is not None}
             return tuple(sorted(quem & self.jogadores.keys()))
         numeros = {int(p[1:]) for p in para}
         return tuple(sorted(u for u, j in self.jogadores.items() if j in numeros))
@@ -588,6 +621,8 @@ class Motor:
             self._proxima = None
         for leitura in self.leituras.values():
             leitura.disparou = False
+            for sub in leitura.por_controle.values():
+                sub.disparou = False
         fila, self._fila = self._fila, []
         for evento in fila:
             if evento.topico == "perfil.jogo":
@@ -601,6 +636,8 @@ class Motor:
         for ident, sentido in self.sentidos.items():
             if sentido["de"] in calados:
                 self.leituras[ident].valor = 0.0
+                for sub in self.leituras[ident].por_controle.values():
+                    sub.valor = 0.0
         derivados: list[universais.Derivado] = []
         for sentido in self.universais:
             derivados += sentido.tique(t_ms, self.jogadores, self.vibrando(t_ms))
@@ -614,6 +651,8 @@ class Motor:
                  if d.topico not in calados]
         for evento in fila:
             self._ler_evento(evento)
+        for leitura in self.leituras.values():
+            leitura.consolidar()
         self._calcular(t_ms)
         self._rodar_as_regras(t_ms)
         self.ativas = [a for a in self.ativas if a.fim_ms is None or t_ms < a.fim_ms]

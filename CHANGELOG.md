@@ -37,6 +37,11 @@
   Hefesto a sobe de novo. Uma linha enorme da porta ou um estilo torto no arquivo de opções não a
   derrubam.
 
+- O sentido que a receita lê guarda a leitura de cada controle. Com dois a quatro controles, o nível
+  de um não apaga o do outro (a regra vale pelo maior), o evento com limiar dispara uma borda só, a de
+  quem cruzou, e dois golpes no mesmo tique, um de cada controle, chegam aos dois. A regra «para quem
+  levou» sobre um nível vai a quem cumpre a condição.
+
 ## 0.5.6 (16/11/2026)
 
 - A janela perde a coluna «Agora»: no alto, uma faixa diz se a extensão está tocando, com o nome do
